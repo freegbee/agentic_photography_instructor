@@ -5,13 +5,14 @@ Agentic Photographer Instructor is a project idea for the CAS "Machine Learning 
 
 
 ## Project Structure
-- src: Source code for the project
-- test: testing resources and utilities
-- configs: Configuration files
-- data: Datasets (samples, not main dataset as it is not part of the python project)
-- resources: Additional resources (e.g., test images, documentation)
-- notebooks: Jupyter notebooks for experiments and analysis
-- end: Local, not-checked-in files (e.g. local overrides of configuration properties)
+- `src`: Source code for the project
+- `test`: testing resources and utilities
+- `configs`: Configuration files
+- `data`: Datasets (samples, not main dataset as it is not part of the python project)
+- `resources`: Additional resources (e.g., test images, documentation)
+- `temp_output`: Temporary output files (e.g., generated images)
+- `notebooks`: Jupyter notebooks for experiments and analysis
+- `env`: Local, not-checked-in files (e.g. local overrides of configuration properties)
 
 ### Source Code Structure (src)
 - types: Shared data types
