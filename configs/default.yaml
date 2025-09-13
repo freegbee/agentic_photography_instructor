@@ -1,0 +1,8 @@
+seed: 42
+
+resources:
+  dir: resources
+
+machine:
+  device: cpu
+  num_workers: 6
