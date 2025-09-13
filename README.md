@@ -19,6 +19,17 @@ Agentic Photographer Instructor is a project idea for the CAS "Machine Learning 
 - utils: utility functions
 - transformer: All transformer functionality, e.g. cropping, color enhancing etc.
 
+## Implementation
+### Transformers
+- Transformers are changing the opencv image (opencv image is a numpy array).
+- Each transformer must inherit from AbstractTransformer and implement the transform method.
+- Each transformer must declare the static properties label (str) and description (str).
+  - label ist a short, unique string. The labels are (part) the labels the NN will learn
+  - description is a longer description of the transformer.
+  - transformer_type is an enum of type TransformerTypeEnum which categorizes the transformer
+- Transformers can be derived from an abstract class "in the middle" that defines the transformer_type. In this case, the abstract class in the middle must be abstract as well. To ensure this, it needs to deklase a method as @abstractmethod (sic!)
+- Transformers will be autoregistered. To facilitate this, they need to be imported in `__init__.py` of their respective transformer package and exported.
+- All modules with concrete transformers need to be imported in `src/transformer/__init__.py` and exported.
 
 # Machine Learning Related Core Information
 - Aesthetic Predictor:

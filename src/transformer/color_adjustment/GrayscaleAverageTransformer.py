@@ -4,7 +4,7 @@ from transformer.color_adjustment.AbstractColorAdjustmentTransformer import Abst
 
 
 class GrayscaleAverageTransformer(AbstractColorAdjustmentTransformer):
-    label = "CA-GrayAvg"
+    label = "CA-GRAY-AVG"
     description = "Converts the image to grayscale by averaging the color channels."
 
     def transform(self, image: ndarray) -> ndarray:
