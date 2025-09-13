@@ -4,8 +4,9 @@ from transformer.cropping.AbstractCroppingTransformer import AbstractCroppingTra
 
 
 class CenterSquareCropTransformer(AbstractCroppingTransformer):
-    def __init__(self):
-        super().__init__("C1-1_Center", "Creates a squared image centered on the image center.")
+
+    label = "C1-1_Center"
+    description = "Creates a squared image centered on the image center."
 
     def transform(self, image: ndarray) -> ndarray:
         height, width = image.shape[:2]

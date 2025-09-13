@@ -1,7 +1,14 @@
+from abc import abstractmethod
+
+from numpy import ndarray
+
 from transformer.AbstractTransformer import AbstractTransformer
 from transformer.TransformerTypes import TransformerTypeEnum
 
 
 class AbstractColorAdjustmentTransformer(AbstractTransformer):
-    def __init__(self, label: str, description: str):
-        super().__init__(TransformerTypeEnum.COLOR_ADJUSTMENT, label, description)
+    transformer_type = TransformerTypeEnum.COLOR_ADJUSTMENT
+
+    @abstractmethod
+    def transform(self, data: ndarray) -> ndarray:
+        pass

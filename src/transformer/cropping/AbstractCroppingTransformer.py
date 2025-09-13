@@ -1,3 +1,7 @@
+from abc import abstractmethod
+
+from numpy import ndarray
+
 from transformer.AbstractTransformer import AbstractTransformer
 from transformer.TransformerTypes import TransformerTypeEnum
 
@@ -8,5 +12,9 @@ class AbstractCroppingTransformer(AbstractTransformer):
 
     See https://opencv.org/blog/cropping-an-image-using-opencv/ for inspiration.
     """
-    def __init__(self, label: str, description: str):
-        super().__init__(TransformerTypeEnum.CROP, label, description)
+
+    transformer_type = TransformerTypeEnum.CROP
+
+    @abstractmethod
+    def transform(self, data: ndarray) -> ndarray:
+        pass
