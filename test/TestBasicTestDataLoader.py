@@ -1,7 +1,7 @@
 import os
 from typing import Dict
 
-from torch.utils.data import DataLoader, Dataset, RandomSampler
+from torch.utils.data import DataLoader, Dataset, RandomSampler, SequentialSampler, Subset
 
 from image_aquisition.BasicTestDataset import BasicTestDataset
 from utils.ConfigLoader import ConfigLoader
@@ -18,10 +18,11 @@ def main():
     print(f"Number of images in {image_dir}: {len(dataset)}")
 
     # sampler to return only 10 random samples from the dataset. Not sure what replacement=True means
-    sampler = RandomSampler(dataset, replacement=True, num_samples=10)
+    rndSampler = RandomSampler(dataset, replacement=True, num_samples=10)
+    subsetSampler = SequentialSampler(Subset(dataset, range(num_samples)))
 
     # collate_keep_size sorgt dafür, dass die Bilder ihre Originalgrösse behalten können. Standatdmässig müssten alle Bilder die gleiche Grösse haben, was wir aber nicht wollen, da wir hin diesem Moment die Bilder untransformiert lassen wollen.
-    dataloader = DataLoader(dataset, batch_size=2, collate_fn=collate_keep_size, sampler=sampler)
+    dataloader = DataLoader(dataset, batch_size=2, collate_fn=collate_keep_size, sampler=subsetSampler)
 
     for batch in dataloader:
         # images, paths, filenames = zip(*batch)
