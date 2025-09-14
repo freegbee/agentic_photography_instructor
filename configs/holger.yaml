@@ -1,3 +1,7 @@
+data:
+  fiftyone:
+    download_dir: C:\Users\holge\Dokumente (lokal)\CASML4SE\agentic_photography_instructor\resources\fiftyone
+
 machine:
   device: cuda
   num_workers: 4
