@@ -99,8 +99,7 @@ Agentic Photographer Instructor is a project idea for the CAS "Machine Learning 
 
 ## Image Database cloning
 - Fiftyfive provides easy acces to large dataset. places dataset is only 256x256 and all normalized (i.e. image ratio is not kept). Hence it is not a realistic input.
-- We will need to clone/download original Place365 dataset from http://places2.csail.mit.edu/download-private.html
-- 
+- With `TarDownloader.py` and the subclass `Places365TarDownloader` we can download tar balls from original Place365 dataset from http://places2.csail.mit.edu/download-private.html
 
 # Additional Notes
 ## CUDA Support

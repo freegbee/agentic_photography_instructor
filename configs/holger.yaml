@@ -1,6 +1,9 @@
 data:
   fiftyone:
     download_dir: C:\Users\holge\Dokumente (lokal)\CASML4SE\agentic_photography_instructor\resources\fiftyone
+  tar:
+    places365_validation:
+      download_dir: C:\Users\holge\Dokumente (lokal)\CASML4SE\agentic_photography_instructor\resources\tar\places365
 
 machine:
   device: cuda
