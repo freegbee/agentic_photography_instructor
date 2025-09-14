@@ -41,8 +41,39 @@ Agentic Photographer Instructor is a project idea for the CAS "Machine Learning 
 - An example of a concrete factory is `StaticTransformationAgentFactory`
 
 # Machine Learning Related Core Information
-- Aesthetic Predictor:
-  - Source repository: https://github.com/discus0434/aesthetic-predictor-v2-5/tree/main
+## Aesthetic Predictor:
+- Source repository: https://github.com/discus0434/aesthetic-predictor-v2-5/tree/main
+
+## Bounding Boxes and Object Detection
+- Can be used for cropping to main object
+- Possibly introduce a cache for images that already have a bounding box?
+  - key could be hash value of image?
+  - value could be the bounding box/bounding boxes?
+- Use an existing model for bounding box detection
+  - Using YOLOv8 for object detection? https://docs.ultralytics.com/de/tasks/detect/
+  - Using a pre-trained model from torchvision? https://pytorch.org/vision/stable/models.html#object-detection-instance-segmentation-and-person-keypoint-detection
+    - Faster R-CNN
+    - Mask R-CNN
+    - RetinaNet
+    - SSD
+  
+
+## Image Manipulation
+- Use opencv for image manipulation: https://opencv.org/
+
+### Specific Manipulation
+
+### Cropping
+- Cropping to aspect ratio
+
+### Flipping
+
+### Rotations
+
+### Color Adjustments
+
+## Image Database cloning
+
 
 # Additional Notes
 ## CUDA Support
