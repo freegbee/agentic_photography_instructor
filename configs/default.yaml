@@ -19,4 +19,5 @@ data:
 dev:
   single_image: resources/sample_images/Places365_test_00000001.jpg
   temp_outout_dir: temp_output
+  cloned_image_dir: resources/cloned_images
 
