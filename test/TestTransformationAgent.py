@@ -1,10 +1,13 @@
 import os
 from pathlib import Path
+from typing import Dict
+
+from numpy import ndarray
 
 from utils.ConfigLoader import ConfigLoader
 from utils.Registries import AGENT_FACTORY_REGISTRY
 from utils.TestingUtils import TestingUtils
-import transformation_agent
+from transformation_agent import StaticTransformationAgentFactory
 
 
 def main():

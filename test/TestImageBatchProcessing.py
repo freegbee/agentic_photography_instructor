@@ -1,10 +1,15 @@
 import os
+from pathlib import Path
 from typing import Dict
 
 from torch.utils.data import DataLoader, Dataset, RandomSampler, SequentialSampler, Subset
 
 from image_aquisition.BasicTestDataset import BasicTestDataset
 from utils.ConfigLoader import ConfigLoader
+from utils.Registries import AGENT_FACTORY_REGISTRY
+from transformation_agent import StaticTransformationAgentFactory
+from utils.TestingUtils import TestingUtils
+
 
 def collate_keep_size(batch):
     # Returns a batch without stacking the images, so that they can keep their original size
@@ -28,8 +33,15 @@ def main():
     for batch in dataloader:
         # images, paths, filenames = zip(*batch)
         for image, path, filename in batch:
-            print(f"path={path}, filenames={filename}, image_shape={image.shape}")
+            filename_stem = Path(filename).stem
+            filename_suffix = Path(filename).suffix
+            for factory_name in AGENT_FACTORY_REGISTRY.keys():
+                for agent in AGENT_FACTORY_REGISTRY.get(factory_name).create_agents():
+                    image_clone = image.copy()
+                    transformed_image, label = agent.transform(image_clone)
+                    TestingUtils.save_image_to_path(transformed_image, Path.cwd() / Path(
+                        config['dev']['temp_outout_dir']) / f"{filename_stem}_{label}{filename_suffix}")
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

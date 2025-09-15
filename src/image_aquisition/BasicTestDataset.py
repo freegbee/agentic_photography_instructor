@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import Tuple
 
 import numpy as np
 from sympy.codegen.ast import Raise
@@ -29,6 +30,6 @@ class BasicTestDataset(Dataset[np.ndarray]):
     def __len__(self):
         return len(self.image_files)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx) -> Tuple[np.ndarray, Path, str]:
         image_path: Path = self.image_files[idx]
         return TestingUtils.load_image_from_path(image_path), image_path.parent, str(image_path.name)
