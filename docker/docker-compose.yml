@@ -18,6 +18,15 @@ services:
       --backend-store-uri ${MLFLOW_BACKEND_STORE_URI}
       --default-artifact-root ${MLFLOW_ARTIFACT_ROOT}
 
+  app:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    container_name: app
+    volumes:
+      - ../src:/app/src
+
+
 volumes:
   mlflow:
     name: mlflow
