@@ -26,7 +26,7 @@ def main():
     score = juror.inference(source_image.get_image_data('RGB'))
     source_image.score = score
 
-    print(f"Score for image {image_path}: {score}")
+    print(f"Score for image {source_image.filename}: {score}")
 
     for factory_name in AGENT_FACTORY_REGISTRY.keys():
         for agent in AGENT_FACTORY_REGISTRY.get(factory_name).create_agents():
@@ -35,8 +35,8 @@ def main():
             changed_image.add_image(transformed_image, 'BGR', False, image_path)
             changed_image.set_applied_transformers(label)
             score = juror.inference(changed_image.get_image_data('RGB'))
-            changed_image.score = score
-            print(f"Score for image with transformation '{'->'.join(changed_image.applied_transformers)}': {score}")
+            changed_image.transformed_score = score
+            print(f"Score for image with transformation '{'->'.join(changed_image.applied_transformers)}': {score}, with change of {changed_image.calculate_score_change()}")
 
 
 if __name__ == '__main__':
