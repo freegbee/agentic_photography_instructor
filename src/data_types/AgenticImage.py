@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Type
 
 import cv2
 import numpy as np
@@ -71,6 +71,7 @@ class AgenticImage(BaseModel):
             image_data=self.image_data.copy() if self.image_data is not None else None,
             image_color_order=self.image_color_order,
             score=self.score,
+            transformed_score=self.transformed_score,
             applied_transformers=self.applied_transformers.copy() if self.applied_transformers is not None else None
         )
 
@@ -79,8 +80,21 @@ class AgenticImage(BaseModel):
             return self.transformed_score - self.score
         return None
 
-    def is_better(self):
-        score_change = self.calculate_score_change()
-        if score_change is not None:
-            return score_change > 0
-        return None
+    def has_transformations(self) -> bool:
+        """ Check if any transformations have been applied to the image. """
+        return self.applied_transformers is not None and len(self.applied_transformers) > 0
+
+    def transform_is_better(self) -> bool:
+        """ Check if the transformed score is better than the original score. """
+        if self.score is None or self.transformed_score is None:
+            raise ValueError("Both original and transformed scores must be set to compare")
+        return self.transformed_score > self.score
+
+    def get_comparable_score(self):
+        return self.transformed_score if self.transformed_score is not None else self.score
+
+    def is_better_than(self, other_image) -> bool:
+        """ Determine if the current image is better than another image based on their scores. """
+        if self.get_comparable_score() is None or other_image.get_comparable_score() is None:
+            raise ValueError("Both images must have a transformed score to compare")
+        return self.get_comparable_score() > other_image.get_comparable_score()

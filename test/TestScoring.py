@@ -2,14 +2,12 @@ import os
 from pathlib import Path
 from typing import Dict
 
-import cv2
 from numpy import ndarray
 
 from data_types.AgenticImage import AgenticImage
 from juror import Juror
-import transformation_agent
 from utils.ConfigLoader import ConfigLoader
-from utils.Registries import TRANSFORMER_REGISTRY, AGENT_FACTORY_REGISTRY
+from utils.Registries import AGENT_FACTORY_REGISTRY
 from utils.TestingUtils import TestingUtils
 
 
@@ -28,15 +26,23 @@ def main():
 
     print(f"Score for image {source_image.filename}: {score}")
 
+    current_best = source_image.clone()
+
     for factory_name in AGENT_FACTORY_REGISTRY.keys():
         for agent in AGENT_FACTORY_REGISTRY.get(factory_name).create_agents():
             changed_image = source_image.clone()
             transformed_image, label = agent.transform(changed_image.get_image_data('BGR'))
-            changed_image.add_image(transformed_image, 'BGR', False, image_path)
+            changed_image.add_image(transformed_image, 'BGR', False, changed_image.filename)
             changed_image.set_applied_transformers(label)
             score = juror.inference(changed_image.get_image_data('RGB'))
             changed_image.transformed_score = score
-            print(f"Score for image with transformation '{'->'.join(changed_image.applied_transformers)}': {score}, with change of {changed_image.calculate_score_change()}")
+            print(
+                f"Score for image with transformation '{'->'.join(changed_image.applied_transformers)}': {score}, with change of {changed_image.calculate_score_change()}")
+            if changed_image.is_better_than(current_best):
+                current_best = changed_image.clone()
+
+    print(
+        f"Best image is '{'->'.join(current_best.applied_transformers)}' with score {current_best.transformed_score} and change of {current_best.calculate_score_change()}")
 
 
 if __name__ == '__main__':
