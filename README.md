@@ -15,9 +15,12 @@ Agentic Photographer Instructor is a project idea for the CAS "Machine Learning 
 - `env`: Local, not-checked-in files (e.g. local overrides of configuration properties)
 
 ### Source Code Structure (src)
-- types: Shared data types
-- utils: utility functions
-- transformer: All transformer functionality, e.g. cropping, color enhancing etc.
+- `data_types`: Shared data types
+- `image_aquisition`: All functionality to acquire/ingest images
+- `juror`: All functionality related to the aesthetic predictor (juror)
+- `transformation_agent`: All functionality related to applying transformers onto an image
+- `transformer`: All transformer functionality, e.g. cropping, color enhancing etc.
+- `utils`: Utility functions
 
 ## Implementation
 ### Transformers
@@ -33,10 +36,11 @@ Agentic Photographer Instructor is a project idea for the CAS "Machine Learning 
 
 ### TransformationAgent and AgentFactories
 - A `TransformationAgent` is a class that applies a series of transformers to an image. Agent has a fixed sequence of transformers. The image is sequentially passed from one transformer to the next. Provided image is _not_ copied, thus before calling the agent the image data must be copied/cloned.
-- The `TransformationAgent` recieves a list of transformer keys in its constructor. Thus it can be created with a fixed list of transformers to create training data. Or it can be based on a predicted label coming from the trained NN. 
+- The `TransformationAgent` receives a list of transformer keys in its constructor. Thus, it can be created with a fixed list of transformers to create training data. Or it can be based on a predicted label coming from the trained NN. 
 - A `AbstractTransformationAgentFactory` is a factory that creates a list of `TransformationAgent` instances. THis results in a list of agents that each has a list of transformers.
 - A concrete factory must inherit from `AbstractTransformationAgentFactory` and implement the `create_agents` method.
-- The concrete factory is auto registering. To facilitate this, it needs to be imported in `src/transformer_agent/__init__.py`
+- The concrete factory is auto registering (using `phx-class-registry` library - note the **phx**). To facilitate this, it needs to be imported in `src/transformer_agent/__init__.py`
+  - **Important**: The self registering needs only happens, then the module is imported. Thus, all modules with concrete factories need to be imported in the packages `__init__.py` and exported and then imported as needed. To make this more simple (and prevent having unused imports), `Registry.py` class has a method `init_registries` to import all modules with self registering classes.
 - Concrete factories allow for flexible composition, i.e. create a factory with a static list of agents or a factory that reads a CSV with all the agents to be created with different transformations 
 - An example of a concrete factory is `StaticTransformationAgentFactory`
 
@@ -60,6 +64,8 @@ Agentic Photographer Instructor is a project idea for the CAS "Machine Learning 
 
 ## Image Manipulation
 - Use opencv for image manipulation: https://opencv.org/
+  - Important: opencv uses BGR color space by default, not RGB!
+  - PIL Image and AestheticPredictor use RGB color space - so convert when needed
 
 ### Specific Manipulation
 
