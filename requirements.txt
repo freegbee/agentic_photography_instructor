@@ -1,6 +1,4 @@
 pyyaml~=6.0.2
-torch~=2.8.0
-torchvision
 opencv-python~=4.12.0.88
 numpy~=2.2.6
 phx-class-registry~=5.1.1
@@ -9,3 +7,17 @@ transformers~=4.56.2
 pillow~=11.3.0
 phx-class-registry~=5.1.1
 pydantic~=2.11.9
+
+
+# Torch and torchvision installation based on platform and CUDA version
+# for CUDA 12.9 torch on Windows
+torch --index-url https://download.pytorch.org/whl/cu129; sys_platform == 'Windows'
+torchvision --index-url https://download.pytorch.org/whl/cu129; sys_platform == 'Windows'
+
+# Torch und torchvision für Linux mit CUDA 12.9
+torch --index-url https://download.pytorch.org/whl/cu129; sys_platform == 'linux'
+torchvision --index-url https://download.pytorch.org/whl/cu129; sys_platform == 'linux'
+
+# for MPS accelerated torch on Mac
+torch; sys_platform == 'darwin'
+torchvision; sys_platform == 'darwin'
