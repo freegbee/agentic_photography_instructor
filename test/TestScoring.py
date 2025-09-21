@@ -8,6 +8,7 @@ from numpy import ndarray
 from data_types.AgenticImage import AgenticImage
 from juror import Juror
 from utils.ConfigLoader import ConfigLoader
+from utils.DataStorage import AgenticImageDataStorage
 from utils.Registries import AGENT_FACTORY_REGISTRY, init_registries
 from utils.TestingUtils import TestingUtils
 
@@ -40,13 +41,22 @@ def main():
                 agentic_image.update_transformed_image(transformed_image, 'BGR', label, score)
 
     print()
+
+    # Store and reload the agentic image to test serialization
+    stored_pickel = AgenticImageDataStorage.save(Path.cwd() / Path(config['dev']['temp_output_dir']), agentic_image)
+    # make sure the agentic image is not in memory
+    agentic_image = None
+    loaded_pickel = AgenticImageDataStorage.load_agentic_image(stored_pickel)
+
     print(
-        f"Best image is '{'->'.join(agentic_image.applied_transformers)}' with score {agentic_image.transformed_image.score} and change of {agentic_image.calculate_score_change()}")
+        f"Best image is '{'->'.join(loaded_pickel.applied_transformers)}' with score {loaded_pickel.transformed_image.score} and change of {loaded_pickel.calculate_score_change()}")
 
     print("Full protocol:")
-    for protocol in agentic_image.transformer_protocol:
+    for protocol in loaded_pickel.transformer_protocol:
         print(f" - Transformers {'->'.join(protocol.applied_transformers)} resulted in score {protocol.score} with change {protocol.score_change}")
 
+    # Storing the agentic image as a compressed pickle file
+    AgenticImageDataStorage.save(Path.cwd() / Path(config['dev']['temp_output_dir']), loaded_pickel)
 
 if __name__ == '__main__':
     main()
