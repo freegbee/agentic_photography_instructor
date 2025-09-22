@@ -19,7 +19,6 @@ data:
 dev:
   single_image: resources/sample_images/Places365_test_00000001.jpg
   temp_output_dir: temp_output
-  temp_outout_dir: temp_output
 
 image_acquisition:
   tar_url: "https://example.com/places365.tar"

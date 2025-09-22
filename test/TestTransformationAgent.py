@@ -20,7 +20,7 @@ def main():
             image_clone = image.copy()
             transformed_image, label = agent.transform(image_clone)
             TestingUtils.save_image_to_path(transformed_image, Path.cwd() / Path(
-                config['dev']['temp_outout_dir']) / f"{label}_{image_path.name}")
+                config['dev']['temp_output_dir']) / f"{label}_{image_path.name}")
 
 
 if __name__ == '__main__':

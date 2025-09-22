@@ -18,7 +18,7 @@ def main():
     transformer = GrayscaleTransformer()
     transformer = CenterSquareCropTransformer()
     transformed_image = transformer.transform(image)
-    TestingUtils.save_image_to_path(transformed_image, Path.cwd() / Path(config['dev']['temp_outout_dir']) / f"{transformer.label}_{image_path.name}")
+    TestingUtils.save_image_to_path(transformed_image, Path.cwd() / Path(config['dev']['temp_output_dir']) / f"{transformer.label}_{image_path.name}")
 
 if __name__ == "__main__":
     main()
