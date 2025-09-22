@@ -1,5 +1,8 @@
 import os
 from pathlib import Path
+from typing import Dict
+
+from numpy import ndarray
 
 from utils.ConfigLoader import ConfigLoader
 from utils.Registries import AGENT_FACTORY_REGISTRY
