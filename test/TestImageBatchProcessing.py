@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader, Dataset, RandomSampler, SequentialSampl
 
 from image_aquisition.BasicTestDataset import BasicTestDataset
 from utils.ConfigLoader import ConfigLoader
-from utils.Registries import AGENT_FACTORY_REGISTRY
+from utils.Registries import AGENT_FACTORY_REGISTRY, init_registries
 from transformation_agent import StaticTransformationAgentFactory
 from utils.TestingUtils import TestingUtils
 
@@ -17,6 +17,9 @@ def collate_keep_size(batch):
 
 
 def main():
+    # ensure that the registries are initialized
+    init_registries()
+
     config: Dict = ConfigLoader().load(env=os.environ["ENV_NAME"])
     image_dir = config["dev"]["cloned_image_dir"]
     dataset: Dataset = BasicTestDataset(image_dir)
@@ -40,7 +43,7 @@ def main():
                     image_clone = image.copy()
                     transformed_image, label = agent.transform(image_clone)
                     TestingUtils.save_image_to_path(transformed_image, Path.cwd() / Path(
-                        config['dev']['temp_outout_dir']) / f"{filename_stem}_{label}{filename_suffix}")
+                        config['dev']['temp_output_dir']) / f"{filename_stem}_{label}{filename_suffix}")
 
 
 if __name__ == '__main__':
