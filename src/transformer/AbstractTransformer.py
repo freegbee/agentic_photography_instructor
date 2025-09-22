@@ -25,4 +25,10 @@ class AbstractTransformer(AutoRegister(TRANSFORMER_REGISTRY), ABC):
 
     @abstractmethod
     def transform(self, data: ndarray) -> ndarray:
+        """
+        Apply the transformation to the input data. The input data must be a numpy ndarray witht 3 channels.
+        this may not be changed. The color channel order may not be changed.
+        :param data: image data as numpy ndarray
+        :return: transformed image data
+        """
         pass
