@@ -5,6 +5,11 @@ from pathlib import Path
 class TestingUtils:
     @staticmethod
     def load_image_from_path(image_path: Path | str) -> ndarray:
+        """
+        Loads an image from the specified path and returns it as a numpy ndarray. The color order is BGR, as cv2 loads images in BGR format by default.
+        :param image_path: 
+        :return:
+        """
         import cv2
         image: ndarray = cv2.imread(image_path)
         return image
