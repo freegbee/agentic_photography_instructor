@@ -7,6 +7,19 @@ machine:
   device: cpu
   num_workers: 6
 
+data:
+  fiftyone:
+    download_dir: None
+  tar:
+    places365_validation:
+      url: "http://data.csail.mit.edu/places/places365/val_large.tar"
+      download_dir: None
+
+
 dev:
   single_image: resources/sample_images/Places365_test_00000001.jpg
   temp_output_dir: temp_output
+
+image_acquisition:
+  tar_url: "https://example.com/places365.tar"
+  extract_dir: "resources/fiftyone/places"

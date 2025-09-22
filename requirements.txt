@@ -22,3 +22,5 @@ torchvision --index-url https://download.pytorch.org/whl/cu129; sys_platform == 
 # for MPS accelerated torch on Mac
 torch; sys_platform == 'darwin'
 torchvision; sys_platform == 'darwin'
+
+fiftyone~=1.8.0

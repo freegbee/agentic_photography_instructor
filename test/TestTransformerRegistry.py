@@ -20,4 +20,4 @@ if __name__ == "__main__":
     image: ndarray = TestingUtils.load_image_from_path(image_path)
     transformed_image = transformer.transform(image)
     TestingUtils.save_image_to_path(transformed_image, Path.cwd() / Path(
-        config['dev']['temp_outout_dir']) / f"{transformer.label}_{image_path.name}")
+        config['dev']['temp_output_dir']) / f"{transformer.label}_{image_path.name}")
