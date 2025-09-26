@@ -19,7 +19,10 @@ data:
 dev:
   single_image: resources/sample_images/Places365_test_00000001.jpg
   temp_output_dir: temp_output
+  cloned_image_dir: resources/cloned_images
 
 image_acquisition:
   tar_url: "https://example.com/places365.tar"
+
   extract_dir: "resources/fiftyone/places"
+

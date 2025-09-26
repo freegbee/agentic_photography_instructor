@@ -44,6 +44,16 @@ Agentic Photographer Instructor is a project idea for the CAS "Machine Learning 
 - Concrete factories allow for flexible composition, i.e. create a factory with a static list of agents or a factory that reads a CSV with all the agents to be created with different transformations 
 - An example of a concrete factory is `StaticTransformationAgentFactory`
 
+### Data Loading
+- `BasicTestDataset` is a basic dataset that loads images from a directory. It has been implemented for simple testing and prototyping purposes.
+- `TestBasicTestDataLoader.py` shows the usage of the `BasicTestDataset` and a `DataLoader` to load images in batches (small batches for testing purposes).
+
+### Notebooks
+- Jupyter notebooks for experiments and analysis are in the `notebooks` folder.
+- `VisualLoadAndTransform.ipynb` is a notebook that loads some images and applies the transformation-agents to them.
+  - It assumes that the validation dataset has been downloaded (using `TEstTarDownloader.py`. The yaml configiraton must be adjusted for the local environment settings.
+  - In the section "Adjust/set environment variables - no fun with that" the environment and the project root directory need to be set according to the local environment.
+
 # Machine Learning Related Core Information
 ## Aesthetic Predictor:
 - Source repository: https://github.com/discus0434/aesthetic-predictor-v2-5/tree/main

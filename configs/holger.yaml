@@ -8,3 +8,6 @@ data:
 machine:
   device: cuda
   num_workers: 4
+
+dev:
+  cloned_image_dir: C:\Users\holge\Dokumente (lokal)\CASML4SE\agentic_photography_instructor\resources\tar\places365\val_large
