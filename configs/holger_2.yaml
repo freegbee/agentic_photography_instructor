@@ -1,0 +1,14 @@
+data:
+  fiftyone:
+    download_dir: C:\Users\holge\CASML4SE\repos\agentic_photography_instructor\resources\fiftyone
+  tar:
+    places365_validation:
+      download_dir: C:\Users\holge\CASML4SE\repos\agentic_photography_instructor\resources\tar\places365
+
+machine:
+  device: cuda
+  num_workers: 4
+
+dev:
+  cloned_image_dir: C:\Users\holge\CASML4SE\repos\agentic_photography_instructor\resources\tar\places365\val_large
+  temp_output_dir: C:\Users\holge\CASML4SE\temp_output

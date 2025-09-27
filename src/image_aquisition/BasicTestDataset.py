@@ -1,11 +1,12 @@
 import os
 from pathlib import Path
-from typing import Tuple
+from typing import Tuple, List
 
 import numpy as np
 from sympy.codegen.ast import Raise
 from torch.utils.data import Dataset
 
+from image_aquisition.ImageUtils import ImageUtils
 from utils.TestingUtils import TestingUtils
 
 
@@ -32,4 +33,4 @@ class BasicTestDataset(Dataset[np.ndarray]):
 
     def __getitem__(self, idx) -> Tuple[np.ndarray, Path, str]:
         image_path: Path = self.image_files[idx]
-        return TestingUtils.load_image_from_path(image_path), image_path.parent, str(image_path.name)
+        return ImageUtils.load_image_from_path(image_path), image_path.parent, str(image_path.name)
