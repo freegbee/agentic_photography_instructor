@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import List
 
 import cv2
-from torch.utils.data import DataLoader, Dataset, Sampler, SequentialSampler, Subset, dataset
+from torch.utils.data import DataLoader, Dataset, Sampler, SequentialSampler, Subset
 
 from data_types.AgenticImage import AgenticImage
 from image_aquisition.BasicTestDataset import BasicTestDataset
@@ -21,13 +21,14 @@ class TransformationConfig:
         agents: List of TransformationAgents
     """
     # fixme: Add Sampler to config
-    def __init__(self, transformation_agent_factories: List[str], source_dir: str | Path, target_dir: str | Path, sampler: Sampler | None, batch_size: int = 2):
+    def __init__(self, transformation_agent_factories: List[str], source_dir: str | Path, target_dir: str | Path, sampler: Sampler | None, batch_size: int = 2, num_workers: int = 0):
         init_registries()
         self.agents: List[TransformationAgent] = self.__instantiate_agents(transformation_agent_factories)
         self.source_dir = source_dir if isinstance(source_dir, Path) else Path(source_dir)
         self.target_dir = target_dir if isinstance(target_dir, Path) else Path(target_dir)
         self.sampler = sampler
         self.batch_size = batch_size
+        self.num_workers = num_workers
 
 
     @staticmethod
@@ -52,6 +53,9 @@ class TransformationConfig:
     def get_batch_size(self) -> int:
         return self.batch_size
 
+    def get_num_workers(self) -> int:
+        return self.num_workers
+
 
 
 
@@ -70,8 +74,15 @@ class TransformAndScore:
     def __init__(self, config: TransformationConfig):
         self.config = config
         self.dataset: Dataset = BasicTestDataset(config.get_source_dir())
-        sampler = SequentialSampler(Subset(self.dataset, range(10)))
-        self.data_loader: DataLoader = DataLoader(self.dataset, batch_size=config.batch_size, collate_fn=self.collate_keep_size, sampler=sampler)
+        sampler = SequentialSampler(Subset(self.dataset, range(30)))
+        # Allow multiple workers for batch processing
+        self.data_loader: DataLoader = DataLoader(
+            self.dataset,
+            batch_size=config.batch_size,
+            collate_fn=self.collate_keep_size,
+            sampler=sampler,
+            num_workers=config.get_num_workers()  # Use value from config
+        )
         self.juror = Juror()
 
 
@@ -102,7 +113,7 @@ class TransformAndScore:
         agentic_image.update_source_score(self.__score_image(agentic_image.source_image.get_image_data('RGB')))
 
         # apply transformations and score them
-        agent_count = 0;
+        agent_count = 0
         for agent in self.config.get_agents():
             agent_count += 1
             transformed_image, label = agent.transform(agentic_image.source_image.get_image_data('BGR'))
@@ -111,11 +122,14 @@ class TransformAndScore:
             print(".", end="")
 
             # Update agentic image with transformed image, if score is better
-            if agentic_image.transformed_image is None or agentic_image.transformed_image.score is None or agentic_image.transformed_image.score < score:
+            # Prüfe, ob transformed_image ein Objekt mit Attribut score ist
+            best_score = getattr(agentic_image.transformed_image, 'score', None)
+            if best_score is None or best_score < score:
                 agentic_image.update_transformed_image(transformed_image, 'BGR', label, score)
 
         end_time = time.perf_counter()
-        print(f" -> agents {agent_count} in {end_time - start_time:.2f} seconds. Best image is '{'->'.join(agentic_image.applied_transformers)}' with score {agentic_image.transformed_image.score} and change of {agentic_image.calculate_score_change()}")
+        best_score = getattr(agentic_image.transformed_image, 'score', None)
+        print(f" -> agents {agent_count} in {end_time - start_time:.2f} seconds. Best image is '{'->'.join(agentic_image.applied_transformers)}' with score {best_score} and change of {agentic_image.calculate_score_change()}")
         return agentic_image
 
 

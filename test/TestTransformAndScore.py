@@ -14,10 +14,17 @@ def main():
     agent_factories = AGENT_FACTORY_REGISTRY
     source_dir = config["dev"]["cloned_image_dir"]
     target_dir = config["dev"]["temp_output_dir"]
+    num_workers = config["machine"]["num_workers"]
     # FIXME: Provide Sampler to config. Somehow. Or separate dataset from config and from TransformAndScore
     subsetSampler = None
 
-    transformation_config = TransformationConfig(agent_factories.keys(), source_dir, target_dir, subsetSampler, 2)
+    transformation_config = TransformationConfig(
+        transformation_agent_factories=agent_factories.keys(),
+        source_dir=source_dir,
+        target_dir=target_dir,
+        sampler=subsetSampler,
+        batch_size=5,
+        num_workers=num_workers)
     taf = TransformAndScore(transformation_config)
     taf.transform()
 
