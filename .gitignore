@@ -209,4 +209,5 @@ __marimo__/
 # Project specific
 temp_output/
 resources/fiftyone/
+resources/flickr2k/
 resources/tar/

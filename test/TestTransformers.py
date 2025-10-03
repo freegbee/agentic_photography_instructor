@@ -6,6 +6,7 @@ from typing import Dict
 from numpy import ndarray
 
 from transformer.color_adjustment.GrayscaleTransformer import GrayscaleTransformer
+from transformer.cropping import Crop239_100Transformer, Crop2_1Transformer
 from transformer.cropping.CenterSquareCropTransformer import CenterSquareCropTransformer
 from utils.ConfigLoader import ConfigLoader
 from utils.TestingUtils import TestingUtils
@@ -17,6 +18,7 @@ def main():
     image: ndarray = TestingUtils.load_image_from_path(image_path)
     transformer = GrayscaleTransformer()
     transformer = CenterSquareCropTransformer()
+    transformer = Crop2_1Transformer()
     transformed_image = transformer.transform(image)
     TestingUtils.save_image_to_path(transformed_image, Path.cwd() / Path(config['dev']['temp_output_dir']) / f"{transformer.label}_{image_path.name}")
 

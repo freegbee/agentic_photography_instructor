@@ -1,3 +1,4 @@
+import sys
 import time
 from pathlib import Path
 from typing import List
@@ -73,8 +74,8 @@ class TransformAndScore:
 
     def __init__(self, config: TransformationConfig):
         self.config = config
-        self.dataset: Dataset = BasicTestDataset(config.get_source_dir())
-        sampler = SequentialSampler(Subset(self.dataset, range(30)))
+        self.dataset: Dataset = BasicTestDataset(root_dir=config.get_source_dir(), max_size=1000)
+        sampler = SequentialSampler(Subset(self.dataset, range(20)))
         # Allow multiple workers for batch processing
         self.data_loader: DataLoader = DataLoader(
             self.dataset,
@@ -84,6 +85,7 @@ class TransformAndScore:
             num_workers=config.get_num_workers()  # Use value from config
         )
         self.juror = Juror()
+        self.agents: List[TransformationAgent] | None = None
 
 
     def transform(self):
@@ -102,30 +104,39 @@ class TransformAndScore:
         print(f"Processed {image_counter} images in {full_end_time - full_start_time:.2f} seconds.")
 
 
+    def __get_agents(self) -> List[TransformationAgent]:
+        if self.agents is None:
+            self.agents = self.config.get_agents()
+        return self.agents
+
     def __process_image(self, image, path, filename) -> AgenticImage:
         start_time = time.perf_counter()
         print(f"Image: {filename}: ", end="")
         # preparation and source image scoring
-        filename_stem = Path(filename).stem
-        filename_suffix = Path(filename).suffix
         agentic_image: AgenticImage = AgenticImage()
         agentic_image.update_source_image(image, 'BGR', filename)
         agentic_image.update_source_score(self.__score_image(agentic_image.source_image.get_image_data('RGB')))
 
         # apply transformations and score them
         agent_count = 0
-        for agent in self.config.get_agents():
+        total_number_of_agents = len(self.__get_agents())
+        for agent in self.__get_agents():
             agent_count += 1
             transformed_image, label = agent.transform(agentic_image.source_image.get_image_data('BGR'))
             score = self.__score_image(cv2.cvtColor(transformed_image, cv2.COLOR_BGR2RGB))
             agentic_image.append_transformer_protocol(label, score)
-            print(".", end="")
 
             # Update agentic image with transformed image, if score is better
             # Prüfe, ob transformed_image ein Objekt mit Attribut score ist
             best_score = getattr(agentic_image.transformed_image, 'score', None)
             if best_score is None or best_score < score:
                 agentic_image.update_transformed_image(transformed_image, 'BGR', label, score)
+
+            # Display progress bar, see https://stackoverflow.com/a/15645088
+            done = int(50 * agent_count / total_number_of_agents)
+            sys.stdout.write(
+                f"\r{filename} [{'=' * done}{' ' * (50 - done)}] {(100 * agent_count / total_number_of_agents):.2f} %")
+            sys.stdout.flush()
 
         end_time = time.perf_counter()
         best_score = getattr(agentic_image.transformed_image, 'score', None)

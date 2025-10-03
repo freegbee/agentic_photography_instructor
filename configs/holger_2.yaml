@@ -7,8 +7,8 @@ data:
 
 machine:
   device: cuda
-  num_workers: 4
+  num_workers: 6
 
 dev:
-  cloned_image_dir: C:\Users\holge\CASML4SE\repos\agentic_photography_instructor\resources\tar\places365\val_large
-  temp_output_dir: C:\Users\holge\CASML4SE\temp_output
+  cloned_image_dir: C:\Users\holge\CASML4SE\repos\agentic_photography_instructor\resources\flickr2k
+  temp_output_dir: C:\Users\holge\CASML4SE\temp_output_flickr2k
