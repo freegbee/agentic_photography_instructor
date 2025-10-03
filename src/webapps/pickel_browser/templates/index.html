@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>AgenticImage Übersicht</title>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .image-list { display: flex; flex-wrap: wrap; gap: 24px; }
+        .image-card { border: 1px solid #ccc; border-radius: 8px; padding: 16px; width: 420px; background: #fafafa; }
+        .img-row { display: flex; gap: 12px; }
+        .img-row img { max-width: 200px; max-height: 200px; border: 1px solid #888; border-radius: 4px; }
+        .error { color: red; }
+        .transformers { font-size: 0.95em; color: #333; }
+        .score { font-size: 1.1em; margin-top: 8px; }
+    </style>
+</head>
+<body>
+    <h1>AgenticImage Übersicht</h1>
+    <div class="image-list">
+        {% for img in images %}
+        <div class="image-card">
+            <h3>{{ img.filename }}</h3>
+            {% if img.error %}
+                <div class="error">Fehler: {{ img.error }}</div>
+            {% else %}
+            <div class="img-row">
+                <div>
+                    <div>Original</div>
+                    <img src="/image/{{ img.filename }}?type=original" alt="Original">
+                </div>
+                <div>
+                    <div>Transformiert</div>
+                    <img src="/image/{{ img.filename }}?type=transformed" alt="Transformiert">
+                </div>
+            </div>
+            <div class="transformers">
+                <b>Applied Transformers:</b>
+                {% if img.applied_transformers %}
+                    {{ img.applied_transformers|join(', ') }}
+                {% else %}
+                    <i>Keine</i>
+                {% endif %}
+            </div>
+            <div class="score">
+                <b>Source Score:</b> {{ img.source_score }}<br>
+                <b>Transformed Score:</b> {{ img.transformed_score }}
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</body>
+</html>
