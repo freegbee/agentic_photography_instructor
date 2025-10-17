@@ -15,7 +15,9 @@ class FiftyoneImageDownloader(ABC):
             raise ValueError("dataset_name must be provided")
 
         self.dataset_name = dataset_name
+        print(f"Environment is: {os.environ['ENV_NAME']}")
         config: Dict = ConfigLoader().load(env=os.environ["ENV_NAME"])
+        print(f"Config is: {config}")
         destination_dir = config['data']['fiftyone']['download_dir']
         if destination_dir is None:
             raise ValueError("Set valid directory for fiftyone image downloads in the config file.")
