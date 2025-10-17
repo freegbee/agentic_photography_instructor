@@ -1,7 +1,24 @@
+name: ${NAME:-brokerbusiness}
 services:
+  data-service:
+    build:
+      context: image-acquisition-service
+      dockerfile: Dockerfile
+    container_name: image-acquisition-service
+    environment:
+      # ENV_NAME=docker-Eintrag sorgt dafür, dass die os.environment Variable gesetzt wird. (Verwendung vom docker.yaml)
+      - ENV_NAME=docker
+      # PYTHONPATH=/app/src-Eintrag sorgt dafür, dass Python Module(-Import) relativ zum /src-Verzeichnis finden kann
+      - PYTHONPATH=/app/src
+    volumes:
+      - resources:/app/volumes/resources
+      - ..:/app
+    networks:
+      - ml-network
+
   mlflow:
     build:
-      context: ./mlflow
+      context: mlflow
       dockerfile: Dockerfile
     container_name: mlflow
     ports:
@@ -11,15 +28,29 @@ services:
       - mlruns:/mlruns
       # Backend-DB persistent speichern
       - mlflow:/mlflow
+      - resources:/app/resources
     command: >
       mlflow server
       --host 0.0.0.0
       --port ${MLFLOW_PORT}
       --backend-store-uri ${MLFLOW_BACKEND_STORE_URI}
       --default-artifact-root ${MLFLOW_ARTIFACT_ROOT}
+    networks:
+      - ml-network
 
 volumes:
+  test:
+    external: true
   mlflow:
     name: mlflow
+    driver: local
   mlruns:
     name: mlruns
+    driver: local
+  resources:
+    name: resources
+    driver: local
+
+networks:
+  ml-network:
+    driver: bridge

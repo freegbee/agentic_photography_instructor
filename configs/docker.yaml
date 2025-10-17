@@ -1,0 +1,13 @@
+data:
+  fiftyone:
+    download_dir: /app/volumes/resources/fiftyone
+  tar:
+    places365_validation:
+      download_dir: /app/volumes/resources/tar/places365
+
+machine:
+  device: cpu
+  num_workers: 4
+
+dev:
+  cloned_image_dir: /app/volumes/resources/tar/places365/val_large
