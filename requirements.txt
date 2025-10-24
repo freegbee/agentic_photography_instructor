@@ -8,6 +8,7 @@ pillow~=11.3.0
 phx-class-registry~=5.1.1
 pydantic~=2.11.9
 compress_pickle~=2.1.0
+mlflow~=3.5.1
 
 
 # Torch and torchvision installation based on platform and CUDA version

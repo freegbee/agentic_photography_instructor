@@ -17,6 +17,25 @@ services:
     networks:
       - ml-network
 
+  train:
+    build:
+      context: train
+      dockerfile: Dockerfile
+    container_name: train
+    environment:
+      - ENV_NAME=docker
+      - PYTHONPATH=/app/src
+      - MLFLOW_TRACKING_URI=http://mlflow:${MLFLOW_PORT}
+    volumes:
+      - resources:/app/volumes/resources
+      - ../src:/app/src
+      - ../configs:/app/configs
+      - ../test:/app/test
+    depends_on:
+      - mlflow
+    networks:
+      - ml-network
+
   mlflow:
     build:
       context: mlflow
