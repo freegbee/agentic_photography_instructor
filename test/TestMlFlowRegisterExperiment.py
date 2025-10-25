@@ -6,6 +6,7 @@ def main():
     print('Trying to start...')
 
     mlflow_tracking_url=os.environ["MLFLOW_TRACKING_URI"]
+    print(f'Trying to create client at {mlflow_tracking_url}...')
     client = MlflowClient(tracking_uri=mlflow_tracking_url)
 
     # Provide an Experiment description that will appear in the UI
@@ -22,7 +23,7 @@ def main():
 
     # Create the Experiment, providing a unique name
     produce_apples_experiment = client.create_experiment(
-        name="API_Poc_blah", tags=experiment_tags
+        name="API_Poc_0.2", tags=experiment_tags
     )
 
 
