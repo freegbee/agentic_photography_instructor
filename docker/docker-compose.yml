@@ -17,6 +17,25 @@ services:
     networks:
       - ml-network
 
+  juror-service:
+    build:
+      context: juror-service
+      dockerfile: Dockerfile
+    container_name: juror-service
+    ports:
+      - "${JUROR_PORT}:${JUROR_PORT}"
+    environment:
+      - ENV_NAME=docker
+      - PYTHONPATH=/app/
+    command: >
+      python -m uvicorn JurorServer:app
+      --host 0.0.0.0
+      --port ${JUROR_PORT}
+    volumes:
+      - ../src/juror_server:/app
+    networks:
+      - ml-network
+
   train:
     build:
       context: train
