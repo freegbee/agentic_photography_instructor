@@ -31,7 +31,7 @@ services:
       python -m uvicorn juror_server.JurorServer:app
       --host 0.0.0.0
       --port ${JUROR_PORT}
-      --log-level trace
+      --log-level info
     volumes:
       - ../src/:/app
     networks:
@@ -87,6 +87,40 @@ services:
     networks:
       - ml-network
 
+  prometheus:
+    build:
+      context: prometheus
+      dockerfile: Dockerfile
+    container_name: prometheus
+    ports:
+      - "${MONITORING_PROMETHEUS_PORT}:9090"
+    environment:
+      JUROR_PORT: "${JUROR_PORT}"
+      MLFLOW_PORT: "${MLFLOW_PORT}"
+    volumes:
+      - prometheus_data:/prometheus
+      - ./prometheus/prometheus.yml.template:/etc/prometheus/prometheus.yml.template:ro
+    networks:
+      - ml-network
+
+  grafana:
+    build:
+      context: grafana
+      dockerfile: Dockerfile
+    container_name: grafana
+    ports:
+      - "${MONITORING_GRAFANA_PORT}:3000"
+    environment:
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    networks:
+      - ml-network
+    depends_on:
+      - prometheus
+
 volumes:
   test:
     external: true
@@ -95,6 +129,10 @@ volumes:
     driver: local
   mlruns:
     name: mlruns
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
     driver: local
   resources:
     name: resources
