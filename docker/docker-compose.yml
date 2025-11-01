@@ -26,15 +26,25 @@ services:
       - "${JUROR_PORT}:${JUROR_PORT}"
     environment:
       - ENV_NAME=docker
-      - PYTHONPATH=/app/
+      - PYTHONPATH=/app
     command: >
-      python -m uvicorn JurorServer:app
+      python -m uvicorn juror_server.JurorServer:app
       --host 0.0.0.0
       --port ${JUROR_PORT}
+      --log-level trace
     volumes:
-      - ../src/juror_server:/app
+      - ../src/:/app
     networks:
       - ml-network
+    # Folgender Block sorgt dafür, dass der Container auf eine GPU mit CUDA zugreifen kann.
+    # Offen, ob das auf dem Mac stört und wir profile brauchen, oder nicht
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
 
   train:
     build:

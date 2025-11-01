@@ -30,3 +30,7 @@ torch; sys_platform == 'darwin'
 torchvision; sys_platform == 'darwin'
 
 fiftyone~=1.8.0
+
+# HTTP client used by juror_client
+requests~=2.34.0
+httpx~=0.24.1
