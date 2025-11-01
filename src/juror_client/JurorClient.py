@@ -10,8 +10,7 @@ from typing import Optional
 
 import httpx
 
-from juror_shared.ScoringRequestPayload import ScoringRequestPayload
-from juror_shared.ScoringResponsePayload import ScoringResponsePayload
+from juror_shared.models_v1 import ScoringRequestPayloadV1, ScoringResponsePayloadV1
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +33,8 @@ class JurorClient:
             base_url: Basis-URL des Juror-Servers (Standard: http://localhost:5010)
             timeout: HTTP-Timeout in Sekunden für Requests
         """
-        self.base_url = base_url.rstrip("/")
+        self._api_version = "v1"
+        self.base_url = base_url.rstrip("/") + f"/{self._api_version}"
         self.timeout = timeout
 
         # Connection pooling mit einem persistent httpx.Client
@@ -46,7 +46,7 @@ class JurorClient:
         else:
             self._client = client
 
-    def score_image(self, image_path: str) -> ScoringResponsePayload | str:
+    def score_image(self, image_path: str) -> ScoringResponsePayloadV1 | str:
         """Sende eine Bilddatei als Base64-JSON an /score_base64.
 
         Args:
@@ -69,7 +69,7 @@ class JurorClient:
         with open(image_path, "rb") as f:
             data = f.read()
             b64 = base64.b64encode(data).decode("ascii")
-            payload = ScoringRequestPayload(filename=image_path, b64=b64)
+            payload = ScoringRequestPayloadV1(filename=image_path, b64=b64)
             json_payload = payload.model_dump()
             logger.debug("Sending image for scoring:", json_payload)
             resp = httpx.post(url, json=json_payload, timeout=self.timeout, headers={"Content-Type": "application/json"})
@@ -79,7 +79,7 @@ class JurorClient:
 
         # Versuche JSON zurückzugeben, fallback auf Text
         try:
-            return ScoringResponsePayload(**resp.json());
+            return ScoringResponsePayloadV1(**resp.json());
         except ValueError:
             return resp.text
 

@@ -3,7 +3,7 @@ import time
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.routing import APIRouter
 from typing import Optional
 import numpy as np
 from PIL import Image
@@ -12,8 +12,7 @@ from contextlib import asynccontextmanager
 
 # Import the Juror implementation from the same package
 from juror.Juror import Juror
-from juror_shared.ScoringRequestPayload import ScoringRequestPayload
-from juror_shared.ScoringResponsePayload import ScoringResponsePayload
+from juror_shared.models_v1 import ScoringRequestPayloadV1, ScoringResponsePayloadV1
 
 # Global juror-service instance (initialized in lifespan)
 _juror: Optional[Juror] = None
@@ -35,6 +34,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Juror Inference API", lifespan=lifespan)
 
+v1 = APIRouter(prefix="/v1")
+
 # Allow all origins for convenience (adjust for production)
 app.add_middleware(
     CORSMiddleware,
@@ -50,8 +51,8 @@ async def health():
     return {"status": "ok", "juror_loaded": _juror is not None}
 
 
-@app.post("/score", response_model=ScoringResponsePayload)
-async def score_image_base64(payload: ScoringRequestPayload):
+@v1.post("/score", response_model=ScoringResponsePayloadV1)
+async def score_image_base64(payload: ScoringRequestPayloadV1):
     try:
         data = base64.b64decode(payload.b64)
         pil_img = Image.open(io.BytesIO(data)).convert("RGB")
@@ -71,9 +72,19 @@ async def score_image_base64(payload: ScoringRequestPayload):
         raise HTTPException(status_code=500, detail=f"Inference failed: {e}")
 
     # return PlainTextResponse(f"{score}")
-    response = ScoringResponsePayload(**{"score": score, "filename": payload.filename, "message": "Scoring successful"})
+    response = ScoringResponsePayloadV1(**{"score": score, "filename": payload.filename, "message": "Scoring successful"})
     return response
 
+# Registiere the v1 router. Weitere Router definieren mit ähnlichem Muster.
+app.include_router(v1)
+
+
+# Optional: Fallback-Route auf /score die Accept-Header prüft und weiterleitet. Im code gelassen für spätere Erweiterung.
+# @app.post("/score")
+# async def score_negotiation(request: Request, accept: str | None = Header(None)):
+#     if accept and "vnd.juror.v2" in accept:
+#         return await app.router.app.scope  # kurz: in real impl. an v2 handler weiterleiten
+#     return Response(status_code=406, content="Specify API version in path or Accept header")
 
 if __name__ == "__main__":
     # Note: running this module directly will start an uvicorn server.
