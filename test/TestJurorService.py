@@ -1,3 +1,4 @@
+import logging
 import os
 from pathlib import Path
 from typing import Dict
@@ -9,6 +10,9 @@ from juror_client import JurorClient
 from utils.ConfigLoader import ConfigLoader
 from utils.TestingUtils import TestingUtils
 
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+
 def main():
    config: Dict = ConfigLoader().load(env=os.environ["ENV_NAME"])
    image_path = Path.cwd() / Path(config['dev']['single_image'])
@@ -18,13 +22,11 @@ def main():
    agentic_image = AgenticImage()
    agentic_image.update_source_image(image, 'BGR', image_path.name)
 
-   juror_client = JurorClient()
-
-   # text: str =juror_client.send_msg("Hello from TestJurorService")
-   # print(f"Response from Juror Service: {text}")
-
-   scored = juror_client.score_image(f"{image_path}")
-   print(f"scored response: {scored.score}")
+   with JurorClient() as juror_client:
+       logger.info(f"Mehrfaches Scoring des Bildes {image_path} umd erstmal einfach etwas mehr calls zu machen...")
+       for i in range(4):
+            scored = juror_client.score_image(f"{image_path}")
+            logger.info(f"{i} scored response: {scored.score}")
 
 
 if __name__ == '__main__':
