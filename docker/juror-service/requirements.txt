@@ -1,0 +1,24 @@
+pyyaml~=6.0.2
+opencv-python~=4.12.0.88
+numpy~=2.2.6
+transformers~=4.56.2
+pillow~=11.3.0
+
+# Only for FastAPI server, Juror Service
+fastapi~=0.120.0
+uvicorn[standard]~=0.22.0
+python-multipart~=0.0.20
+prometheus_client~=0.23.1
+
+# Torch and torchvision installation based on platform and CUDA version
+# for CUDA 12.9 torch on Windows
+torch --index-url https://download.pytorch.org/whl/cu130; sys_platform == 'Windows'
+torchvision --index-url https://download.pytorch.org/whl/cu130; sys_platform == 'Windows'
+
+# Torch und torchvision für Linux mit CUDA 12.9
+torch --index-url https://download.pytorch.org/whl/cu130; sys_platform == 'linux'
+torchvision --index-url https://download.pytorch.org/whl/cu130; sys_platform == 'linux'
+
+# for MPS accelerated torch on Mac
+torch; sys_platform == 'darwin'
+torchvision; sys_platform == 'darwin'

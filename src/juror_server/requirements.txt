@@ -1,4 +1,4 @@
-prometheus-client
+fastapi~=0.120.0
 pyyaml~=6.0.2
 opencv-python~=4.12.0.88
 numpy~=2.2.6
@@ -9,13 +9,8 @@ pillow~=11.3.0
 phx-class-registry~=5.1.1
 pydantic~=2.11.9
 compress_pickle~=2.1.0
-
-# Only for mlflow
 mlflow~=3.5.1
 
-# Only for FastAPI server, Juror Service
-fastapi~=0.120.0
-python-multipart~=0.0.20
 
 # Torch and torchvision installation based on platform and CUDA version
 # for CUDA 12.9 torch on Windows
@@ -31,7 +26,3 @@ torch; sys_platform == 'darwin'
 torchvision; sys_platform == 'darwin'
 
 fiftyone~=1.8.0
-
-# HTTP client used by juror_client
-requests~=2.34.0
-httpx~=0.24.1
