@@ -6,7 +6,7 @@ from fastapi import FastAPI, HTTPException, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.routing import APIRouter
 
-from prometheus_client import CollectorRegistry, gc_collector, platform_collector, process_collector
+from prometheus_client import CollectorRegistry, generate_latest, CONTENT_TYPE_LATEST, gc_collector, platform_collector, process_collector
 
 from image_acquisition.acquisition_server.prometheus.Metrics import init_metrics
 
@@ -72,6 +72,11 @@ async def metrics_middleware(request: Request, call_next):
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+@app.get("/metrics")
+async def metrics():
+    """Prometheus Metriken verfügbar machen"""
+    return Response(content=generate_latest(prometheus_registry), media_type=CONTENT_TYPE_LATEST)
 
 if __name__ == "__main__":
     import uvicorn
