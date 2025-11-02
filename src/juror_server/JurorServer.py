@@ -1,23 +1,34 @@
 import base64
+import io
 import logging
 import time
-
-from fastapi import FastAPI, HTTPException, Response
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.routing import APIRouter
+from contextlib import asynccontextmanager
 from typing import Optional
+
 import numpy as np
 from PIL import Image
-import io
-from contextlib import asynccontextmanager
-
-from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+from fastapi import FastAPI, HTTPException, Response, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.routing import APIRouter
+from prometheus_client import CollectorRegistry, generate_latest, CONTENT_TYPE_LATEST, process_collector, gc_collector, \
+    platform_collector
 
 # Import the Juror implementation from the same package
 from juror.Juror import Juror
+from juror_server.prometheus.Metrics import init_metrics
 from juror_shared.models_v1 import ScoringRequestPayloadV1, ScoringResponsePayloadV1
 
 logger = logging.getLogger(__name__)
+
+# Custom registry für Prometheus Metriken
+registry = CollectorRegistry()
+# Default collectors registrieren
+gc_collector.GCCollector(registry=registry)
+platform_collector.PlatformCollector(registry=registry)
+process_collector.ProcessCollector(registry=registry)
+
+# Custom metrics initialisieren
+prometheus_metrics = init_metrics(registry=registry)
 
 # Global juror-service instance (initialized in lifespan)
 _juror: Optional[Juror] = None
@@ -26,14 +37,13 @@ _juror: Optional[Juror] = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context to initialize and cleanup the Juror instance."""
-    from juror_server.prometheus.Metrics import JUROR_LOADED
     global _juror
     if _juror is None:
         # instantiate the juror-service (this may load a model and take time)
         print("Loading Juror model...")
         _juror = Juror()
         try:
-            JUROR_LOADED.set(1)
+            prometheus_metrics.JUROR_LOADED.set(1)
         except Exception:
             pass
     try:
@@ -41,7 +51,7 @@ async def lifespan(app: FastAPI):
     finally:
         _juror = None
         try:
-            JUROR_LOADED.set(0)
+            prometheus_metrics.JUROR_LOADED.set(0)
         except Exception:
             pass
 
@@ -59,6 +69,30 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def metrics_middleware(request: Request, call_next):
+    """Middleware: läuft vor und nach jedem Request; inkrementiert Request-Counter nach Antwort."""
+    start = time.perf_counter()
+    response = await call_next(request)  # führt die Route aus und liefert die Response zurück
+    elapsed = time.perf_counter() - start
+
+    print("Request to", request.url.path, "took", elapsed, "seconds")
+
+    # Metriken für bestimmte Endpunkte überspringen
+    try:
+        if request.url.path in ("/metrics", "/health"):
+            return response
+
+        prometheus_metrics.HTTP_REQUEST_DURATION.labels(
+            status=str(response.status_code),
+            endpoint=request.url.path,
+            method=request.method
+        ).observe(elapsed)
+    except Exception as e:
+        # Fehler beim Metrik-Update dürfen Request nicht brechen
+        pass
+
+    return response
 
 @app.get("/health")
 async def health():
@@ -67,23 +101,16 @@ async def health():
 
 @v1.post("/score", response_model=ScoringResponsePayloadV1)
 async def score_image_base64(payload: ScoringRequestPayloadV1):
-    from juror_server.prometheus.Metrics import REQUEST_COUNT, ERROR_COUNT, SCORING_DURATION
-    # Record request start for counting / metrics
-    method = "POST"
-    endpoint = "/v1/score"
-
     try:
         data = base64.b64decode(payload.b64)
         pil_img = Image.open(io.BytesIO(data)).convert("RGB")
         image_np = np.array(pil_img).astype(np.uint8)
     except Exception as e:
-        REQUEST_COUNT.labels(method=method, endpoint=endpoint, status="400").inc()
-        ERROR_COUNT.labels(type="decode_error").inc()
+        prometheus_metrics.ERROR_COUNT.labels(type="decode_error").inc()
         raise HTTPException(status_code=400, detail=f"Failed to decode base64 image: {e}")
 
     if _juror is None:
-        REQUEST_COUNT.labels(method=method, endpoint=endpoint, status="503").inc()
-        ERROR_COUNT.labels(type="model_not_loaded").inc()
+        prometheus_metrics.ERROR_COUNT.labels(type="model_not_loaded").inc()
         raise HTTPException(status_code=503, detail="Juror model not loaded yet")
 
     try:
@@ -93,23 +120,25 @@ async def score_image_base64(payload: ScoringRequestPayloadV1):
 
         # Metric für Inferenzzeit und erfolgreiche Anfrage
         try:
-            SCORING_DURATION.observe(elapsed)
+            prometheus_metrics.SCORING_DURATION.observe(elapsed)
+            prometheus_metrics.SCORING_VALUE.set(score)
         except Exception:
             pass
 
-        REQUEST_COUNT.labels(method=method, endpoint=endpoint, status="200").inc()
         print(f"Score: {score} took {elapsed:.2f} seconds for image with length {len(data)} bytes")
     except Exception as e:
-        REQUEST_COUNT.labels(method=method, endpoint=endpoint, status="500").inc()
-        ERROR_COUNT.labels(type="inference_error").inc()
+        prometheus_metrics.ERROR_COUNT.labels(type="inference_error").inc()
         raise HTTPException(status_code=500, detail=f"Inference failed: {e}")
 
     # return PlainTextResponse(f"{score}")
-    response = ScoringResponsePayloadV1(**{"score": score, "filename": payload.filename, "message": "Scoring successful"})
+    response = ScoringResponsePayloadV1(
+        **{"score": score, "filename": payload.filename, "message": "Scoring successful"})
     return response
+
 
 # Registriere den v1 router. Weitere Router definieren mit ähnlichem Muster.
 app.include_router(v1)
+
 
 # Optional: Fallback-Route auf /score die Accept-Header prüft und weiterleitet. Im code gelassen für spätere Erweiterung.
 # @app.post("/score")
@@ -120,10 +149,8 @@ app.include_router(v1)
 
 @app.get("/metrics")
 async def metrics():
-    """Prometheus metriken verfügbar machen"""
-    data = generate_latest()
-    logger.debug(f"Serving /metrics data {data}")
-    return Response(content=data, media_type=CONTENT_TYPE_LATEST)
+    """Prometheus Metriken verfügbar machen"""
+    return Response(content=generate_latest(registry), media_type = CONTENT_TYPE_LATEST)
 
 
 if __name__ == "__main__":
