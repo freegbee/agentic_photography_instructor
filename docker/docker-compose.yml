@@ -1,19 +1,42 @@
 name: ${NAME}
 services:
-  data-service:
+#  data-service:
+#    build:
+#      context: image-acquisition-service
+#      dockerfile: Dockerfile
+#    container_name: image-acquisition-service
+#    environment:
+#      # ENV_NAME=docker-Eintrag sorgt dafür, dass die os.environment Variable gesetzt wird. (Verwendung vom docker.yaml)
+#      - ENV_NAME=docker
+#      # PYTHONPATH=/app/src-Eintrag sorgt dafür, dass Python Module(-Import) relativ zum /src-Verzeichnis finden kann
+#      - PYTHONPATH=/app/src
+#    volumes:
+#      - resources:/app/volumes/resources
+#      - ../src:/app/src
+#      - ../configs:/app/configs
+#    networks:
+#      - ml-network
+
+  image-acquisition-service:
     build:
       context: image-acquisition-service
       dockerfile: Dockerfile
     container_name: image-acquisition-service
+    ports:
+      - "${IMAGE_ACQUISITION_PORT}:${IMAGE_ACQUISITION_PORT}"
     environment:
-      # ENV_NAME=docker-Eintrag sorgt dafür, dass die os.environment Variable gesetzt wird. (Verwendung vom docker.yaml)
       - ENV_NAME=docker
-      # PYTHONPATH=/app/src-Eintrag sorgt dafür, dass Python Module(-Import) relativ zum /src-Verzeichnis finden kann
-      - PYTHONPATH=/app/src
+      - PYTHONPATH=/app
+    command: >
+      python -m uvicorn image_acquisition.acquisition_server.AcquisitionServer:app
+      --host 0.0.0.0
+      --port ${IMAGE_ACQUISITION_PORT}
+      --log-level info
     volumes:
       - resources:/app/volumes/resources
-      - ../src:/app/src
-      - ../configs:/app/configs
+      - ../src/:/app
+    depends_on:
+      - prometheus
     networks:
       - ml-network
 
@@ -34,6 +57,8 @@ services:
       --log-level info
     volumes:
       - ../src/:/app
+    depends_on:
+      - prometheus
     networks:
       - ml-network
     # Folgender Block sorgt dafür, dass der Container auf eine GPU mit CUDA zugreifen kann.

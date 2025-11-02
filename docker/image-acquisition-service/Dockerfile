@@ -27,7 +27,3 @@ RUN apt-get update && \
 # and it is not possible to reference a file releative outside the context.
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-
-# Python-Modul-Notation mit -m test
-# Das -m Flag teilt Python mit, dass es ein Modul ausführen soll, nicht eine Datei
-CMD ["python", "/app/src/image_aquisition/DockerDownloadStarter.py"]
