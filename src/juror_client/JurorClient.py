@@ -24,6 +24,7 @@ class JurorClient:
 
     def __init__(
             self,
+            # FIXME: Die URL ist hier noch hardcoded, sollte aber konfigurierbar sein
             base_url: str = "http://localhost:5010",
             timeout: int = 10,
             client: Optional[httpx.Client] = None,):
@@ -79,7 +80,7 @@ class JurorClient:
 
         # Versuche JSON zurückzugeben, fallback auf Text
         try:
-            return ScoringResponsePayloadV1(**resp.json());
+            return ScoringResponsePayloadV1(**resp.json())
         except ValueError:
             return resp.text
 
