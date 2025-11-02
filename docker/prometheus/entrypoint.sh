@@ -3,9 +3,11 @@ set -eu
 # Standardwerte, falls die Env-Variablen nicht gesetzt sind
 : "${JUROR_PORT:=5010}"
 : "${MLFLOW_PORT:=5000}"
+: "${MONITORING_PROMETHEUS_PORT:=5020}"
 # Ersetze Variablen in der Template
-envsubst '\$JUROR_PORT \$MLFLOW_PORT' < /etc/prometheus/prometheus.yml.template > /etc/prometheus/prometheus.yml
-# Start Prometheus
+envsubst '\$JUROR_PORT \$MLFLOW_PORT \$MONITORING_PROMETHEUS_PORT' < /etc/prometheus/prometheus.yml.template > /etc/prometheus/prometheus.yml
+# Start Prometheus - nicht auf dem default port 9090, sondern auf dem konfigurierten Port
 exec /bin/prometheus \
   --config.file=/etc/prometheus/prometheus.yml \
-  --storage.tsdb.path=/prometheus
+  --storage.tsdb.path=/prometheus \
+  --web.listen-address=0.0.0.0:${MONITORING_PROMETHEUS_PORT}

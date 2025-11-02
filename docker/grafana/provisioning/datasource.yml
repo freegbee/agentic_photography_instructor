@@ -4,5 +4,5 @@ datasources:
     type: prometheus
     access: proxy
     # FIXME Ports aus den Umgebungsvariablen ziehen
-    url: http://prometheus:9090
+    url: ${PROMETHEUS_URL}
     isDefault: true

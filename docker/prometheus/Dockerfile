@@ -14,5 +14,6 @@ COPY prometheus.yml.template /etc/prometheus/prometheus.yml.template
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 VOLUME ["/prometheus"]
-EXPOSE 9090
+
+EXPOSE $MONITORING_PROMETHEUS_PORT
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

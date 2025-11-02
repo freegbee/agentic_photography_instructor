@@ -93,10 +93,11 @@ services:
       dockerfile: Dockerfile
     container_name: prometheus
     ports:
-      - "${MONITORING_PROMETHEUS_PORT}:9090"
+      - "${MONITORING_PROMETHEUS_PORT}:${MONITORING_PROMETHEUS_PORT}"
     environment:
       JUROR_PORT: "${JUROR_PORT}"
       MLFLOW_PORT: "${MLFLOW_PORT}"
+      MONITORING_PROMETHEUS_PORT: "${MONITORING_PROMETHEUS_PORT}"
     volumes:
       - prometheus_data:/prometheus
       - ./prometheus/prometheus.yml.template:/etc/prometheus/prometheus.yml.template:ro
@@ -109,10 +110,13 @@ services:
       dockerfile: Dockerfile
     container_name: grafana
     ports:
-      - "${MONITORING_GRAFANA_PORT}:3000"
+      - "${MONITORING_GRAFANA_PORT}:${MONITORING_GRAFANA_PORT}"
     environment:
-      - GF_SERVER_ROOT_URL=http://localhost:3000
-      - GF_USERS_ALLOW_SIGN_UP=false
+      MONITORING_GRAFANA_PORT: "${MONITORING_GRAFANA_PORT}"
+      GF_SERVER_HTTP_PORT: "${MONITORING_GRAFANA_PORT}"
+      GF_SERVER_ROOT_URL: "http://localhost:${MONITORING_GRAFANA_PORT}"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      PROMETHEUS_URL: "http://prometheus:${MONITORING_PROMETHEUS_PORT}"
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
