@@ -3,7 +3,6 @@ import logging
 import time
 import uuid
 from contextlib import asynccontextmanager
-from typing import Dict
 
 from fastapi import FastAPI, HTTPException, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,10 +10,11 @@ from fastapi.routing import APIRouter
 
 from prometheus_client import CollectorRegistry, generate_latest, CONTENT_TYPE_LATEST, gc_collector, platform_collector, process_collector
 
+from image_acquisition.acquisition_server.JobManager import JobManager
 from image_acquisition.acquisition_server.imageacquisitionjob import ImageAcquisitionJob
-from image_acquisition.acquisition_server.prometheus.Metrics import init_metrics
+from image_acquisition.acquisition_server.prometheus import prometheus_metrics
 from image_acquisition.acquisition_shared.models_v1 import StartAsyncImageAcquisitionRequestV1, \
-    AsyncImageAcquisitionJobResponseV1, AsyncJobStatusV1
+    AsyncImageAcquisitionJobResponseV1
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -24,8 +24,6 @@ prometheus_registry = CollectorRegistry()
 gc_collector.GCCollector(registry=prometheus_registry)
 platform_collector.PlatformCollector(registry=prometheus_registry)
 process_collector.ProcessCollector(registry=prometheus_registry)
-
-prometheus_metrics = init_metrics(registry=prometheus_registry)
 
 
 @asynccontextmanager
@@ -50,7 +48,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-async_jobs: Dict[str, ImageAcquisitionJob] = {}
+# Singleton-Instanz einmalig holen
+job_manager: JobManager = JobManager.get_instance()
 
 @app.middleware("http")
 async def metrics_middleware(request: Request, call_next):
@@ -66,10 +65,10 @@ async def metrics_middleware(request: Request, call_next):
         if request.url.path in ("/metrics", "/health"):
             return response
 
-        prometheus_metrics.HTTP_REQUEST_DURATION.labels(
-            status=str(response.status_code),
-            endpoint=request.url.path,
-            method=request.method
+        prometheus_metrics.metrics().HTTP_REQUEST_DURATION.labels(
+             status=str(response.status_code),
+             endpoint=request.url.path,
+             method=request.method
         ).observe(elapsed)
     except Exception as e:
         # Fehler beim Metrik-Update dürfen Request nicht brechen
@@ -84,17 +83,26 @@ async def health():
 @app.get("/metrics")
 async def metrics():
     """Prometheus Metriken verfügbar machen"""
-    return Response(content=generate_latest(prometheus_registry), media_type=CONTENT_TYPE_LATEST)
+    return Response(content=prometheus_metrics.generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 @v1.post("/acquisition", response_model=AsyncImageAcquisitionJobResponseV1)
 async def start_acquisition(request: StartAsyncImageAcquisitionRequestV1):
     """Startet einen asynchronen Task, um Bilder zu akquirieren."""
-    logger.debug("Request für image acquisition task...")
+    logger.info("Request für image acquisition task...")
     job_uuid = str(uuid.uuid4())
-    new_job = ImageAcquisitionJob(job_uuid, request.dataset_id)
-    async_jobs[job_uuid] = new_job
-    logger.info(f"Started image acquisition job {new_job.uuid} for dataset {new_job.dataset_id}")
+    try:
+        new_job = ImageAcquisitionJob(job_uuid, request.dataset_id)
+    except ValueError as e:
+        print(f"Config {request.dataset_id} not found...")
+        raise HTTPException(status_code=404, detail=f"Dataset {request.dataset_id} not available.")
+
+    try:
+        job_manager.add_job(new_job)
+    except KeyError as ke:
+        raise HTTPException(status_code=409, detail=f"Job with UUID {new_job.uuid} already exists.")
+    except ValueError as ve:
+        raise HTTPException(status_code=409, detail=str(ve))
 
     # Starte den asynchronen Task
     asyncio.create_task(_run_image_acquisition_job(new_job))
@@ -105,22 +113,24 @@ async def start_acquisition(request: StartAsyncImageAcquisitionRequestV1):
 @v1.get("/acquisition/jobs/{job_uuid}", response_model=AsyncImageAcquisitionJobResponseV1)
 async def get_acquisition_job(job_uuid: str):
     """Gibt den Status eines asynchronen Image Acquisition Jobs zurück."""
-    job = async_jobs.get(job_uuid)
-    if not job:
+
+    try:
+        job = job_manager.get_job(job_uuid)
+    except KeyError as ke:
         raise HTTPException(status_code=404, detail=f"Job with UUID {job_uuid} not found.")
-    response = AsyncImageAcquisitionJobResponseV1(**{"job_uuid": job.uuid, "status": job.status})
-    return response
+    return AsyncImageAcquisitionJobResponseV1(**{"job_uuid": job.uuid, "status": job.status})
 
 app.include_router(v1)
 
 async def _run_image_acquisition_job(job: ImageAcquisitionJob):
-    """Simulierter asynchroner Task zur Bildakquisition."""
     logger.info(f"Running image acquisition job {job.uuid}...")
-    job.status = AsyncJobStatusV1.RUNNING
-    # FIXME: Dies ist nur ein Platzhalter für die eigentliche Bildakquisitionslogik
-    await asyncio.sleep(10)  # Simuliere lange laufende Aufgabe
-    job.status = AsyncJobStatusV1.COMPLETED
-    logger.info(f"Completed image acquisition job {job.uuid}.")
+    try:
+        # job.start() ist synchron -> in Thread auslagern, damit Event-Loop nicht blockiert
+        await asyncio.to_thread(job.start)
+    except Exception as e:
+        logger.exception(f"Error running job {job.uuid}: {e}")
+    finally:
+        logger.info(f"Finished image acquisition job {job.uuid} with status {job.status}.")
 
 
 if __name__ == "__main__":

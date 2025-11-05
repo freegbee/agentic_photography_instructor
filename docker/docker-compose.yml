@@ -35,6 +35,7 @@ services:
     volumes:
       - resources:/app/volumes/resources
       - ../src/:/app
+      - ../configs:/app/configs
     depends_on:
       - prometheus
     networks:

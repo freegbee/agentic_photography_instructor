@@ -18,9 +18,9 @@ async def main():
 
 async def start_job():
     with AcquisitionClient() as acquisition_client:
-        job_uuid = acquisition_client.start_async_image_acquisition("fluppidibub")
+        job_uuid = acquisition_client.start_async_image_acquisition("div2k_valid_hr")
         logger.info(f"Started async image acquisition job with UUID: {job_uuid}")
-        for i in range(15):
+        for i in range(3):
             await asyncio.sleep(3)
             job_status = acquisition_client.query_async_image_acquisition_job(job_uuid)
             if job_status is not None:

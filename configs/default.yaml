@@ -22,7 +22,15 @@ dev:
   cloned_image_dir: resources/cloned_images
 
 image_acquisition:
-  tar_url: "https://example.com/places365.tar"
+  places365_val_large:
+    type: tar
+    source_url: "http://data.csail.mit.edu/places/places365/val_large.tar"
+    destination_dir: places365
+    extracted_root: val_large
+  div2k_valid_hr:
+    type: zip
+    source_url: "https://data.vision.ee.ethz.ch/cvl/DIV2K/DIV2K_valid_HR.zip"
+    destination_dir: div2k
+    extracted_root: hr/validation/DIV2K_valid_HR
 
-  extract_dir: "resources/fiftyone/places"
 
