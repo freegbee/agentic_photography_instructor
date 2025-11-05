@@ -3,10 +3,11 @@ import sys
 import tarfile
 from abc import ABC
 from pathlib import Path
+from typing import Dict
 
 import requests
 
-from src.utils.ConfigLoader import ConfigLoader
+from utils.ConfigLoader import ConfigLoader
 
 
 class TarDownloader(ABC):
