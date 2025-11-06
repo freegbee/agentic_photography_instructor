@@ -15,4 +15,5 @@ class StartAsyncImageAcquisitionRequestV1(BaseModel):
 class AsyncImageAcquisitionJobResponseV1(BaseModel):
     job_uuid: str
     status: AsyncJobStatusV1
+    resulting_hash: str | None = None
 

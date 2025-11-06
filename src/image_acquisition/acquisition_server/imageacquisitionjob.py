@@ -6,14 +6,14 @@ from typing import Dict
 from prometheus_client import CollectorRegistry
 
 from image_acquisition.acquisition_server.handlers.HandlerFactory import HandlerFactory
+from image_acquisition.acquisition_server.prometheus import prometheus_metrics
 from image_acquisition.acquisition_server.prometheus.Metrics import init_metrics
 from image_acquisition.acquisition_shared.ImageDatasetConfiguration import ImageDatasetConfiguration
 from image_acquisition.acquisition_shared.models_v1 import AsyncJobStatusV1
 from utils.ConfigLoader import ConfigLoader
 
-from image_acquisition.acquisition_server.prometheus import prometheus_metrics
+logger = logging.getLogger(__name__)
 
-logger = logging.getLogger(__file__)
 
 class ImageAcquisitionJob:
     uuid: str
@@ -21,22 +21,23 @@ class ImageAcquisitionJob:
     status: AsyncJobStatusV1
 
     def __init__(self, uuid: str, dataset_id: str):
-        logger.info(f"Initializing ImageAcquisitionJob with uuid={uuid} for dataset_id={dataset_id}")
+        logger.info("Initializing ImageAcquisitionJob with uuid=%s for dataset_id=%s", uuid, dataset_id)
         self.uuid = uuid
         self.dataset_id = dataset_id
         self.status = AsyncJobStatusV1.NEW
+        self.resulting_hash = None
 
         # Load configuration
         config: Dict = ConfigLoader().load(env=os.environ["ENV_NAME"])
         if not config:
             self.status = AsyncJobStatusV1.FAILED
-            logger.warning(f"No config file found")
+            logger.warning("No config file found in environment %s", os.environ["ENV_NAME"])
             raise ValueError("Kein Konfigurationsobjekt geladen")
 
         image_acq = config.get('image_acquisition')
         if dataset_id not in image_acq:
-            logger.warning(f"No config found for {dataset_id}")
-            logger.warning(f"config root {image_acq}")
+            logger.warning("No config found for %s", dataset_id)
+            logger.warning("config root %s", image_acq)
             self.status = AsyncJobStatusV1.FAILED
             raise ValueError(f"No configuration found for dataset_id: {dataset_id}")
 
@@ -50,15 +51,17 @@ class ImageAcquisitionJob:
         start = time.perf_counter()
         self.status = AsyncJobStatusV1.RUNNING
         try:
-            self.handler.process()
+            self.resulting_hash = self.handler.process()
             self.status = AsyncJobStatusV1.COMPLETED
         except Exception as e:
             self.status = AsyncJobStatusV1.FAILED
         finally:
             elapsed = time.perf_counter() - start
-            logger.info(f"ImageAcquisitionJob with {self.uuid} for {self.dataset_id} status is {self.status} after {elapsed} seconds")
+            logger.info("ImageAcquisitionJob with %s for %s status is %s after %f seconds with resulting hash %s", self.uuid, self.dataset_id,
+                        self.status, elapsed, self.resulting_hash)
             try:
-                prometheus_metrics.metrics().IMAGE_ACQUISITION_JOB_DURATION.labels(dataset_id=self.dataset_id, outcome=self.status).observe(elapsed)
+                prometheus_metrics.metrics().IMAGE_ACQUISITION_JOB_DURATION.labels(dataset_id=self.dataset_id,
+                                                                                   outcome=self.status).observe(elapsed)
             except Exception as e:
                 logger.error(f"Error recording job duration metric: {e}")
 

@@ -8,16 +8,16 @@ from fastapi import FastAPI, HTTPException, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.routing import APIRouter
 
-from prometheus_client import CollectorRegistry, generate_latest, CONTENT_TYPE_LATEST, gc_collector, platform_collector, process_collector
+from prometheus_client import CollectorRegistry, CONTENT_TYPE_LATEST, gc_collector, platform_collector, process_collector
 
 from image_acquisition.acquisition_server.JobManager import JobManager
 from image_acquisition.acquisition_server.imageacquisitionjob import ImageAcquisitionJob
+from image_acquisition.acquisition_server.logging_config import configure_logging
 from image_acquisition.acquisition_server.prometheus import prometheus_metrics
 from image_acquisition.acquisition_shared.models_v1 import StartAsyncImageAcquisitionRequestV1, \
     AsyncImageAcquisitionJobResponseV1
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 prometheus_registry = CollectorRegistry()
 # Default collectors registrieren
@@ -29,6 +29,7 @@ process_collector.ProcessCollector(registry=prometheus_registry)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context to initialize and cleanup resources."""
+    configure_logging()
     logger.info("Starting Acquisition Server...")
     try:
         yield
@@ -118,12 +119,12 @@ async def get_acquisition_job(job_uuid: str):
         job = job_manager.get_job(job_uuid)
     except KeyError as ke:
         raise HTTPException(status_code=404, detail=f"Job with UUID {job_uuid} not found.")
-    return AsyncImageAcquisitionJobResponseV1(**{"job_uuid": job.uuid, "status": job.status})
+    return AsyncImageAcquisitionJobResponseV1(**{"job_uuid": job.uuid, "status": job.status, "resulting_hash": job.resulting_hash})
 
 app.include_router(v1)
 
 async def _run_image_acquisition_job(job: ImageAcquisitionJob):
-    logger.info(f"Running image acquisition job {job.uuid}...")
+    logger.info("Running image acquisition job %s...", job.uuid)
     try:
         # job.start() ist synchron -> in Thread auslagern, damit Event-Loop nicht blockiert
         await asyncio.to_thread(job.start)

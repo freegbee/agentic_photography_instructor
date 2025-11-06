@@ -1,3 +1,7 @@
+import logging
+
+logger = logging.getLogger(__name__)
+
 class ImageAcquisitionUtils:
     @staticmethod
     def download_file(remote_url: str, local_path: str) -> str:
@@ -173,3 +177,53 @@ class ImageAcquisitionUtils:
                 os.remove(file_path)
             except Exception as e:
                 print(f"Fehler beim Löschen der Datei {file_path}: {e}")
+
+    @staticmethod
+    def compute_dir_hash(dir_path: str, algorithm: str = "sha256", chunk_size: int = 8192, include_hidden: bool = False) -> str | None:
+        """Berechnet einen deterministischen Hash eines Verzeichnisses.
+
+        - Geht rekursiv alle Dateien durch (alphabetisch sortiert).
+        - Ignoriert Symlinks; optional können versteckte Dateien übersprungen werden.
+        - Hash basiert auf relativem Pfad (mit '/' als Trenner) + Inhalt.
+        Returns: hex Digest des Hashes.
+        """
+        import os
+        import hashlib
+        import logging
+
+        if not os.path.exists(dir_path):
+            logger.warning("Directory %s doesn't exist", dir_path)
+            return None
+
+        abs_base = os.path.abspath(dir_path)
+        hasher = hashlib.new(algorithm)
+
+        for root, dirs, files in os.walk(abs_base):
+            dirs.sort()
+            files.sort()
+            for fname in files:
+                if not include_hidden and fname.startswith("."):
+                    continue
+
+                fpath = os.path.join(root, fname)
+                # Skip symlinks for safety
+                if os.path.islink(fpath):
+                    logging.debug("Skipping symlink in dir_hash: %s", fpath)
+                    continue
+
+                # Relative path with normalized separator for determinism
+                rel_path = os.path.relpath(fpath, abs_base).replace(os.sep, "/")
+                hasher.update(rel_path.encode("utf-8"))
+                hasher.update(b"\0")  # Separator
+
+                # Read file in chunks
+                with open(fpath, "rb") as fh:
+                    while True:
+                        chunk = fh.read(chunk_size)
+                        if not chunk:
+                            break
+                        hasher.update(chunk)
+
+                hasher.update(b"\0")  # Separator between files
+
+        return hasher.hexdigest()

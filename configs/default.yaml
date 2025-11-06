@@ -24,13 +24,15 @@ dev:
 image_acquisition:
   places365_val_large:
     type: tar
-    source_url: "http://data.csail.mit.edu/places/places365/val_large.tar"
+    source_url: "https://data.csail.mit.edu/places/places365/val_large.tar"
     destination_dir: places365
     extracted_root: val_large
+    target_hash: 2bc267e86fccdb40e1b53dda2084b61d160cca6ccdb571e817ce451cbebf9b75
   div2k_valid_hr:
     type: zip
     source_url: "https://data.vision.ee.ethz.ch/cvl/DIV2K/DIV2K_valid_HR.zip"
     destination_dir: div2k
     extracted_root: hr/validation/DIV2K_valid_HR
+    target_hash: 6e15600592955c5117a29181f0d46f7b43cd3f11bc94453ca7929f6fedd9aec7
 
 
