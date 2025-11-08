@@ -6,7 +6,7 @@ http://localhost:5010/scoring zu schicken.
 import os
 import logging
 import base64
-from typing import Optional
+from typing import Optional, Union
 
 import httpx
 
@@ -26,7 +26,7 @@ class JurorClient:
             self,
             # FIXME: Die URL ist hier noch hardcoded, sollte aber konfigurierbar sein
             base_url: str = "http://localhost:5010",
-            timeout: int = 10,
+            timeout: float = 10.0,
             client: Optional[httpx.Client] = None,):
         """Erzeuge einen neuen Client.
 
@@ -35,8 +35,10 @@ class JurorClient:
             timeout: HTTP-Timeout in Sekunden für Requests
         """
         self._api_version = "v1"
-        self.base_url = base_url.rstrip("/") + f"/{self._api_version}"
-        self.timeout = timeout
+        self.base_url = base_url.rstrip("/") + f"/{self._api_version}/" # trailing slash preserves path as directory
+        self.scoring_endpoint = "score"
+
+        self.timeout = float(timeout)
 
         # Connection pooling mit einem persistent httpx.Client
         # Falls ein externer Client übergeben wurde, diesen verwenden (und dann auch nicht schliessen im closer / im __exit__)
@@ -47,8 +49,8 @@ class JurorClient:
         else:
             self._client = client
 
-    def score_image(self, image_path: str) -> ScoringResponsePayloadV1 | str:
-        """Sende eine Bilddatei als Base64-JSON an /score_base64.
+    def score_image(self, image_path: str) -> Union[ScoringResponsePayloadV1, str]:
+        """Sende eine Bilddatei als Base64-JSON an /score.
 
         Args:
             image_path: Pfad zur Bilddatei auf dem Dateisystem.
@@ -70,10 +72,10 @@ class JurorClient:
         with open(image_path, "rb") as f:
             data = f.read()
             b64 = base64.b64encode(data).decode("ascii")
-            payload = ScoringRequestPayloadV1(filename=image_path, b64=b64)
+            payload = ScoringRequestPayloadV1(filename=os.path.basename(image_path), b64=b64)
             json_payload = payload.model_dump()
-            logger.debug("Sending image for scoring:", json_payload)
-            resp = httpx.post(url, json=json_payload, timeout=self.timeout, headers={"Content-Type": "application/json"})
+            logger.debug("Sending image for scoring: %s", json_payload)
+            resp = self._client.post(self.scoring_endpoint, json=json_payload)
 
         # Raise for HTTP errors (4xx/5xx)
         resp.raise_for_status()
@@ -89,7 +91,7 @@ class JurorClient:
         if not self._external_client:
             try:
                 self._client.close()
-            except Exception:
+            except Exception :
                 logger.exception("Fehler beim Schliessen des HTTP-Clients")
 
     def __enter__(self) -> "JurorClient":

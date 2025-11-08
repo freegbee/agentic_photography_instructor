@@ -59,13 +59,12 @@ async def metrics_middleware(request: Request, call_next):
     response = await call_next(request)  # führt die Route aus und liefert die Response zurück
     elapsed = time.perf_counter() - start
 
-    print("Request to", request.url.path, "took", elapsed, "seconds")
-
     # Metriken für bestimmte Endpunkte überspringen
     try:
         if request.url.path in ("/metrics", "/health"):
             return response
 
+        logger.debug("Request to %s tool %s seconds", request.url.path, elapsed)
         prometheus_metrics.metrics().HTTP_REQUEST_DURATION.labels(
              status=str(response.status_code),
              endpoint=request.url.path,
@@ -108,7 +107,7 @@ async def start_acquisition(request: StartAsyncImageAcquisitionRequestV1):
     # Starte den asynchronen Task
     asyncio.create_task(_run_image_acquisition_job(new_job))
     response = AsyncImageAcquisitionJobResponseV1(**{"job_uuid": new_job.uuid, "status": new_job.status})
-    logger.info(f"Started async job with UUID {new_job.uuid} for image acquisition of dataset {new_job.dataset_id}.")
+    logger.info("Started async job with UUID %s for image acquisition of dataset %s.", new_job.uuid, new_job.dataset_id)
     return response
 
 @v1.get("/acquisition/jobs/{job_uuid}", response_model=AsyncImageAcquisitionJobResponseV1)
@@ -129,9 +128,9 @@ async def _run_image_acquisition_job(job: ImageAcquisitionJob):
         # job.start() ist synchron -> in Thread auslagern, damit Event-Loop nicht blockiert
         await asyncio.to_thread(job.start)
     except Exception as e:
-        logger.exception(f"Error running job {job.uuid}: {e}")
+        logger.exception(f"Error running job %s: %s", {job.uuid}, e)
     finally:
-        logger.info(f"Finished image acquisition job {job.uuid} with status {job.status}.")
+        logger.info(f"Finished image acquisition job %s with status %s.", job.uuid, job.status)
 
 
 if __name__ == "__main__":
