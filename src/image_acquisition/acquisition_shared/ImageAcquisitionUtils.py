@@ -1,4 +1,6 @@
 import logging
+import os
+import shutil
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +62,52 @@ class ImageAcquisitionUtils:
                 pbar.close()
 
         return dest
+
+    @staticmethod
+    def copy_resource_file(src_path: str, dest_dir: str, dest_name: str | None = None, overwrite: bool = False) -> str:
+        """
+        Kopiert eine Datei von `src_path` nach `dest_dir`.
+        Args:
+            src_path: Pfad zur Quelldatei.
+            dest_dir: Zielverzeichnis (wird erstellt, falls nicht existent).
+            dest_name: Optionaler neuer Dateiname im Ziel. Standard: Dateiname von `src_path`.
+            overwrite: Falls True, vorhandene Datei im Ziel wird überschrieben.
+
+        Returns:
+            Absoluter Pfad zur kopierten Datei.
+
+        Raises:
+            FileNotFoundError: Wenn die Quelldatei nicht existiert.
+            FileExistsError: Wenn Zieldatei existiert und overwrite=False.
+            OSError: Bei anderen Dateisystemfehlern.
+        """
+        import os
+        import shutil
+        import logging
+
+        logger = logging.getLogger(__name__)
+        print(f"Copying resource file from {src_path} to {dest_dir} with name {dest_name} (overwrite={overwrite})")
+
+        if not os.path.isfile(src_path):
+            raise FileNotFoundError(f"Source file not found: {src_path}")
+
+        # Bestimme Zielname und -pfad
+        name = dest_name or os.path.basename(src_path)
+        os.makedirs(dest_dir, exist_ok=True)
+        dest_path = os.path.join(dest_dir, name)
+
+        # Existenz prüfen
+        if os.path.exists(dest_path) and not overwrite:
+            raise FileExistsError(f"Destination file already exists: {dest_path}")
+
+        try:
+            # copy2 kopiert inkl. Metadaten (Timestamp, Berechtigungen wenn möglich)
+            shutil.copy2(src_path, dest_path)
+            logger.info("Copied file %s -> %s", src_path, dest_path)
+            return os.path.abspath(dest_path)
+        except Exception as e:
+            logger.exception("Fehler beim Kopieren der Datei %s nach %s: %s", src_path, dest_path, e)
+            raise
 
     @staticmethod
     def extract_tar(tar_file: str, extract_dir: str) -> None:

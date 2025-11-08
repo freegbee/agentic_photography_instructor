@@ -34,5 +34,17 @@ image_acquisition:
     destination_dir: div2k
     extracted_root: hr/validation/DIV2K_valid_HR
     target_hash: 6e15600592955c5117a29181f0d46f7b43cd3f11bc94453ca7929f6fedd9aec7
+  single_image:
+    type: local_resource
+    resource_file_path: div2k_single_image.tar
+    destination_dir: div2k_single_image
+    extracted_root: single_image
+    target_hash: 25b79978f6fa9c5764f680ac4d0f5dfea0edda6fe7eeefd9e4777b846eda9966
+  five_images:
+    type: local_resource
+    resource_file_path: div2k_five_images.tar
+    destination_dir: div2k_five_images
+    extracted_root: five_images
+    target_hash: bb3b48c46e74a2975813070093565efb75b94dd38f17572a45d3b7b45aeccbe7
 
 
