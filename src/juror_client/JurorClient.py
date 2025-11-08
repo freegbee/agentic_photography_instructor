@@ -33,7 +33,16 @@ class JurorClient:
         Args:
             base_url: Basis-URL des Juror-Servers (Standard: http://localhost:5010)
             timeout: HTTP-Timeout in Sekunden für Requests
+            client: Client zum Starten von asynchronen Image Acquisition
         """
+
+        # Validierungen der Parameter
+        if base_url is None:
+            raise ValueError("base_url darf nicht None sein. Beispiel: 'http://localhost:5010' - Abhängig den der lokalen Konfiguration oder Umgebungsvariable ab.")
+        if not isinstance(base_url, str):
+            raise TypeError("base_url muss vom Typ str sein")
+
+
         self._api_version = "v1"
         self.base_url = base_url.rstrip("/") + f"/{self._api_version}/" # trailing slash preserves path as directory
         self.scoring_endpoint = "score"

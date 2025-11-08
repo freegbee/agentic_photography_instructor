@@ -82,6 +82,9 @@ services:
       - ENV_NAME=docker
       - PYTHONPATH=/app/src
       - MLFLOW_TRACKING_URI=http://mlflow:${MLFLOW_PORT}
+      - IMAGE_VOLUME_PATH=/app/volumes/resources
+      - IMAGE_ACQUISITION_SERVICE_URL=http://image-acquisition-service:${IMAGE_ACQUISITION_PORT}
+      - JUROR_SERVICE_URL=http://juror-service:${JUROR_PORT}
     volumes:
       - resources:/app/volumes/resources
       - ../src:/app/src

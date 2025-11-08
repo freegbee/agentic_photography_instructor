@@ -16,12 +16,12 @@ class ZipDownloader(AbstractHandler):
         self.temp_dir = Path(self.destination_path, "./temp")
 
     def _process_impl(self):
-        logger.info(f"Downloading {self.url}")
+        logger.info("Downloading %s", self.url)
         downloaded_file = ImageAcquisitionUtils.download_file(self.url, str(self.temp_dir))
-        logger.debug(f"Download completed {self.url}")
-        logger.info(f"Extracting {downloaded_file}")
+        logger.debug("Download completed %s", self.url)
+        logger.info("Extracting zip file %s", downloaded_file)
         ImageAcquisitionUtils.extract_zip(downloaded_file, self.destination_path)
-        logger.debug(f"Extraction of {downloaded_file} completed")
-        logger.debug(f"Deleting {downloaded_file}")
+        logger.debug("Extraction completed for %s", downloaded_file)
+        logger.debug("Deleting %s", downloaded_file)
         ImageAcquisitionUtils.cleanup_temp_file(downloaded_file)
-        logger.info(f"Downloaded and extracted {self.url}")
+        logger.info("Downloading and extraction finished for %s", self.url)

@@ -11,20 +11,7 @@ logger.setLevel(logging.DEBUG)
 
 class LocalResourceDownloader(AbstractHandler):
     def __init__(self, resource_file_path: str, destination_path: str, target_hash: str = None):
-        provided_dest = Path(destination_path)
-        image_volume = os.getenv("IMAGE_VOLUME_PATH")
-
-        if provided_dest.is_absolute():
-            final_dest = provided_dest
-        elif image_volume:
-            final_dest = (Path(image_volume) / provided_dest)
-        else:
-            final_dest = provided_dest
-
-        # Auf absoluten, aufgelösten Pfad normalisieren
-        final_dest = final_dest.resolve()
-
-        super().__init__(str(final_dest), target_hash)
+        super().__init__(destination_path, target_hash)
 
 
         # Falls relativ: relativ zum Verzeichnis dieser Datei (`__file__`) auflösen

@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Optional
+from typing import Optional, Union
 
 import httpx
 
@@ -14,8 +14,7 @@ class AcquisitionClient:
 
     def __init__(
             self,
-            # FIXME: Die URL ist hier noch hardcoded, sollte aber konfigurierbar sein
-            base_url: str = "http://localhost:5005",
+            base_url: Union[str, None] = None,
             timeout: float = 10.0,
             client: Optional[httpx.Client] = None,):
         """Erzeuge einen neuen Client.
@@ -23,7 +22,15 @@ class AcquisitionClient:
         Args:
             base_url: Basis-URL des Acquisition-Servers (Standard: http://localhost:5005)
             timeout: HTTP-Timeout in Sekunden für Requests
+            client: Client zum Starten von asynchronen Image Acquisition
         """
+
+        # Validierungen der Parameter
+        if base_url is None:
+            raise ValueError("base_url darf nicht None sein. Beispiel: 'http://localhost:5005' - Abhängig den der lokalen Konfiguration oder Umgebungsvariable ab.")
+        if not isinstance(base_url, str):
+            raise TypeError("base_url muss vom Typ str sein")
+
         self._api_version = "v1"
         self.base_url = base_url.rstrip("/") + f"/{self._api_version}/" # trailing slash preserves path as directory
         self.acquisition_root_endpoint = "acquisition"
@@ -36,7 +43,7 @@ class AcquisitionClient:
         self._external_client = client is not None
         limits = httpx.Limits(max_keepalive_connections=20, max_connections=100)
         if client is None:
-            self._client = httpx.Client(base_url=self.base_url, timeout=self.timeout, limits=limits)
+            self._client = httpx.Client(base_url=self.base_url, timeout=self.timeout, limits=limits, http2=True)
         else:
             self._client = client
 
