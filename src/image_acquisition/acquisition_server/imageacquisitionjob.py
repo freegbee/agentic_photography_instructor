@@ -1,14 +1,14 @@
 import logging
 import os
 import time
-from typing import Dict
+from typing import Dict, Union
 
 from prometheus_client import CollectorRegistry
 
 from image_acquisition.acquisition_server.handlers.HandlerFactory import HandlerFactory
 from image_acquisition.acquisition_server.prometheus import prometheus_metrics
 from image_acquisition.acquisition_server.prometheus.Metrics import init_metrics
-from image_acquisition.acquisition_shared.ImageDatasetConfiguration import ImageDatasetConfiguration
+from data_types.ImageDatasetConfiguration import ImageDatasetConfiguration
 from image_acquisition.acquisition_shared.models_v1 import AsyncJobStatusV1
 from utils.ConfigLoader import ConfigLoader
 
@@ -28,21 +28,14 @@ class ImageAcquisitionJob:
         self.resulting_hash = None
 
         # Load configuration
-        config: Dict = ConfigLoader().load(env=os.environ["ENV_NAME"])
-        if not config:
+        try:
+            config_dict: Dict = ConfigLoader.load_dataset_config(self.dataset_id)
+        except Exception as e:
             self.status = AsyncJobStatusV1.FAILED
-            logger.warning("No config file found in environment %s", os.environ["ENV_NAME"])
-            raise ValueError("Kein Konfigurationsobjekt geladen")
+            logger.exception("Exception loading config for dataset %s: %s", self.dataset_id, e)
+            raise e
 
-        image_acq = config.get('image_acquisition')
-        if dataset_id not in image_acq:
-            logger.warning("No config found for %s", dataset_id)
-            logger.warning("config root %s", image_acq)
-            self.status = AsyncJobStatusV1.FAILED
-            raise ValueError(f"No configuration found for dataset_id: {dataset_id}")
-
-        config_dict = config['image_acquisition'][dataset_id]
-        dataset_config = ImageDatasetConfiguration.from_dict(config_dict)
+        dataset_config = ImageDatasetConfiguration.from_dict(self.dataset_id, config_dict)
         self.handler = HandlerFactory.create(dataset_config)
         prometheus_registry = CollectorRegistry()
         self.prometheus_metrics = init_metrics(registry=prometheus_registry)

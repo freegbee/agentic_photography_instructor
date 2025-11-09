@@ -2,14 +2,13 @@ import os
 from pathlib import Path
 from typing import Tuple, List
 
-import numpy as np
 from sympy.codegen.ast import Raise
 from torch.utils.data import Dataset
 
 from utils.TestingUtils import TestingUtils
 
 
-class BasicTestDataset(Dataset[np.ndarray]):
+class AbsolutePathImageDataset(Dataset[Path]):
     """
     A basic data loader for testing purposes. It implements the Dataset interface and uses some random files for testing.
 
@@ -30,6 +29,6 @@ class BasicTestDataset(Dataset[np.ndarray]):
     def __len__(self):
         return len(self.image_files)
 
-    def __getitem__(self, idx) -> Tuple[np.ndarray, Path, str]:
-        image_path: Path = self.image_files[idx]
-        return TestingUtils.load_image_from_path(image_path), image_path.parent, str(image_path.name)
+    def __getitem__(self, idx) -> Tuple[Path, Path, str]:
+        image_file_full_path: Path = self.image_files[idx]
+        return image_file_full_path, image_file_full_path.parent, str(image_file_full_path.name)

@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import Optional, Dict, Union, Iterable, List
 
@@ -66,3 +67,15 @@ class ConfigLoader:
             config = self._deep_update(config, part)
 
         return config
+
+    @staticmethod
+    def load_dataset_config(dataset_id: str) -> Dict:
+        config: Dict = ConfigLoader().load(env=os.environ["ENV_NAME"])
+        if not config:
+            raise ValueError("Error loading config")
+
+        image_acq = config.get('image_acquisition')
+        if dataset_id not in image_acq:
+            raise ValueError(f"No configuration found for dataset_id: {dataset_id}")
+
+        return config['image_acquisition'][dataset_id]

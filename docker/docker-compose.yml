@@ -1,21 +1,31 @@
 name: ${NAME}
 services:
-#  data-service:
-#    build:
-#      context: image-acquisition-service
-#      dockerfile: Dockerfile
-#    container_name: image-acquisition-service
-#    environment:
-#      # ENV_NAME=docker-Eintrag sorgt dafür, dass die os.environment Variable gesetzt wird. (Verwendung vom docker.yaml)
-#      - ENV_NAME=docker
-#      # PYTHONPATH=/app/src-Eintrag sorgt dafür, dass Python Module(-Import) relativ zum /src-Verzeichnis finden kann
-#      - PYTHONPATH=/app/src
-#    volumes:
-#      - resources:/app/volumes/resources
-#      - ../src:/app/src
-#      - ../configs:/app/configs
-#    networks:
-#      - ml-network
+  experiment-service:
+    build:
+      context: experiment-service
+      dockerfile: Dockerfile
+    container_name: experiment-service
+    # Container laufen lassen und auf Eingaben warten, auch wenn kein Terminal verbunden ist
+    stdin_open: true
+    tty: true
+    environment:
+      - ENV_NAME=docker
+      - PYTHONPATH=/app
+      - MLFLOW_TRACKING_URI=http://mlflow:${MLFLOW_PORT}
+      - IMAGE_VOLUME_PATH=/app/volumes/resources
+      - IMAGE_ACQUISITION_SERVICE_URL=http://image-acquisition-service:${IMAGE_ACQUISITION_PORT}
+      - JUROR_SERVICE_URL=http://juror-service:${JUROR_PORT}
+    volumes:
+      - ../src/:/app
+      - resources:/app/volumes/resources
+      - ../configs:/app/configs
+    depends_on:
+      - prometheus
+      - mlflow
+      - image-acquisition-service
+      - juror-service
+    networks:
+      - ml-network
 
   image-acquisition-service:
     build:
@@ -33,6 +43,11 @@ services:
       --host 0.0.0.0
       --port ${IMAGE_ACQUISITION_PORT}
       --log-level info
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f http://localhost:${IMAGE_ACQUISITION_PORT}/health || exit 1" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
     volumes:
       - resources:/app/volumes/resources
       - ../src/:/app
@@ -85,11 +100,13 @@ services:
       - IMAGE_VOLUME_PATH=/app/volumes/resources
       - IMAGE_ACQUISITION_SERVICE_URL=http://image-acquisition-service:${IMAGE_ACQUISITION_PORT}
       - JUROR_SERVICE_URL=http://juror-service:${JUROR_PORT}
+      - MLFLOW_ARTIFACT_ROOT=${MLFLOW_ARTIFACT_ROOT}
     volumes:
       - resources:/app/volumes/resources
       - ../src:/app/src
       - ../configs:/app/configs
       - ../test:/app/test
+      - mlruns:/mlruns
     depends_on:
       - mlflow
     networks:

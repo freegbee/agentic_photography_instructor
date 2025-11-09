@@ -46,5 +46,11 @@ image_acquisition:
     destination_dir: div2k_five_images
     extracted_root: five_images
     target_hash: bb3b48c46e74a2975813070093565efb75b94dd38f17572a45d3b7b45aeccbe7
+  twenty_images:
+    type: local_resource
+    resource_file_path: div2k_twenty_images.tar
+    destination_dir: div2k_twenty_images
+    extracted_root: twenty_images
+    target_hash: 57ebbdabe97cb371197cd0dc267374b08e0c5d8048044f93570388ddc19b8bb8
 
 
