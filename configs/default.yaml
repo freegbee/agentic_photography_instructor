@@ -32,8 +32,14 @@ image_acquisition:
     type: zip
     source_url: "https://data.vision.ee.ethz.ch/cvl/DIV2K/DIV2K_valid_HR.zip"
     destination_dir: div2k
-    extracted_root: hr/validation/DIV2K_valid_HR
+    extracted_root: DIV2K_valid_HR
     target_hash: 6e15600592955c5117a29181f0d46f7b43cd3f11bc94453ca7929f6fedd9aec7
+  div2k_train_hr:
+    type: zip
+    source_url: "https://data.vision.ee.ethz.ch/cvl/DIV2K/DIV2K_train_HR.zip"
+    destination_dir: div2k
+    extracted_root: DIV2K_train_HR
+    target_hash: 58de0874bec269e5d035046fc9d9757507c4eefeb132fc8bbe64866810c9f5a2
   single_image:
     type: local_resource
     resource_file_path: div2k_single_image.tar
