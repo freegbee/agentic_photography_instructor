@@ -10,5 +10,7 @@ scrape_configs:
   - job_name: 'docker-services'
     # Container-Hostnames sind die Service-Namen im Docker Compose network
     static_configs:
-      - targets: ['juror-service:${JUROR_PORT}', 'mlflow:${MLFLOW_PORT}']
-    # Passen Sie Ports/Targets später an (z.B. JurorServer /metrics Pfad).
+      - targets:
+        - 'juror-service:${JUROR_PORT}'
+        - 'image-acquisition-service:${IMAGE_ACQUISITION_PORT}'
+        - 'mlflow:${MLFLOW_PORT}'

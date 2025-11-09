@@ -1,19 +1,44 @@
 name: ${NAME}
 services:
-  data-service:
+#  data-service:
+#    build:
+#      context: image-acquisition-service
+#      dockerfile: Dockerfile
+#    container_name: image-acquisition-service
+#    environment:
+#      # ENV_NAME=docker-Eintrag sorgt dafür, dass die os.environment Variable gesetzt wird. (Verwendung vom docker.yaml)
+#      - ENV_NAME=docker
+#      # PYTHONPATH=/app/src-Eintrag sorgt dafür, dass Python Module(-Import) relativ zum /src-Verzeichnis finden kann
+#      - PYTHONPATH=/app/src
+#    volumes:
+#      - resources:/app/volumes/resources
+#      - ../src:/app/src
+#      - ../configs:/app/configs
+#    networks:
+#      - ml-network
+
+  image-acquisition-service:
     build:
       context: image-acquisition-service
       dockerfile: Dockerfile
     container_name: image-acquisition-service
+    ports:
+      - "${IMAGE_ACQUISITION_PORT}:${IMAGE_ACQUISITION_PORT}"
     environment:
-      # ENV_NAME=docker-Eintrag sorgt dafür, dass die os.environment Variable gesetzt wird. (Verwendung vom docker.yaml)
       - ENV_NAME=docker
-      # PYTHONPATH=/app/src-Eintrag sorgt dafür, dass Python Module(-Import) relativ zum /src-Verzeichnis finden kann
-      - PYTHONPATH=/app/src
+      - PYTHONPATH=/app
+      - IMAGE_VOLUME_PATH=/app/volumes/resources
+    command: >
+      python -m uvicorn image_acquisition.acquisition_server.AcquisitionServer:app
+      --host 0.0.0.0
+      --port ${IMAGE_ACQUISITION_PORT}
+      --log-level info
     volumes:
       - resources:/app/volumes/resources
-      - ../src:/app/src
+      - ../src/:/app
       - ../configs:/app/configs
+    depends_on:
+      - prometheus
     networks:
       - ml-network
 
@@ -34,6 +59,8 @@ services:
       --log-level info
     volumes:
       - ../src/:/app
+    depends_on:
+      - prometheus
     networks:
       - ml-network
     # Folgender Block sorgt dafür, dass der Container auf eine GPU mit CUDA zugreifen kann.
@@ -55,6 +82,9 @@ services:
       - ENV_NAME=docker
       - PYTHONPATH=/app/src
       - MLFLOW_TRACKING_URI=http://mlflow:${MLFLOW_PORT}
+      - IMAGE_VOLUME_PATH=/app/volumes/resources
+      - IMAGE_ACQUISITION_SERVICE_URL=http://image-acquisition-service:${IMAGE_ACQUISITION_PORT}
+      - JUROR_SERVICE_URL=http://juror-service:${JUROR_PORT}
     volumes:
       - resources:/app/volumes/resources
       - ../src:/app/src
@@ -95,6 +125,7 @@ services:
     ports:
       - "${MONITORING_PROMETHEUS_PORT}:${MONITORING_PROMETHEUS_PORT}"
     environment:
+      IMAGE_ACQUISITION_PORT: "${IMAGE_ACQUISITION_PORT}"
       JUROR_PORT: "${JUROR_PORT}"
       MLFLOW_PORT: "${MLFLOW_PORT}"
       MONITORING_PROMETHEUS_PORT: "${MONITORING_PROMETHEUS_PORT}"

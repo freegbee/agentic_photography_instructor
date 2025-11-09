@@ -22,7 +22,7 @@ def main():
    agentic_image = AgenticImage()
    agentic_image.update_source_image(image, 'BGR', image_path.name)
 
-   with JurorClient() as juror_client:
+   with JurorClient(base_url=os.environ["JUROR_SERVICE_URL"]) as juror_client:
        logger.info(f"Mehrfaches Scoring des Bildes {image_path} umd erstmal einfach etwas mehr calls zu machen...")
        for i in range(4):
             scored = juror_client.score_image(f"{image_path}")
