@@ -12,6 +12,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       build-essential \
+      openssh-client \
       libglib2.0-0 \
       libgl1 \
       libgomp1 \
