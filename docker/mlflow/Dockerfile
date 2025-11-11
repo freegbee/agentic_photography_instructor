@@ -21,7 +21,8 @@ RUN apt-get update && \
 # Arbeitsverzeichnis
 WORKDIR /mlflow
 
-RUN python -m pip install --upgrade pip && \
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python -m pip install --upgrade pip && \
     pip install mlflow
 
 # MLflow-Port

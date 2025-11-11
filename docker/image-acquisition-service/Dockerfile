@@ -26,4 +26,5 @@ RUN apt-get update && \
 # ../../requirements.txt does not work because the context is set to the image-acquisition-service directory
 # and it is not possible to reference a file releative outside the context.
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r requirements.txt

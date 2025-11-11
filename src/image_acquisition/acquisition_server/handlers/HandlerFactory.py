@@ -2,7 +2,7 @@ from image_acquisition.acquisition_server.handlers.AbstractHandler import Abstra
 from image_acquisition.acquisition_server.handlers.LocalResourceDownloader import LocalResourceDownloader
 from image_acquisition.acquisition_server.handlers.TarDownloader import TarDownloader
 from image_acquisition.acquisition_server.handlers.ZipDownloader import ZipDownloader
-from image_acquisition.acquisition_shared.ImageDatasetConfiguration import ImageDatasetConfiguration
+from data_types.ImageDatasetConfiguration import ImageDatasetConfiguration
 
 
 class HandlerFactory:
