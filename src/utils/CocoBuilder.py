@@ -77,11 +77,56 @@ class CocoBuilder:
         self._next_ann_id += 1
         return ann["id"]
 
-    def add_category(self, category_name: str, category_id: int):
-        if category_name not in self._category_name_to_id:
-            cat = {"id": category_id, "name": category_name, "supercategory": ""}
-            self.categories.append(cat)
-            self._category_name_to_id[category_name] = category_id
+    def add_image_transformation_score_annotation(self, image_id: int, score: float, initial_score: float, transformer_name: str, super_category_id: int) -> int:
+        """
+        Fügt eine Annotation mit einem Score für das gegebene Bild hinzu.
+        - Wenn category_name gesetzt ist, wird die Kategorie sichergestellt/angelegt.
+        - Für image-level scores werden bbox/segmentation leer gelassen und area=0 gesetzt.
+        """
+        # optional: sicherstellen, dass image_id existiert
+        if image_id not in {v for v in self._image_id_map.values()}:
+            raise ValueError(f"image_id {image_id} not known")
+
+        # transformer_name als Kategorie anlegen/finden falls angegeben
+        cat_id = None
+        if transformer_name:
+            if transformer_name not in self._category_name_to_id:
+                new_id = len(self.categories) + 1
+                self.add_category(transformer_name, new_id, super_category_id)
+            cat_id = self._category_name_to_id[transformer_name]
+
+        ann = {
+            "id": self._next_ann_id,
+            "image_id": image_id,
+            "category_id": cat_id if cat_id is not None else 0,
+            "bbox": [],  # image-level: keine bbox
+            "area": 0,
+            "iscrowd": 0,
+            "segmentation": [],
+            "score": float(score),  # hier wird der Score gespeichert
+            "initial_score": float(initial_score),  # hier wird der Score gespeichert
+        }
+
+        self.annotations.append(ann)
+        self._next_ann_id += 1
+        return ann["id"]
+
+    def add_category(self, category_name: str, category_id: Optional[int] = None, super_category_id: Optional[int] = None) -> int:
+        if category_name in self._category_name_to_id:
+            return self._category_name_to_id[category_name]
+
+        existing_ids = {c["id"] for c in self.categories}
+        if category_id is None:
+            new_id = (max(existing_ids) + 1) if existing_ids else 1
+        else:
+            if category_id in existing_ids:
+                raise ValueError(f"category_id {category_id} already used")
+            new_id = category_id
+
+        cat = {"id": new_id, "name": category_name, "supercategory": super_category_id}
+        self.categories.append(cat)
+        self._category_name_to_id[category_name] = new_id
+        return new_id
 
     def save(self, target_filename: str):
         coco = {
