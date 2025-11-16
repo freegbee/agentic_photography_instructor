@@ -74,7 +74,7 @@ class ImageScoringPhotographyExperiment(PhotographyExperiment):
         # Nachverarbeitung
         self.log_metric("total_number_of_images", len(self.coco_builder.images))
 
-        coco_file_path = self.dataset_config.calculate_destination_path() / "annotations.json"
+        coco_file_path = self.dataset_config.calculate_annotations_file_path()
         logger.info("Saving COCO file to %s", coco_file_path)
         self.coco_builder.save(str(coco_file_path))
 
