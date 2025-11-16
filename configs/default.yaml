@@ -25,38 +25,36 @@ image_acquisition:
   places365_val_large:
     type: tar
     source_url: "https://data.csail.mit.edu/places/places365/val_large.tar"
-    destination_dir: places365
-    extracted_root: val_large
-    target_hash: 2bc267e86fccdb40e1b53dda2084b61d160cca6ccdb571e817ce451cbebf9b75
+    destination_dir: places365_val_large
+    archive_root: val_large
+    target_hash: 208bb312f56932484faeea60e6456e25081231b4919f1a060324df2ff62b71cd
   div2k_valid_hr:
     type: zip
     source_url: "https://data.vision.ee.ethz.ch/cvl/DIV2K/DIV2K_valid_HR.zip"
-    destination_dir: div2k
-    extracted_root: DIV2K_valid_HR
-    target_hash: 6e15600592955c5117a29181f0d46f7b43cd3f11bc94453ca7929f6fedd9aec7
+    destination_dir: div2k_valid_hr
+    archive_root: DIV2K_valid_HR
+    target_hash: d2da9669de21398c490ce58fe0541016607df45eeb64f5e2a9ae4b28166c676b
   div2k_train_hr:
     type: zip
     source_url: "https://data.vision.ee.ethz.ch/cvl/DIV2K/DIV2K_train_HR.zip"
-    destination_dir: div2k
-    extracted_root: DIV2K_train_HR
+    destination_dir: div2k_train_hr
+    archive_root: DIV2K_train_HR
     target_hash: 58de0874bec269e5d035046fc9d9757507c4eefeb132fc8bbe64866810c9f5a2
   single_image:
     type: local_resource
     resource_file_path: div2k_single_image.tar
     destination_dir: div2k_single_image
-    extracted_root: single_image
-    target_hash: 25b79978f6fa9c5764f680ac4d0f5dfea0edda6fe7eeefd9e4777b846eda9966
+    archive_root: single_image
+    target_hash: 111e272f0140d570d6e3d7a13771e64b50c35db1e008292d3fb09584d270682a
   five_images:
     type: local_resource
     resource_file_path: div2k_five_images.tar
     destination_dir: div2k_five_images
-    extracted_root: five_images
-    target_hash: bb3b48c46e74a2975813070093565efb75b94dd38f17572a45d3b7b45aeccbe7
+    archive_root: five_images
+    target_hash: 50c458bbccc4a057a95c090b1ced55b3ba97e750b2bb4c5a501b67cd0e13af27
   twenty_images:
     type: local_resource
     resource_file_path: div2k_twenty_images.tar
     destination_dir: div2k_twenty_images
-    extracted_root: twenty_images
-    target_hash: 57ebbdabe97cb371197cd0dc267374b08e0c5d8048044f93570388ddc19b8bb8
-
-
+    archive_root: twenty_images
+    target_hash: 3cbf4624375fc104268276d272d72c2dc7a18e077a7b0822ba3061254d706aa6

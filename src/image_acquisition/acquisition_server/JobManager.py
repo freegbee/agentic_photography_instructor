@@ -1,7 +1,7 @@
 from __future__ import annotations
 from threading import Lock
 
-from image_acquisition.acquisition_server.imageacquisitionjob import ImageAcquisitionJob
+from image_acquisition.acquisition_server.ImageAcquisitionJob import ImageAcquisitionJob
 
 
 class JobManager:

@@ -1,27 +1,15 @@
 import logging
 from pathlib import Path
 
-from image_acquisition.acquisition_server.handlers.AbstractHandler import AbstractHandler
+from image_acquisition.acquisition_server.handlers.ArchiveDownloader import ArchiveDownloader
 from image_acquisition.acquisition_shared.ImageAcquisitionUtils import ImageAcquisitionUtils
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-class TarDownloader(AbstractHandler):
-    def __init__(self, url: str, destination_path: str, target_hash: str = None):
-        super().__init__(destination_path, target_hash)
-        self.url = url
-        self.temp_dir = Path(self.destination_path, "./temp")
-
-
-    def _process_impl(self):
-        logger.info("Downloading %s", self.url)
-        downloaded_file = ImageAcquisitionUtils.download_file(self.url, str(self.temp_dir))
-        logger.debug("Download completed %s", self.url)
-        logger.info("Extracting tar file %s", downloaded_file)
-        ImageAcquisitionUtils.extract_tar(downloaded_file, self.destination_path)
-        logger.debug("Extraction completed for %s", downloaded_file)
-        logger.debug("Deleting %s", downloaded_file)
-        ImageAcquisitionUtils.cleanup_temp_file(downloaded_file)
-        logger.info("Downloading and extraction finished for %s", self.url)
+class TarDownloader(ArchiveDownloader):
+    def __init__(self, dataset_id: str, url: str, provided_destination_path: Path, archive_root: str,
+                 target_hash: str = None):
+        super().__init__(dataset_id, url, provided_destination_path, archive_root, ImageAcquisitionUtils.extract_tar,
+                         target_hash)

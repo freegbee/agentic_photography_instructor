@@ -1,7 +1,6 @@
 import logging
 import os
 import time
-from pathlib import Path
 from typing import Dict, Optional
 
 from torch.utils.data import Dataset, DataLoader
@@ -18,9 +17,11 @@ from utils.ConfigLoader import ConfigLoader
 
 logger = logging.getLogger(__name__)
 
+
 class ImageScoringPhotographyExperiment(PhotographyExperiment):
 
-    def __init__(self, experiment_name: str, run_name: str = None, dataset_id: str = "single_image", batch_size: int = 2):
+    def __init__(self, experiment_name: str, run_name: str = None, dataset_id: str = "single_image",
+                 batch_size: int = 2):
         super(ImageScoringPhotographyExperiment, self).__init__(experiment_name)
         self.run_name = run_name
         self.dataset_id = dataset_id
@@ -51,7 +52,7 @@ class ImageScoringPhotographyExperiment(PhotographyExperiment):
         self.log_metric("ensure_image_dataset_duration_seconds", time.perf_counter() - start_ensure_images)
         self.log_param("dataset_hash", image_dataset_hash)
 
-        images_root_path = self.dataset_config.calculate_image_root_path(os.environ["IMAGE_VOLUME_PATH"])
+        images_root_path = self.dataset_config.calculate_images_root_path()
         logger.debug("Image root path calculated as %s", images_root_path)
 
         self.log_param("experiment_type", "coco file creation and image scoring")
@@ -60,8 +61,9 @@ class ImageScoringPhotographyExperiment(PhotographyExperiment):
         self.log_param("batch_size", self.batch_size)
 
         # COCO-Builder initialisieren
-        self.coco_builder = CocoBuilder()
-        self.coco_builder.set_description(f"Coco file for dataset {self.dataset_id} for image scoring experiment")
+        self.coco_builder = CocoBuilder(self.dataset_id)
+        self.coco_builder.set_description(
+            f"Coco annotations file for dataset {self.dataset_id} for image scoring experiment")
 
         # JurorClient initialisieren
         self.jurorClient = JurorClient(os.environ["JUROR_SERVICE_URL"])
@@ -72,11 +74,11 @@ class ImageScoringPhotographyExperiment(PhotographyExperiment):
         # Nachverarbeitung
         self.log_metric("total_number_of_images", len(self.coco_builder.images))
 
-        coco_filename = Path(Path(os.environ["IMAGE_VOLUME_PATH"]) / "cocos" / f"{self.dataset_id}_scored_coco.json")
-        self.coco_builder.save(str(coco_filename))
+        coco_file_path = self.dataset_config.calculate_destination_path() / "annotations.json"
+        logger.info("Saving COCO file to %s", coco_file_path)
+        self.coco_builder.save(str(coco_file_path))
 
-        # self.log_artifact(local_path=str(coco_filename), artifact_path="coco_files")
-        self.log_artifact(local_path=str(coco_filename))
+        self.log_artifact(local_path=str(coco_file_path))
 
         # Ergebnisse loggen
         logger.debug(f"Image scoring experiment complete for dataset %s", self.dataset_id)
@@ -93,12 +95,11 @@ class ImageScoringPhotographyExperiment(PhotographyExperiment):
             self._process_batch(batch_index, batch, coco_builder, metrics_accumulator)
             self.log_batch_metrics(metrics_accumulator.compute_metrics(), batch_index)
 
-
     def _process_batch(self, batch_index, batch, coco_builder, metrics_accumulator: BatchImageScoringMetricAccumulator):
         metrics_accumulator.start(batch_index)
         for image_full_path, path, file_name in batch:
             scoring_response: ScoringResponsePayloadV1 = self.jurorClient.score_image(image_full_path)
-            image_id = coco_builder.add_image(file_name, 0,0)
+            image_id = coco_builder.add_image(file_name, 0, 0)
             coco_builder.add_image_score_annotation(image_id, scoring_response.score)
             metrics_accumulator.add_score(scoring_response.score)
         metrics_accumulator.stop()
