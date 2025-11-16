@@ -1,13 +1,12 @@
 import logging
 
-from experiments.shared.logging_config import configure_logging
+from utils.LoggingUtils import configure_logging
 
 configure_logging()
 logger = logging.getLogger(__name__)
 
-def entrypoint():
-    configure_logging()
 
+def entrypoint():
     # Interaktive Eingaben
     try:
         experiment_name = input("Experiment Name (leer = PoC Image Scoring 0.1): ").strip() or None
@@ -37,10 +36,12 @@ def entrypoint():
     except ValueError:
         batch_size = 4
 
-    logger.info("Starting experiment run with experiment_name=%s, run_name=%s, dataset_id=%s, batch_size=%d", experiment_name, run_name, dataset_id, batch_size)
+    logger.info("Starting experiment run with experiment_name=%s, run_name=%s, dataset_id=%s, batch_size=%d",
+                experiment_name, run_name, dataset_id, batch_size)
 
     from experiments.image_scoring.ImageScoringExperiment import ImageScoringPhotographyExperiment
-    exp = ImageScoringPhotographyExperiment(experiment_name=experiment_name, run_name=run_name, dataset_id=dataset_id, batch_size=batch_size)
+    exp = ImageScoringPhotographyExperiment(experiment_name=experiment_name, run_name=run_name, dataset_id=dataset_id,
+                                            batch_size=batch_size)
     exp.run()
 
 

@@ -3,14 +3,12 @@ import uuid
 from pathlib import Path
 
 from experiments.image_degrade.ImageDegradationExperiment import ImageDegradationExperiment
-from experiments.shared.logging_config import configure_logging
+from utils.LoggingUtils import configure_logging
 
 configure_logging()
 logger = logging.getLogger(__name__)
 
 def entrypoint():
-    configure_logging()
-
     # Interaktive Eingaben
     try:
         experiment_name = input("Experiment Name (leer = PoC Image Degrading 0.1): ").strip() or None
