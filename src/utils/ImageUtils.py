@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from numpy import ndarray
 import cv2
 
@@ -16,4 +18,5 @@ class ImageUtils:
 
     @staticmethod
     def save_image(image: ndarray, image_path: str) -> None:
+        Path(image_path).parent.mkdir(parents=True, exist_ok=True)
         cv2.imwrite(image_path, image)
