@@ -14,6 +14,7 @@ class TransformerApplication(BaseModel):
     score_change: float | None = None
 
 class ImageData(BaseModel):
+    id: Optional[int] = None
     image_path: Optional[Path] = None
     image_relative_path: Optional[Path] = None
     image_data: Optional[np.ndarray] = None
@@ -31,6 +32,8 @@ class ImageData(BaseModel):
 
     def clone(self):
         return ImageData(
+            id=self.id,
+            image_relative_path=self.image_relative_path,
             image_path=self.image_path,
             image_data=self.image_data.copy() if self.image_data is not None else None,
             image_color_order=self.image_color_order,

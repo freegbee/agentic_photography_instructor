@@ -1,6 +1,8 @@
 import logging
 import os
+from typing import List
 
+from dataset.COCODataset import COCODataset
 from image_acquisition.acquisition_client.AcquisitionClient import AcquisitionClient
 from image_acquisition.acquisition_shared.models_v1 import AsyncJobStatusV1
 

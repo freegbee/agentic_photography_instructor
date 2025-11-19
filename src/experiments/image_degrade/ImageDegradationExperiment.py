@@ -82,7 +82,6 @@ class ImageDegradationExperiment(PhotographyExperiment):
         # COCO-Builder initialisieren
         self.coco_builder = CocoBuilder(self.source_dataset_id)
         self.coco_builder.set_description(f"Coco file for dataset {self.source_dataset_id} and transformer {self.transformer.label} for image degradation experiment")
-        self.transformer_category_id = self.coco_builder.add_category("transformer")
 
         source_dataset = COCODataset(source_images_root_path, self.dataset_config.calculate_annotations_file_path())
 
@@ -127,7 +126,8 @@ class ImageDegradationExperiment(PhotographyExperiment):
             logger.info("Transformed image %s with transformer %s", image_data.image_path, self.transformer.label)
             scoring_response: ScoringResponsePayloadV1 = self.jurorClient.score_image(transformed_image_path)
             logger.info("scoring response %s", scoring_response)
-            coco_builder.add_image_transformation_score_annotation(image_id, scoring_response.score, image_data.score, self.transformer.label, self.transformer_category_id)
+            coco_builder.add_image_transformation_score_annotation(image_id, scoring_response.score, image_data.score)
+            coco_builder.add_image_transformation_annotation(image_id, self.transformer.label)
             metrics_accumulator.add_score(scoring_response.score, image_data.score)
 
         metrics_accumulator.stop()
