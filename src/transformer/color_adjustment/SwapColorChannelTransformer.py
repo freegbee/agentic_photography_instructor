@@ -29,7 +29,7 @@ def _swap_channels(image: ndarray, channel_a: Channel, channel_b: Channel) -> nd
     return out
 
 
-class SwapColorChanelTransformerRG(AbstractColorAdjustmentTransformer):
+class SwapColorChannelTransformerRG(AbstractColorAdjustmentTransformer):
     """Swap Red and Green channels (BGR -> BGR with R and G swapped)."""
 
     label = "CA_SWAP_RG"
@@ -39,7 +39,7 @@ class SwapColorChanelTransformerRG(AbstractColorAdjustmentTransformer):
         return _swap_channels(image, "R", "G")
 
 
-class SwapColorChanelTransformerRB(AbstractColorAdjustmentTransformer):
+class SwapColorChannelTransformerRB(AbstractColorAdjustmentTransformer):
     """Swap Red and Blue channels (BGR -> BGR with R and B swapped)."""
 
     label = "CA_SWAP_RB"
@@ -49,7 +49,7 @@ class SwapColorChanelTransformerRB(AbstractColorAdjustmentTransformer):
         return _swap_channels(image, "R", "B")
 
 
-class SwapColorChanelTransformerGB(AbstractColorAdjustmentTransformer):
+class SwapColorChannelTransformerGB(AbstractColorAdjustmentTransformer):
     """Swap Green and Blue channels (BGR -> BGR with G and B swapped)."""
 
     label = "CA_SWAP_GB"

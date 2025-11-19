@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import List, cast, Optional
+from typing import List, cast
 
 from torch.utils.data import DataLoader, Dataset
 
@@ -20,7 +20,8 @@ class Utils:
         """
         Lädt ein COCODataset aus dem angegebenen Verzeichnis und der Annotationsdatei.
         """
-        return COCODataset(Utils.calculate_images_root_path(dataset_root_path), Utils.calculate_annotations_file_path(dataset_root_path))
+        return COCODataset(Utils.calculate_images_root_path(dataset_root_path),
+                           Utils.calculate_annotations_file_path(dataset_root_path))
 
     @staticmethod
     def create_topk_coco_dataloader(root_path: Path, batch_size: int, k: int) -> 'DataLoader':

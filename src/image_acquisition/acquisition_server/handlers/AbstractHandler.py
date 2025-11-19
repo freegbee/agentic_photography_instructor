@@ -2,6 +2,7 @@ import logging
 import os
 from abc import ABC, abstractmethod
 from pathlib import Path
+from typing import Union
 
 from image_acquisition.acquisition_shared.ImageAcquisitionUtils import ImageAcquisitionUtils
 
@@ -40,7 +41,7 @@ class AbstractHandler(ABC):
     def _process_impl(self):
         raise NotImplementedError("Subclasses must implement this method")
 
-    def _check_hash(self, path: Path, target_hash: str) -> bool | None:
+    def _check_hash(self, path: Path, target_hash: str) -> Union[bool|None]:
         try:
             logger.debug(f"Checking hash for path %s", path)
             if self.target_hash is None:

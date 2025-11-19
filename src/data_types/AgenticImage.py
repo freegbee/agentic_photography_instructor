@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List, Union, Optional
+from typing import List, Optional
 
 import cv2
 import numpy as np

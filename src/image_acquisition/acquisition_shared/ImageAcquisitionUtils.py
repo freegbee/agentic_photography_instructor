@@ -1,4 +1,5 @@
 import logging
+import os
 import shutil
 from pathlib import Path
 
@@ -18,7 +19,6 @@ class ImageAcquisitionUtils:
             requests.HTTPError: Wenn der Download fehlschlägt.
         """
         # Imports
-        import os
         import httpx
 
         try:
@@ -83,8 +83,6 @@ class ImageAcquisitionUtils:
             FileExistsError: Wenn Zieldatei existiert und overwrite=False.
             OSError: Bei anderen Dateisystemfehlern.
         """
-        import os
-        import shutil
 
         logger.info("Copying resource file from %s to %s with name %s (overwrite=%s)", src_path, dest_dir, dest_name,
                     overwrite)
@@ -123,7 +121,6 @@ class ImageAcquisitionUtils:
             extract_dir: Verzeichnis, in das die Dateien entpackt werden sollen.
             member_root: verzeichnis innerhalb des tar-archives, das extrahiert werden soll (oder None für alle).
         """
-        import os
         import tarfile
 
         # Verzeichnis erstellen, falls nicht existent und Pfad absolutieren
@@ -135,7 +132,7 @@ class ImageAcquisitionUtils:
             # Normalisiere den gewünschten Root (keine führenden/trailenden '/')
             normalized_member_root = member_root.as_posix().lstrip("./").lstrip("/").rstrip("/")
 
-        logger.info(f"Extracting {tar_file.name} to {normalized_member_root}")
+        logger.info(f"Extracting {tar_file} to {normalized_member_root}")
 
         try:
             with tarfile.open(tar_file, "r:*") as tar:
@@ -149,23 +146,14 @@ class ImageAcquisitionUtils:
 
                     # Filter auf member_root, falls gesetzt
                     if normalized_member_root:
-                        logger.debug("In member root: Inspecting tar file folder %s for %s", member_name,
-                                     normalized_member_root)
                         if member_name == normalized_member_root:
                             rel_path = ""  # das Verzeichnis selbst
-                            logger.debug(
-                                f"In member root: Inspecting tar file folder %s for %s now with rel_path empty string",
-                                member_name, normalized_member_root)
                         elif member_name.startswith(normalized_member_root + "/"):
                             rel_path = member_name[len(normalized_member_root) + 1:]
-                            logger.debug("In member root: Inspecting tar file folder %s for %s now with rel_path %s",
-                                         member_name, normalized_member_root, rel_path)
                         else:
                             continue
                     else:
                         rel_path = member_name
-                        logger.debug(
-                            "Not member Root: directly using member member_name %s as rel_path", member_name)
 
                     # Zielpfad berechnen und path traversal verhindern
                     dest_path = os.path.join(abs_dest, rel_path) if rel_path else abs_dest
@@ -191,7 +179,7 @@ class ImageAcquisitionUtils:
                     ## Dateiinhalt sicher extrahieren
                     fileobj = tar.extractfile(member)
                     if fileobj is None:
-                        logging.warning("Could not extract member (no fileobj): %s", member_name)
+                        logger.warning("Could not extract member (no fileobj): %s", member_name)
                         continue
 
                     with open(dest_path, "wb") as out_f:
@@ -201,7 +189,7 @@ class ImageAcquisitionUtils:
                     try:
                         os.chmod(dest_path, member.mode)
                     except Exception:
-                        logging.debug("Could not set mode for %s", dest_path)
+                        logger.debug("Could not set mode for %s", dest_path)
                 logger.debug(f"Extracted member {member} from {tar_file} into {abs_dest}")
 
             logger.info(f"Extracted tar file {tar_file} into {abs_dest}")
@@ -221,7 +209,6 @@ class ImageAcquisitionUtils:
             extract_dir: Verzeichnis, in das die Dateien entpackt werden sollen.
             member_root: verzeichnis innerhalb des zip-archives, das extrahiert werden soll (oder None für alle).
         """
-        import os
         import zipfile
 
         # Verzeichnis erstellen, falls nicht existent und Pfad absolutieren
@@ -309,8 +296,6 @@ class ImageAcquisitionUtils:
         Args:
             file_path: Pfad zur temporären Datei.
         """
-        import os
-
         if os.path.exists(file_path):
             try:
                 os.remove(file_path)
@@ -327,7 +312,6 @@ class ImageAcquisitionUtils:
         - Hash basiert auf relativem Pfad (mit '/' als Trenner) + Inhalt.
         Returns: hex Digest des Hashes.
         """
-        import os
         import hashlib
 
         if not os.path.exists(dir_path):

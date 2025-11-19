@@ -106,6 +106,12 @@ class CocoBuilder:
 
     def add_category(self, category_name: str, category_id: Optional[int] = None,
                      super_category_id: Optional[int] = None) -> int:
+        """
+        Fügt eine Kategorie hinzu und gibt deren ID zurück.
+        - Wenn category_id None ist, wird eine neue ID automatisch vergeben.
+        - Wenn die Kategorie bereits existiert, wird die vorhandene ID zurückgegeben.
+        - super_category_id kann gesetzt werden, um eine Superkategorie zuzuweisen.
+        """
         if category_name in self._category_name_to_id:
             return self._category_name_to_id[category_name]
 

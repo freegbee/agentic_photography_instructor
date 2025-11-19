@@ -20,7 +20,7 @@ class BatchImageDegradationMetricAccumulator:
 
     def add_score(self, score: float, initial_score: float = None):
         self.scores.append(score)
-        self.initial_scores.append(score)
+        self.initial_scores.append(initial_score)
         self.changes.append(score - initial_score)
 
     def reset(self):

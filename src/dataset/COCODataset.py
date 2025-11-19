@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import Optional, List
 
 from numpy import ndarray
 from pycocotools.coco import COCO
@@ -51,26 +50,6 @@ class COCODataset(Dataset[ImageData]):
                            score=score)
 
         return result
-
-    def get_transformer_descendant_ids(self) -> List[int]:
-        cats_iter = self.coco.loadCats()
-        transformer_ids = self.coco.getCatIds(catNms=["transformer"])
-
-        def chain_contains_transformer(cat_id: Optional[int]) -> bool:
-            visited = set()
-            while cat_id is not None and cat_id not in visited:
-                visited.add(cat_id)
-                if cat_id in transformer_ids:
-                    return True
-                cat = self.coco.loadCats(cat_id)[0]
-                if not cat:
-                    break
-                cat_id = cat.get("supercategory")
-            return False
-
-        self.utils_transformer_descendant_ids = [c["id"] for c in cats_iter if chain_contains_transformer(c.get("id"))]
-
-        return self.utils_transformer_descendant_ids
 
     @staticmethod
     def _load_image(image_path: Path):

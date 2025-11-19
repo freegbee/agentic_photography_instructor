@@ -26,12 +26,8 @@ logger = logging.getLogger(__name__)
 class ImageDegradationExperiment(PhotographyExperiment):
     def __init__(self, experiment_name: str, target_directory_root: str, target_dataset_id: str, transformer_name: str, run_name: str = None, source_dataset_id: str = "single_image", batch_size: int = 2):
         super().__init__(experiment_name)
+        # Zeile nur um Import-Fehler zu vermeiden :-(
         abstract_transformer: AbstractTransformer = InvertColorChannelTransformerGR()
-        print(abstract_transformer)
-
-        logger.info("checking transformer registry:")
-        subclasses = list(TRANSFORMER_REGISTRY.keys())
-        print(subclasses)
 
         logger.info("Experiment name: %s with target_directory_root %s and source_dataset_id %s", experiment_name, target_directory_root, source_dataset_id)
         self.target_directory_root = Path(os.environ["IMAGE_VOLUME_PATH"]) / target_directory_root
