@@ -124,7 +124,6 @@ class ImageAcquisitionUtils:
         import tarfile
 
         # Verzeichnis erstellen, falls nicht existent und Pfad absolutieren
-        logger.info(f"Extracting {tar_file}")
         os.makedirs(extract_dir, exist_ok=True)
         abs_dest = os.path.abspath(extract_dir)
         normalized_member_root = None
