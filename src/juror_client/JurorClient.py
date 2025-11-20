@@ -6,11 +6,13 @@ http://localhost:5010/scoring zu schicken.
 import os
 import logging
 import base64
-from typing import Optional, Union
+from typing import Optional, Union, BinaryIO, cast
+import io
+import numpy as np
 
 import httpx
 
-from juror_shared.models_v1 import ScoringRequestPayloadV1, ScoringResponsePayloadV1
+from juror_shared.models_v1 import ScoringRequestPayloadV1, ScoringResponsePayloadV1, ScoringNdarrayRequestPayloadV1
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +95,58 @@ class JurorClient:
         try:
             return ScoringResponsePayloadV1(**resp.json())
         except ValueError:
+            return resp.text
+
+    def score_ndarray(self, array: np.ndarray, filename: Optional[str] = None, encoding: str = "npy", metadata: Optional[ScoringNdarrayRequestPayloadV1] = None, raw: bool = False) -> Union[ScoringResponsePayloadV1, str]:
+        """Sende ein numpy.ndarray effizient an den Server via multipart/form-data.
+
+        Das Array wird als .npy (oder .npz wenn encoding == 'npz') in den Request-Body geschrieben.
+        """
+        if not isinstance(array, np.ndarray):
+            raise TypeError("array muss ein numpy.ndarray sein")
+
+        # Serialisiere das Array in Bytes
+        bio = None
+        if encoding == "npy":
+            bio = io.BytesIO()
+            np.save(cast(BinaryIO, bio), array, allow_pickle=False)  # type: ignore[arg-type]
+            bio.seek(0)
+            filename = filename or "array.npy"
+            content_type = "application/octet-stream"
+        elif encoding == "npz":
+            bio = io.BytesIO()
+            np.savez(cast(BinaryIO, bio), array=array)  # type: ignore[arg-type]
+            bio.seek(0)
+            filename = filename or "array.npz"
+            content_type = "application/octet-stream"
+        else:
+            raise ValueError("Unsupported encoding; use 'npy' or 'npz'")
+
+        if raw:
+            # send raw bytes as application/octet-stream and include metadata in header if present
+            payload_bytes = bio.getvalue()
+            headers = {"Content-Type": "application/octet-stream"}
+            if metadata is not None:
+                headers["X-Scoring-Metadata"] = metadata.model_dump_json()
+            logger.info("Sending raw file for scoring: %s", filename)
+            resp = self._client.post(self.scoring_endpoint + "/ndarray", content=payload_bytes, headers=headers)
+            logger.info("received response from raw upload")
+        else:
+            files = {"array_file": (filename, bio.read(), content_type)}
+            data = None
+            if metadata is not None:
+                # send metadata as JSON string in a form field
+                data = {"metadata": metadata.model_dump_json()}
+            logger.debug("Sending array file for scoring: %s", filename)
+            resp = self._client.post(self.scoring_endpoint + "/ndarray", files=files, data=data)
+            logger.debug("Response status=%s headers=%s", resp.status_code, dict(resp.headers))
+
+        resp.raise_for_status()
+
+        try:
+            return ScoringResponsePayloadV1(**resp.json())
+        except ValueError as e:
+            logger.exception(e)
             return resp.text
 
     def close(self) -> None:

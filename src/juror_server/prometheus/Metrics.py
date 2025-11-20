@@ -7,7 +7,7 @@ class Metrics:
                                                documentation="HTTP request duration in seconds",
                                                labelnames=['method', 'endpoint', 'status'],
                                                unit="seconds",
-                                               buckets=(0.005,0.01,0.025,0.05,0.1,0.25,0.5,1,2.5,5,10),
+                                               buckets=(0.0025,0.005,0.0075,0.01,0.0125,0.015,0.0175,0.02,0.0225,0.025,0.0275,0.03,0.0325,0.035,0.0375,0.04,0.05, 0.06,0.08,0.1,0.2,0.5),
                                                registry=registry)
         self.SCORING_DURATION = Histogram(name="juror_scoring_duration_seconds",
                                           documentation="Duration to score an image (seconds)",

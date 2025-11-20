@@ -7,7 +7,7 @@ from typing import Optional
 
 import numpy as np
 from PIL import Image
-from fastapi import FastAPI, HTTPException, Response, Request
+from fastapi import FastAPI, HTTPException, Response, Request, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.routing import APIRouter
 from prometheus_client import CollectorRegistry, generate_latest, CONTENT_TYPE_LATEST, process_collector, gc_collector, \
@@ -16,7 +16,7 @@ from prometheus_client import CollectorRegistry, generate_latest, CONTENT_TYPE_L
 # Import the Juror implementation from the same package
 from juror.Juror import Juror
 from juror_server.prometheus.Metrics import init_metrics
-from juror_shared.models_v1 import ScoringRequestPayloadV1, ScoringResponsePayloadV1
+from juror_shared.models_v1 import ScoringRequestPayloadV1, ScoringResponsePayloadV1, ScoringNdarrayRequestPayloadV1
 
 logger = logging.getLogger(__name__)
 
@@ -133,6 +133,118 @@ async def score_image_base64(payload: ScoringRequestPayloadV1):
     # return PlainTextResponse(f"{score}")
     response = ScoringResponsePayloadV1(
         **{"score": score, "filename": payload.filename, "message": "Scoring successful"})
+    return response
+
+
+@v1.post("/score/ndarray", response_model=ScoringResponsePayloadV1)
+async def score_ndarray_file(
+    request: Request,
+    metadata: Optional[str] = Form(None),
+    array_file: Optional[UploadFile] = File(None),
+):
+    """Akzeptiert ein npy/npz File (Multipart Upload) und wertet es aus.
+
+    Der Body sollte ein Multipart-Form sein mit Feld `array_file` (binär)
+    und optional `metadata` als JSON-String (FastAPI behandelt das).
+    """
+    # Read raw bytes. Support two modes:
+    # 1) Multipart form with `array_file` UploadFile
+    # 2) Raw application/octet-stream body (request.body())
+    try:
+        content_type = request.headers.get("content-type", "")
+        if array_file is not None:
+            data = await array_file.read()
+            filename_from = array_file.filename
+        else:
+            # If not multipart, accept raw octet-stream body
+            # Note: this will also read npy/npz bytes directly
+            data = await request.body()
+            filename_from = None
+    except Exception as e:
+        prometheus_metrics.ERROR_COUNT.labels(type="read_error").inc()
+        raise HTTPException(status_code=400, detail=f"Failed to read uploaded data: {e}")
+
+    print(f"success reading fake data of length {len(data)} bytes")
+
+    # Load numpy array from bytes (support npy and npz)
+    try:
+        bio = io.BytesIO(data)
+        # Try as np.load (handles .npy and .npz)
+        arr = np.load(bio, allow_pickle=False)
+        # If npz archive, try to extract the first array
+        if isinstance(arr, np.lib.npyio.NpzFile):
+            # take the first array in the archive
+            keys = list(arr.files)
+            if not keys:
+                raise ValueError("npz archive contains no arrays")
+            arr = arr[keys[0]]
+        image_np = arr.astype(np.uint8)
+        print(f"image_np shape: {image_np.shape}, dtype: {image_np.dtype}")
+    except Exception as e:
+        prometheus_metrics.ERROR_COUNT.labels(type="decode_error").inc()
+        raise HTTPException(status_code=400, detail=f"Failed to decode numpy array: {e}")
+
+    # Optional: parse and validate metadata. There are three ways metadata can arrive:
+    # 1) Multipart form field `metadata` (JSON string)
+    # 2) Header 'X-Scoring-Metadata' containing JSON when request is application/octet-stream
+    # 3) Not provided
+    metadata_obj = None
+    if metadata:
+        try:
+            metadata_obj = ScoringNdarrayRequestPayloadV1.model_validate_json(metadata)
+        except Exception as e:
+            prometheus_metrics.ERROR_COUNT.labels(type="metadata_parse_error").inc()
+            raise HTTPException(status_code=400, detail=f"Failed to parse metadata JSON from form field: {e}")
+
+    # If no metadata form was provided and content type is octet-stream, try header
+    if metadata is None and content_type and content_type.split(";")[0].strip() == "application/octet-stream":
+        print(f"Trying to read metadata from headers")
+        header_json = request.headers.get("x-scoring-metadata") or request.headers.get("x-metadata")
+        if header_json:
+            try:
+                metadata_obj = ScoringNdarrayRequestPayloadV1.model_validate_json(header_json)
+            except Exception as e:
+                prometheus_metrics.ERROR_COUNT.labels(type="metadata_parse_error").inc()
+                raise HTTPException(status_code=400, detail=f"Failed to parse metadata JSON from header: {e}")
+
+    # If metadata parsed, validate shape/dtype
+    if metadata_obj:
+        if metadata_obj.shape and tuple(metadata_obj.shape) != image_np.shape:
+            prometheus_metrics.ERROR_COUNT.labels(type="shape_mismatch").inc()
+            raise HTTPException(status_code=400, detail=f"Shape mismatch: expected {metadata_obj.shape}, got {image_np.shape}")
+        if metadata_obj.dtype and metadata_obj.dtype != str(image_np.dtype):
+            prometheus_metrics.ERROR_COUNT.labels(type="dtype_mismatch").inc()
+            raise HTTPException(status_code=400, detail=f"Dtype mismatch: expected {metadata_obj.dtype}, got {image_np.dtype}")
+
+    if _juror is None:
+        prometheus_metrics.ERROR_COUNT.labels(type="model_not_loaded").inc()
+        raise HTTPException(status_code=503, detail="Juror model not loaded yet")
+
+    try:
+        print(f"start to score")
+        start = time.perf_counter()
+        score = float(_juror.inference(image_np))
+        elapsed = time.perf_counter() - start
+
+        try:
+            prometheus_metrics.SCORING_DURATION.observe(elapsed)
+            prometheus_metrics.SCORING_VALUE.set(score)
+        except Exception:
+            pass
+
+        print(f"Score: {score} took {elapsed:.2f} seconds for ndarray upload, size {len(data)} bytes")
+    except Exception as e:
+        prometheus_metrics.ERROR_COUNT.labels(type="inference_error").inc()
+        raise HTTPException(status_code=500, detail=f"Inference failed: {e}")
+
+    # determine filename for response: prefer metadata.filename > uploaded filename > None
+    resp_filename = None
+    if metadata_obj and metadata_obj.filename:
+        resp_filename = metadata_obj.filename
+    elif filename_from:
+        resp_filename = filename_from
+
+    response = ScoringResponsePayloadV1(**{"score": score, "filename": resp_filename, "message": "Scoring successful"})
     return response
 
 
