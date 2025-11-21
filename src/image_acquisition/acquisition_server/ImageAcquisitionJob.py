@@ -1,7 +1,6 @@
 import logging
-import os
 import time
-from typing import Dict, Union
+from typing import Dict
 
 from prometheus_client import CollectorRegistry
 

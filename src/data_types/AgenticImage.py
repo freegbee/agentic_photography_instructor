@@ -1,4 +1,5 @@
-from typing import List
+from pathlib import Path
+from typing import List, Optional
 
 import cv2
 import numpy as np
@@ -13,9 +14,12 @@ class TransformerApplication(BaseModel):
     score_change: float | None = None
 
 class ImageData(BaseModel):
-    image_data: np.ndarray | None = None
-    image_color_order: str | None = None  # 'RGB' or 'BGR'
-    score: float | None = None
+    id: Optional[int] = None
+    image_path: Optional[Path] = None
+    image_relative_path: Optional[Path] = None
+    image_data: Optional[np.ndarray] = None
+    image_color_order: Optional[str] = None  # 'RGB' or 'BGR'
+    score: Optional[float] = None
 
     class Config:
         arbitrary_types_allowed = True
@@ -28,6 +32,9 @@ class ImageData(BaseModel):
 
     def clone(self):
         return ImageData(
+            id=self.id,
+            image_relative_path=self.image_relative_path,
+            image_path=self.image_path,
             image_data=self.image_data.copy() if self.image_data is not None else None,
             image_color_order=self.image_color_order,
             score=self.score

@@ -6,6 +6,7 @@ from image_acquisition.acquisition_shared.models_v1 import AsyncJobStatusV1
 
 logger = logging.getLogger(__name__)
 
+
 class Utils:
     @staticmethod
     def ensure_image_dataset(dataset_id: str) -> str:
@@ -20,7 +21,8 @@ class Utils:
                 if job_status is not None:
                     logger.debug("Job status: %s", job_status.status)
                     if job_status.status == AsyncJobStatusV1.COMPLETED:
-                        logger.info("Image dataset %s acquired successfully. Resulting dataset hash: %s", dataset_id, job_status.resulting_hash)
+                        logger.info("Image dataset %s acquired successfully. Resulting dataset hash: %s", dataset_id,
+                                    job_status.resulting_hash)
                         result_hash = job_status.resulting_hash
                         break
                     if job_status.status == AsyncJobStatusV1.FAILED:

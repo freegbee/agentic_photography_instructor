@@ -3,6 +3,7 @@ import logging
 import time
 import uuid
 from contextlib import asynccontextmanager
+from types import SimpleNamespace
 
 from fastapi import FastAPI, HTTPException, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,8 +12,8 @@ from fastapi.routing import APIRouter
 from prometheus_client import CollectorRegistry, CONTENT_TYPE_LATEST, gc_collector, platform_collector, process_collector
 
 from image_acquisition.acquisition_server.JobManager import JobManager
-from image_acquisition.acquisition_server.imageacquisitionjob import ImageAcquisitionJob
-from image_acquisition.acquisition_server.logging_config import configure_logging
+from image_acquisition.acquisition_server.ImageAcquisitionJob import ImageAcquisitionJob
+from utils.LoggingUtils import configure_logging
 from image_acquisition.acquisition_server.prometheus import prometheus_metrics
 from image_acquisition.acquisition_shared.models_v1 import StartAsyncImageAcquisitionRequestV1, \
     AsyncImageAcquisitionJobResponseV1
@@ -29,12 +30,25 @@ process_collector.ProcessCollector(registry=prometheus_registry)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context to initialize and cleanup resources."""
-    configure_logging()
+    listener = configure_logging()
     logger.info("Starting Acquisition Server...")
+
+    # Defensive: ensure app.state exists (manche Checker / Umgebungen melden es sonst nicht)
+    if not hasattr(app, "state") or getattr(app, "state") is None:
+        app.state = SimpleNamespace()  # sicherer, leichter Behälter für Attribute
+
     try:
+        # Listener verfügbar machen, falls andere Teile der App darauf zugreifen wollen
+        app.state.log_listener = listener
         yield
     finally:
         logger.info("Shutting down Acquisition Server...")
+        # Listener sicher stoppen
+        try:
+            if getattr(app.state, "log_listener", None):
+                app.state.log_listener.stop()
+        except Exception:
+            logger.exception("Error while stopping logging listener")
 
 
 app = FastAPI(title="Image Acquisition Server", lifespan=lifespan)

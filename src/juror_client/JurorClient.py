@@ -77,7 +77,7 @@ class JurorClient:
 
         url = f"{self.base_url}/score"
 
-        logger.debug("Posting file %s to %s (mime=%s)", image_path, url)
+        logger.debug("Posting file %s to %s", image_path, url)
         with open(image_path, "rb") as f:
             data = f.read()
             b64 = base64.b64encode(data).decode("ascii")
