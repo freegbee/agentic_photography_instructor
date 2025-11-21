@@ -78,15 +78,9 @@ services:
       - prometheus
     networks:
       - ml-network
-    # Folgender Block sorgt dafür, dass der Container auf eine GPU mit CUDA zugreifen kann.
-    # Offen, ob das auf dem Mac stört und wir profile brauchen, oder nicht
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [ gpu ]
+    # deploy block removed: moved to docker/docker-compose.windows.override.yml
+    # If you want to enable the GPU reservation (Windows), start compose with:
+    # docker-compose -f docker-compose.yml -f docker/docker-compose.windows.override.yml up
 
   train:
     build:
