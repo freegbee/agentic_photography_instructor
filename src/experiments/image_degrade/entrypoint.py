@@ -25,7 +25,7 @@ def entrypoint():
         source_dataset_id = "single_image"
 
     try:
-        transformer_name = input("Transformer name (leer = CA_INV_B): ").strip() or None
+        transformer_name = input("Transformer name (leer = CA_INV_B; RANDOM=Zufälliger, umkehrbarer Transformer): ").strip() or None
     except EOFError:
         transformer_name = "CA_INV_B"
     if transformer_name is None:

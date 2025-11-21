@@ -79,7 +79,7 @@ async def metrics_middleware(request: Request, call_next):
             return response
 
         logger.debug("Request to %s tool %s seconds", request.url.path, elapsed)
-        prometheus_metrics.metrics().HTTP_REQUEST_DURATION.labels(
+        prometheus_metrics.metrics().HTTP_REQUEST_DURATION_HIST.labels(
              status=str(response.status_code),
              endpoint=request.url.path,
              method=request.method

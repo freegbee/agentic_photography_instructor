@@ -3,16 +3,19 @@
 Bietet eine Klasse `JurorClient` mit Methoden um ein Bild per HTTP POST an
 http://localhost:5010/scoring zu schicken.
 """
-import os
-import logging
 import base64
-from typing import Optional, Union
+import io
+import logging
+import os
+from typing import Optional, Union, BinaryIO, cast
 
 import httpx
+import numpy as np
 
 from juror_shared.models_v1 import ScoringRequestPayloadV1, ScoringResponsePayloadV1
 
 logger = logging.getLogger(__name__)
+
 
 class JurorClient:
     """Client zum Senden von Bildern an den Juror-Server (/scoring).
@@ -27,7 +30,7 @@ class JurorClient:
             # FIXME: Die URL ist hier noch hardcoded, sollte aber konfigurierbar sein
             base_url: str = "http://localhost:5010",
             timeout: float = 10.0,
-            client: Optional[httpx.Client] = None,):
+            client: Optional[httpx.Client] = None, ):
         """Erzeuge einen neuen Client.
 
         Args:
@@ -38,13 +41,13 @@ class JurorClient:
 
         # Validierungen der Parameter
         if base_url is None:
-            raise ValueError("base_url darf nicht None sein. Beispiel: 'http://localhost:5010' - Abhängig den der lokalen Konfiguration oder Umgebungsvariable ab.")
+            raise ValueError(
+                "base_url darf nicht None sein. Beispiel: 'http://localhost:5010' - Abhängig den der lokalen Konfiguration oder Umgebungsvariable ab.")
         if not isinstance(base_url, str):
             raise TypeError("base_url muss vom Typ str sein")
 
-
         self._api_version = "v1"
-        self.base_url = base_url.rstrip("/") + f"/{self._api_version}/" # trailing slash preserves path as directory
+        self.base_url = base_url.rstrip("/") + f"/{self._api_version}/"  # trailing slash preserves path as directory
         self.scoring_endpoint = "score"
 
         self.timeout = float(timeout)
@@ -95,12 +98,52 @@ class JurorClient:
         except ValueError:
             return resp.text
 
+    def score_ndarray(self, array: np.ndarray, filename: Optional[str] = None, encoding: str = "npy") -> Union[
+        ScoringResponsePayloadV1, str]:
+        """Sende ein numpy.ndarray effizient an den Server via multipart/form-data.
+
+        Das Array wird als .npy (oder .npz wenn encoding == 'npz') in den Request-Body geschrieben.
+        """
+        if not isinstance(array, np.ndarray):
+            raise TypeError("array muss ein numpy.ndarray sein")
+
+        # Serialisiere das Array in Bytes
+        bio = None
+        if encoding == "npy":
+            bio = io.BytesIO()
+            np.save(cast(BinaryIO, bio), array, allow_pickle=False)  # type: ignore[arg-type]
+            bio.seek(0)
+            filename = filename or "array.npy"
+            content_type = "application/octet-stream"
+        elif encoding == "npz":
+            bio = io.BytesIO()
+            np.savez(cast(BinaryIO, bio), array=array)  # type: ignore[arg-type]
+            bio.seek(0)
+            filename = filename or "array.npz"
+            content_type = "application/octet-stream"
+        else:
+            raise ValueError("Unsupported encoding; use 'npy' or 'npz'")
+
+        files = {"array_file": (filename, bio.read(), content_type)}
+        logger.info(f"Sending file for scoring: %s", files["array_file"][0])
+        logger.debug("Sending array file for scoring: %s", filename)
+        resp = self._client.post(self.scoring_endpoint + "/ndarray", files=files)
+        logger.debug("Response status=%s headers=%s", resp.status_code, dict(resp.headers))
+
+        resp.raise_for_status()
+
+        try:
+            return ScoringResponsePayloadV1(**resp.json())
+        except ValueError as e:
+            logger.exception(e)
+            return resp.text
+
     def close(self) -> None:
         """Schliesse den HTTP-Client, falls dieser intern erstellt wurde."""
         if not self._external_client:
             try:
                 self._client.close()
-            except Exception :
+            except Exception:
                 logger.exception("Fehler beim Schliessen des HTTP-Clients")
 
     def __enter__(self) -> "JurorClient":
