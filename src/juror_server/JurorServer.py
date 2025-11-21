@@ -121,6 +121,7 @@ async def score_image_base64(payload: ScoringRequestPayloadV1):
         # Metric für Inferenzzeit und erfolgreiche Anfrage
         try:
             prometheus_metrics.SCORING_DURATION.observe(elapsed)
+            prometheus_metrics.SCORING_SPEED.set(elapsed)
             prometheus_metrics.SCORING_VALUE.set(score)
         except Exception:
             pass
@@ -228,6 +229,7 @@ async def score_ndarray_file(
 
         try:
             prometheus_metrics.SCORING_DURATION.observe(elapsed)
+            prometheus_metrics.SCORING_SPEED.set(elapsed)
             prometheus_metrics.SCORING_VALUE.set(score)
         except Exception:
             pass

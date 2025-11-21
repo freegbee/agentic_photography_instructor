@@ -17,7 +17,9 @@ class Metrics:
                                   registry=registry)
         self.ERROR_COUNT = Counter(name="juror_errors_total", documentation="Total inference errors",
                                    labelnames=['type'], registry=registry)
-        self.SCORING_VALUE = Gauge(name="juror_scoring_value", documentation="Score score based on juror model",
+        self.SCORING_VALUE = Gauge(name="juror_scoring_value", documentation="Scoring score based on juror model",
+                                   registry=registry)
+        self.SCORING_SPEED = Gauge(name="juror_scoring_speed", documentation="Speed of scoring",
                                    registry=registry)
 
 

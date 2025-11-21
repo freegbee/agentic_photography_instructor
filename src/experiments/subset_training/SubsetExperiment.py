@@ -39,6 +39,7 @@ class SubsetTraining(PhotographyExperiment):
         self.agent = DQNAgent(self.action_space, self.state_shape)
 
     def configure(self, config: dict):
+        # TODO Vibecoding-Approach. Currently we configure in __init__
         # allow overriding action space and shapes from config
         if not config:
             return
@@ -79,6 +80,12 @@ class SubsetTraining(PhotographyExperiment):
     def _run_impl(self, experiment: Experiment, active_run: MlflowRun):
         dataloader = Utils.create_topk_coco_dataloader(self.dataset_root, batch_size=self.batch_size, k=int(self.topk))
         transformation_actor: TransformationActor = TransformationActor()
+
+        self.log_param("experiment_type", "RL training with reversible transformations")
+        self.log_param("dataset_root", self.dataset_root)
+        self.log_param("topk", self.topk)
+        self.log_param("batch_size", self.batch_size)
+        self.log_param("action_space", self.action_space)
 
         # RL training loop over dataset images (treat each image as a single-step episode for now)
         result_csv: List[str] = ["image_id,image_relative_path,score_before,score_after,score_change,transformation,chosen_action, reward"]
