@@ -19,6 +19,7 @@ services:
       - ../src/:/app
       - resources:/app/volumes/resources
       - ../configs:/app/configs
+      - mlruns:/mlruns
     depends_on:
       - prometheus
       - mlflow
@@ -131,6 +132,7 @@ services:
       --backend-store-uri ${MLFLOW_BACKEND_STORE_URI}
       --default-artifact-root ${MLFLOW_ARTIFACT_ROOT}
       --allowed-hosts "*"
+      --serve-artifacts
     networks:
       - ml-network
 

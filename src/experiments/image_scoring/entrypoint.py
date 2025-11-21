@@ -11,9 +11,9 @@ def entrypoint():
     try:
         experiment_name = input("Experiment Name (leer = PoC Image Scoring 0.1): ").strip() or None
     except EOFError:
-        experiment_name = "PoC Image Scoring 0.1"
+        experiment_name = "PoC Image Scoring 0.3"
     if experiment_name is None:
-        experiment_name = "PoC Image Scoring 0.1"
+        experiment_name = "PoC Image Scoring 0.3"
 
     try:
         dataset_id = input("Dataset ID (leer = single_image): ").strip() or None
