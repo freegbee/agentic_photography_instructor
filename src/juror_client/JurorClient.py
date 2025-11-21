@@ -3,18 +3,19 @@
 Bietet eine Klasse `JurorClient` mit Methoden um ein Bild per HTTP POST an
 http://localhost:5010/scoring zu schicken.
 """
-import os
-import logging
 import base64
-from typing import Optional, Union, BinaryIO, cast
 import io
-import numpy as np
+import logging
+import os
+from typing import Optional, Union, BinaryIO, cast
 
 import httpx
+import numpy as np
 
-from juror_shared.models_v1 import ScoringRequestPayloadV1, ScoringResponsePayloadV1, ScoringNdarrayRequestPayloadV1
+from juror_shared.models_v1 import ScoringRequestPayloadV1, ScoringResponsePayloadV1
 
 logger = logging.getLogger(__name__)
+
 
 class JurorClient:
     """Client zum Senden von Bildern an den Juror-Server (/scoring).
@@ -29,7 +30,7 @@ class JurorClient:
             # FIXME: Die URL ist hier noch hardcoded, sollte aber konfigurierbar sein
             base_url: str = "http://localhost:5010",
             timeout: float = 10.0,
-            client: Optional[httpx.Client] = None,):
+            client: Optional[httpx.Client] = None, ):
         """Erzeuge einen neuen Client.
 
         Args:
@@ -40,13 +41,13 @@ class JurorClient:
 
         # Validierungen der Parameter
         if base_url is None:
-            raise ValueError("base_url darf nicht None sein. Beispiel: 'http://localhost:5010' - Abhängig den der lokalen Konfiguration oder Umgebungsvariable ab.")
+            raise ValueError(
+                "base_url darf nicht None sein. Beispiel: 'http://localhost:5010' - Abhängig den der lokalen Konfiguration oder Umgebungsvariable ab.")
         if not isinstance(base_url, str):
             raise TypeError("base_url muss vom Typ str sein")
 
-
         self._api_version = "v1"
-        self.base_url = base_url.rstrip("/") + f"/{self._api_version}/" # trailing slash preserves path as directory
+        self.base_url = base_url.rstrip("/") + f"/{self._api_version}/"  # trailing slash preserves path as directory
         self.scoring_endpoint = "score"
 
         self.timeout = float(timeout)
@@ -97,7 +98,8 @@ class JurorClient:
         except ValueError:
             return resp.text
 
-    def score_ndarray(self, array: np.ndarray, filename: Optional[str] = None, encoding: str = "npy", metadata: Optional[ScoringNdarrayRequestPayloadV1] = None, raw: bool = False) -> Union[ScoringResponsePayloadV1, str]:
+    def score_ndarray(self, array: np.ndarray, filename: Optional[str] = None, encoding: str = "npy") -> Union[
+        ScoringResponsePayloadV1, str]:
         """Sende ein numpy.ndarray effizient an den Server via multipart/form-data.
 
         Das Array wird als .npy (oder .npz wenn encoding == 'npz') in den Request-Body geschrieben.
@@ -122,24 +124,11 @@ class JurorClient:
         else:
             raise ValueError("Unsupported encoding; use 'npy' or 'npz'")
 
-        if raw:
-            # send raw bytes as application/octet-stream and include metadata in header if present
-            payload_bytes = bio.getvalue()
-            headers = {"Content-Type": "application/octet-stream"}
-            if metadata is not None:
-                headers["X-Scoring-Metadata"] = metadata.model_dump_json()
-            logger.info("Sending raw file for scoring: %s", filename)
-            resp = self._client.post(self.scoring_endpoint + "/ndarray", content=payload_bytes, headers=headers)
-            logger.info("received response from raw upload")
-        else:
-            files = {"array_file": (filename, bio.read(), content_type)}
-            data = None
-            if metadata is not None:
-                # send metadata as JSON string in a form field
-                data = {"metadata": metadata.model_dump_json()}
-            logger.debug("Sending array file for scoring: %s", filename)
-            resp = self._client.post(self.scoring_endpoint + "/ndarray", files=files, data=data)
-            logger.debug("Response status=%s headers=%s", resp.status_code, dict(resp.headers))
+        files = {"array_file": (filename, bio.read(), content_type)}
+        logger.info(f"Sending file for scoring: %s", files["array_file"][0])
+        logger.debug("Sending array file for scoring: %s", filename)
+        resp = self._client.post(self.scoring_endpoint + "/ndarray", files=files)
+        logger.debug("Response status=%s headers=%s", resp.status_code, dict(resp.headers))
 
         resp.raise_for_status()
 
@@ -154,7 +143,7 @@ class JurorClient:
         if not self._external_client:
             try:
                 self._client.close()
-            except Exception :
+            except Exception:
                 logger.exception("Fehler beim Schliessen des HTTP-Clients")
 
     def __enter__(self) -> "JurorClient":

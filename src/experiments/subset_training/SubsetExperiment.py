@@ -88,7 +88,7 @@ class SubsetTraining(PhotographyExperiment):
         self.log_param("action_space", self.action_space)
 
         # RL training loop over dataset images (treat each image as a single-step episode for now)
-        result_csv: List[str] = ["image_id,image_relative_path,score_before,score_after,score_change,transformation,chosen_action, reward"]
+        result_csv: List[str] = ["image_id,image_relative_path,score_before,score_after,score_change,chosen_action, reward"]
 
         steps = 0
         for batch in dataloader:
@@ -130,7 +130,10 @@ class SubsetTraining(PhotographyExperiment):
                             img_data.image_relative_path, action_str, img_data.score, score_after, reward)
 
                 result_csv.append(
-                    f"{img_data.id},{img_data.image_relative_path},{img_data.score:.4f},{score_after:.4f},{score_after - img_data.score:.4f},{action_str},{action_str},{reward:.4f}")
+                    f"{img_data.id},{img_data.image_relative_path},{img_data.score:.4f},{score_after:.4f},{score_after - img_data.score:.4f},{action_str},{reward:.4f}")
+
+        # Decay epsilon after all steps (check if this is desired behavior)
+        self.agent.decay_epsilon()
 
         for line in result_csv:
             logger.info(line)

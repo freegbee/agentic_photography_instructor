@@ -10,10 +10,15 @@ from utils.Registries import TRANSFORMER_REGISTRY
 
 logger = logging.getLogger(__name__)
 
-class TransformationActor():
+
+class TransformationActor:
     def __init__(self):
         self.transformer_registry = TRANSFORMER_REGISTRY
-        self.juror = JurorClient(os.environ["JUROR_SERVICE_URL"])
+        juror_service_url = os.environ.get("JUROR_SERVICE_URL")
+        if juror_service_url is None:
+            raise RuntimeError(
+                "Environment variable JUROR_SERVICE_URL is not set. Please set it to the Juror service endpoint URL.")
+        self.juror = JurorClient(juror_service_url)
 
     def _get_transformer(self, transformer_label: str) -> AbstractTransformer:
         return self.transformer_registry.get(transformer_label)

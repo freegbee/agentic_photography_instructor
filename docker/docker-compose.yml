@@ -78,9 +78,9 @@ services:
       - prometheus
     networks:
       - ml-network
-    # deploy block removed: moved to docker/docker-compose.windows.override.yml
+    # deploy block removed: moved to docker-compose.windows.override.yml
     # If you want to enable the GPU reservation (Windows), start compose with:
-    # docker-compose -f docker-compose.yml -f docker/docker-compose.windows.override.yml up
+    # docker-compose -f docker-compose.yml -f docker-compose.windows.override.yml up
 
   train:
     build:

@@ -142,7 +142,7 @@ class ImageDegradationExperiment(PhotographyExperiment):
         t = None
         if self.use_random_transformer:
             transformer_label = self.random_generator.choice(self.transformer_choice)
-            t = TRANSFORMER_REGISTRY.get(self.random_generator.choice(self.transformer_choice))
+            t = TRANSFORMER_REGISTRY.get(transformer_label)
         else:
             t = self.transformer
 

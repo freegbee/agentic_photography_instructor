@@ -94,12 +94,13 @@ class DQNAgent:
         if target_update:
             self.target_net.load_state_dict(self.policy_net.state_dict())
 
-        # decay epsilon
-        if self.epsilon > self.epsilon_min:
-            self.epsilon *= self.epsilon_decay
-
+        # Epsilon decay should be called explicitly per environment step or episode.
         return float(loss.item())
 
     def action_to_string(self, action_idx: int) -> str:
         return self.action_space[action_idx]
 
+    def decay_epsilon(self):
+        """Decay epsilon, to be called per environment step or episode."""
+        if self.epsilon > self.epsilon_min:
+            self.epsilon *= self.epsilon_decay

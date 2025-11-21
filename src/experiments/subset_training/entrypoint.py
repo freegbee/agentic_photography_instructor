@@ -1,11 +1,10 @@
 import logging
 import os
 from pathlib import Path
-from typing import List
 
-from dataset.Utils import Utils
+from pyarrow.compute import top_k_unstable
+
 from experiments.subset_training.SubsetExperiment import SubsetTraining
-from experiments.subset_training.TransformationActor import TransformationActor
 from utils.LoggingUtils import configure_logging
 
 configure_logging()
@@ -29,15 +28,15 @@ def entrypoint():
         dataset_root = "flickr8k"
 
     try:
-        topk_input = input("tok images of dataset(leer = 500): ").strip() or None
+        top_k_input = input("top k images of dataset(leer = 500): ").strip() or None
     except EOFError:
-        topk_input = None
-    if topk_input is None:
-        topk_input = 500
+        top_k_input = None
+    if top_k_input is None:
+        top_k_input = 500
     try:
-        topk = int(topk_input)
+        top_k = int(top_k_input)
     except ValueError:
-        topk = 500
+        top_k = 500
 
     try:
         run_name = input("Run name (leer = none): ").strip() or None
@@ -53,10 +52,10 @@ def entrypoint():
     except ValueError:
         batch_size = 20
 
-    logger.info("Starting experiment run with experiment_name=%s, run_name=%s, dataset_root=%s, topk %s, batch_size=%d",
-                experiment_name, run_name, dataset_root, topk, batch_size)
+    logger.info("Starting experiment run with experiment_name=%s, run_name=%s, dataset_root=%s, top_k %s, batch_size=%d",
+                experiment_name, run_name, dataset_root, top_k, batch_size)
     absolute_path = Path(os.environ["IMAGE_VOLUME_PATH"]) / dataset_root
-    experiment = SubsetTraining(experiment_name, run_name, absolute_path, topk, batch_size)
+    experiment = SubsetTraining(experiment_name, run_name, absolute_path, top_k, batch_size)
 
     experiment.run()
 
@@ -75,6 +74,7 @@ def entrypoint():
     #     print(line)
 
     print("Experiment completed.")
+
 
 if __name__ == "__main__":
     from utils import SslHelper

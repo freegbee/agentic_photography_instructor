@@ -1,6 +1,6 @@
 import random
 from collections import deque
-from typing import Deque, List, Tuple
+from typing import Deque
 
 import numpy as np
 
@@ -32,4 +32,3 @@ class ReplayBuffer:
 
     def __len__(self):
         return len(self.buffer)
-
