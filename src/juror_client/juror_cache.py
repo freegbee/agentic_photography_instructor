@@ -102,7 +102,8 @@ class JurorCachingService(JurorService):
 
     def _ensure_capacity_locked(self) -> None:
         """Stellt sicher, dass die Cache-Grösse das Limit nicht überschreitet (LRU)."""
-        while len(self._cache) >= self._maxsize:
+        # Entferne nur, wenn die Anzahl Einträge das Limit überschreitet.
+        while len(self._cache) > self._maxsize:
             # popitem(last=False) entfernt das älteste Element (LRU)
             try:
                 self._cache.popitem(last=False)
@@ -171,7 +172,7 @@ class JurorCachingService(JurorService):
                 # Falls kein Cached Result vorhanden ist, kann in_flight eine Exception gehalten haben
                 in_f = self._in_flight.get(key)
                 if in_f is not None and in_f.get("exc") is not None:
-                                        raise in_f["exc"]
+                                                            raise in_f["exc"]
             # Falls alles fehlschlägt, versuchen wir nochmals, die Anfrage selbst auszuführen
             # (Fällt selten an, z. B. wenn Producer einen Fehler warf)
 
@@ -195,8 +196,22 @@ class JurorCachingService(JurorService):
                 if in_f is not None:
                     in_f["exc"] = exc
                     in_f["event"].set()
-                    # Plane die Aufräumung der in-flight Struktur nach Gnadenfrist
-                    self._schedule_in_flight_cleanup(key)
+                    # Wenn ein Fehler aufgetreten ist, entfernen wir den in-flight
+                    # Eintrag unmittelbar nach dem Signalisieren, damit nachfolgende
+                    # Aufrufer einen neuen Versuch starten (statt sofort dieselbe
+                    # Exception zu erhalten). Wartende Threads werden durch das
+                    # Event geweckt und können entscheiden, ob sie erneut anfragen.
+                    #
+                    # Falls kein Fehler aufgetreten ist, behalten wir den in-flight
+                    # Eintrag kurz und planen eine Aufräumung.
+                    if exc is None:
+                        self._schedule_in_flight_cleanup(key)
+                    else:
+                        # Entferne den in-flight-Eintrag sofort
+                        try:
+                            self._in_flight.pop(key, None)
+                        except Exception:
+                            pass
 
         if exc is not None:
             # Fehler an Aufrufer weiterreichen
@@ -221,3 +236,55 @@ class JurorCachingService(JurorService):
             self._inner.close()
         except Exception:
             pass
+
+    # --- Öffentliche Introspektions-/Manipulations-API ---
+    def make_cache_key(self, array: np.ndarray, filename: Optional[str] = None, encoding: str = "npy") -> str:
+        """Erzeuge den Cache-Key für ein Array (öffentlicher Wrapper für Tests/Introspektion).
+
+        Rückgabe: String-Key, der zur Identifikation des Arrays im Cache verwendet wird.
+        """
+        return self._make_key(array, filename, encoding)
+
+    def cached_keys(self) -> list:
+        """Gibt thread-sicher die Liste der aktuellen Cache-Keys in LRU-Reihenfolge zurück.
+
+        Wichtig: Dies ist eine Kopie; Veränderungen an der Rückgabe beeinflussen nicht den Cache.
+        """
+        with self._lock:
+            return list(self._cache.keys())
+
+    def contains(self, array: np.ndarray, filename: Optional[str] = None, encoding: str = "npy") -> bool:
+        """Prüft, ob ein Array (bzw. sein Key) aktuell im Cache vorhanden ist.
+
+        Berücksichtigt TTL (abgelaufene Einträge werden vor der Prüfung entfernt).
+        """
+        key = self._make_key(array, filename, encoding)
+        with self._lock:
+            self._prune_expired_locked()
+            return key in self._cache
+
+    def get_cached(self, array: np.ndarray, filename: Optional[str] = None, encoding: str = "npy"):
+        """Liefert den gecachten Wert zurück oder `None`, wenn nicht vorhanden.
+
+        Diese Funktion ist thread-safe und berücksichtigt TTL.
+        """
+        key = self._make_key(array, filename, encoding)
+        with self._lock:
+            self._prune_expired_locked()
+            entry = self._cache.get(key)
+            if entry is None:
+                return None
+            # Behalte LRU-Eigenschaft: reinsert
+            ts, val = self._cache.pop(key)
+            self._cache[key] = (ts, val)
+            return val
+
+    def invalidate_key(self, array: np.ndarray, filename: Optional[str] = None, encoding: str = "npy") -> None:
+        """Entfernt explizit einen bestimmten Key aus dem Cache (falls vorhanden)."""
+        key = self._make_key(array, filename, encoding)
+        with self._lock:
+            try:
+                self._cache.pop(key, None)
+            except Exception:
+                pass
+
