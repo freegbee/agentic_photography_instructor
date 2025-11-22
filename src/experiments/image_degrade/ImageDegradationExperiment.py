@@ -147,5 +147,3 @@ class ImageDegradationExperiment(PhotographyExperiment):
             t = self.transformer
 
         return t.transform(image_data.get_image_data("BGR")), t.label
-
-
