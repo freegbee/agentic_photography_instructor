@@ -13,4 +13,10 @@ scrape_configs:
       - targets:
         - 'juror-service:${JUROR_PORT}'
         - 'image-acquisition-service:${IMAGE_ACQUISITION_PORT}'
-        - 'mlflow:${MLFLOW_PORT}'
+
+  - job_name: 'system_gpu_exporter'
+    metrics_path: '/metrics'
+    # Der Port wird zur Laufzeit durch Ersetzen der Variable MONITORING_PROMETHEUS_GPU_EXPORTER_PORT gesetzt
+    static_configs:
+      - targets: ['system-gpu-exporter:${MONITORING_PROMETHEUS_GPU_EXPORTER_PORT}']
+
