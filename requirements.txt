@@ -10,6 +10,7 @@ phx-class-registry~=5.1.1
 pydantic~=2.11.9
 compress_pickle~=2.1.0
 pycocotools~=2.0.10
+pytest~=9.0.1
 
 # Only for mlflow
 mlflow~=3.5.1
