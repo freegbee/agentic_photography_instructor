@@ -1,0 +1,16 @@
+prometheus-client==0.16.0
+psutil==5.9.5
+pynvml==11.0.0
+# Optional: torch for MPS detection (commented out by default because it's large)
+# Torch and torchvision installation based on platform and CUDA version
+# for CUDA 12.9 torch on Windows
+torch --index-url https://download.pytorch.org/whl/cu130; sys_platform == 'Windows'
+torchvision --index-url https://download.pytorch.org/whl/cu130; sys_platform == 'Windows'
+
+# Torch und torchvision für Linux mit CUDA 12.9
+torch --index-url https://download.pytorch.org/whl/cu130; sys_platform == 'linux'
+torchvision --index-url https://download.pytorch.org/whl/cu130; sys_platform == 'linux'
+
+# for MPS accelerated torch on Mac
+torch; sys_platform == 'darwin'
+torchvision; sys_platform == 'darwin'

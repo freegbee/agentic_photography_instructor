@@ -142,6 +142,7 @@ services:
       JUROR_PORT: "${JUROR_PORT}"
       MLFLOW_PORT: "${MLFLOW_PORT}"
       MONITORING_PROMETHEUS_PORT: "${MONITORING_PROMETHEUS_PORT}"
+      MONITORING_PROMETHEUS_GPU_EXPORTER_PORT: "${MONITORING_PROMETHEUS_GPU_EXPORTER_PORT}"
     volumes:
       - prometheus_data:/prometheus
       - ./prometheus/prometheus.yml.template:/etc/prometheus/prometheus.yml.template:ro
@@ -168,6 +169,33 @@ services:
       - ml-network
     depends_on:
       - prometheus
+
+  system-gpu-exporter:
+    build:
+      context: ./exporter
+      dockerfile: Dockerfile
+    container_name: system-gpu-exporter
+    ports:
+      - "${MONITORING_PROMETHEUS_GPU_EXPORTER_PORT}:${MONITORING_PROMETHEUS_GPU_EXPORTER_PORT}"
+    environment:
+      - ENV_NAME=docker
+      - SCRAPE_INTERVAL_S=5
+      - EXPORTER_PORT=8000
+    volumes:
+      - ../src/:/app
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f http://localhost:${MONITORING_PROMETHEUS_GPU_EXPORTER_PORT}/metrics || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    # If you want to expose host GPUs to this container (NVIDIA), ensure the host has NVIDIA Container Toolkit
+    # and your Docker/Compose supports device_requests. Uncomment device_requests to request all gpus.
+    #device_requests:
+    #  - driver: "nvidia"
+    #    count: -1
+    #    capabilities: ["gpu"]
+    networks:
+      - ml-network
 
 volumes:
   test:

@@ -8,4 +8,11 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [ gpu ]
-
+  system-gpu-exporter:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
