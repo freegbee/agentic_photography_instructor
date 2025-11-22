@@ -14,6 +14,7 @@ import numpy as np
 from juror_shared.models_v1 import ScoringResponsePayloadV1
 
 from juror_client.juror_service import JurorService, JurorHttpService
+from juror_client.registry import register_service, get_registered_service
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,10 @@ class JurorClient:
     Standardmässig wird `JurorHttpService` verwendet, um die bisherigen
     HTTP-Requests auszuführen. In Tests oder speziellen Umgebungen kann eine
     alternative Implementierung injiziert werden.
+
+    Zusätzlich registriert der Konstruktor die verwendete `JurorService`-Instanz
+    in der internen Registry unter dem Namen `register_name`, sofern dort noch
+    kein Service vorhanden ist. Standardname ist "default_juror_client".
     """
 
     def __init__(
@@ -34,6 +39,7 @@ class JurorClient:
             timeout: float = 10.0,
             client: Optional[object] = None,
             service: Optional[JurorService] = None,
+            register_name: str = "default_juror_client",
     ):
         """Erzeuge einen neuen `JurorClient`.
 
@@ -43,6 +49,10 @@ class JurorClient:
             client: Optionaler HTTP-Client, wird an die `JurorHttpService` weitergegeben
             service: Optional: eine konkrete `JurorService`-Instanz. Falls angegeben,
                      wird diese anstelle eines `JurorHttpService` verwendet.
+            register_name: Optionaler Registry-Name; wenn angegeben (Standard
+                           "default_juror_client"), wird die verwendete Service-
+                           Instanz unter diesem Namen registriert, falls dort
+                           noch keine Instanz existiert.
         """
 
         # Falls bereits ein Service übergeben wurde, diesen verwenden.
@@ -53,6 +63,18 @@ class JurorClient:
         else:
             # Sonst eine Standard-HTTP-Service-Instanz erstellen
             self._service = JurorHttpService(base_url=base_url, timeout=timeout, client=cast(Optional[object], client))  # type: ignore[arg-type]
+
+        # Registrierung in der globalen Registry durchführen, wenn ein Name übergeben wurde
+        if register_name is not None:
+            try:
+                existing = get_registered_service(register_name)
+                if existing is None:
+                    register_service(register_name, self._service)
+                    logger.debug("JurorService unter Namen '%s' registriert", register_name)
+                else:
+                    logger.debug("JurorService-Name '%s' bereits registriert; Registrierung übersprungen", register_name)
+            except Exception:
+                logger.exception("Fehler beim Registrieren des JurorService in der Registry")
 
     def score_image(self, image_path: str) -> Union[ScoringResponsePayloadV1, str]:
         """Delegiert an `JurorService.score_image`.
