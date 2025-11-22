@@ -76,6 +76,11 @@ class JurorCachingService(JurorService):
 
         self._lock = threading.Lock()
 
+        # Metriken: einfache in-memory Zähler für Hits und Misses
+        # Zugriff auf diese Zähler erfolgt unter self._lock, damit sie thread-safe sind.
+        self._hits = 0
+        self._misses = 0
+
     # --- Hilfsoperationen ---
     def _make_key(self, array: np.ndarray, filename: Optional[str], encoding: str) -> str:
         """Kombiniert Array-Hash mit Parametern zu einem eindeutigen Cache-Key."""
@@ -147,6 +152,8 @@ class JurorCachingService(JurorService):
                 ts, val = self._cache.pop(key)
                 # Reinsert als jüngstes Element (LRU)
                 self._cache[key] = (ts, val)
+                # Cache-Hit zählen
+                self._hits += 1
                 return val
 
             # Wenn bereits eine Anfrage läuft: warten
@@ -168,13 +175,19 @@ class JurorCachingService(JurorService):
                 if key in self._cache:
                     ts, val = self._cache.pop(key)
                     self._cache[key] = (ts, val)
+                    # Wartende, die nun das Ergebnis aus dem Cache lesen, sind Hits
+                    self._hits += 1
                     return val
                 # Falls kein Cached Result vorhanden ist, kann in_flight eine Exception gehalten haben
                 in_f = self._in_flight.get(key)
                 if in_f is not None and in_f.get("exc") is not None:
-                                                            raise in_f["exc"]
+                    raise in_f["exc"]
             # Falls alles fehlschlägt, versuchen wir nochmals, die Anfrage selbst auszuführen
             # (Fällt selten an, z. B. wenn Producer einen Fehler warf)
+
+        # Dieser Thread wird die eigentliche Anfrage ausführen -> Miss zählen
+        with self._lock:
+            self._misses += 1
 
         # Wir sind der ausführende Thread: führe die Anfrage ohne Lock aus
         exc = None
@@ -288,3 +301,11 @@ class JurorCachingService(JurorService):
             except Exception:
                 pass
 
+    def get_metrics(self) -> Dict[str, int]:
+        """Gibt die aktuellen Cache-Metriken zurück (hits, misses, aktuelle Grösse).
+
+        Rückgabe:
+            Dict mit Schlüsseln 'hits', 'misses', 'size'.
+        """
+        with self._lock:
+            return {"hits": int(self._hits), "misses": int(self._misses), "size": len(self._cache)}
