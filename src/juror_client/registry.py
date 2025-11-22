@@ -102,10 +102,11 @@ def get_juror_service(
     Returns:
         Eine `JurorService`-Instanz (entweder übergeben, registriert oder neu erzeugt).
     """
-    # 1) logger.debug("Returning provided JurorService instance")
-    if name is not None:
-        register_service(name, service)
+    # 1) Wenn explizit eine Instanz übergeben wurde, nutze diese
     if service is not None:
+        # Falls ein Name übergeben wurde, registriere die gegebene Instanz
+        if name is not None:
+            register_service(name, service)
         logger.debug("Returning provided JurorService instance")
         return service
 
