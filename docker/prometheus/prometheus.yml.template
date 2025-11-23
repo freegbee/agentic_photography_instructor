@@ -19,4 +19,3 @@ scrape_configs:
     # Der Port wird zur Laufzeit durch Ersetzen der Variable MONITORING_PROMETHEUS_GPU_EXPORTER_PORT gesetzt
     static_configs:
       - targets: ['system-gpu-exporter:${MONITORING_PROMETHEUS_GPU_EXPORTER_PORT}']
-

@@ -15,4 +15,3 @@ try:
 except Exception as e:
     print('Failed to fetch metrics:', e)
     sys.exit(1)
-
