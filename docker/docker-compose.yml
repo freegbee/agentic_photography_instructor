@@ -17,7 +17,6 @@ services:
       - ../src:/workspace/src
       - ../configs:/workspace/configs
       - resources:/workspace/volumes/resources
-      - mlruns:/mlruns
     depends_on:
       - mlflow
     networks:

@@ -49,7 +49,10 @@ Agentic Photographer Instructor is a project idea for the CAS "Machine Learning 
 - `TestBasicTestDataLoader.py` shows the usage of the `BasicTestDataset` and a `DataLoader` to load images in batches (small batches for testing purposes).
 
 ### Notebooks
-- Jupyter notebooks for experiments and analysis are in the `notebooks` folder.
+- Jupyter notebooks for experiments and analysis are in the `notebooks` folder. This folder is mounted into the docker container when running the docker-compose.yml file.
+- Legen Sie Ihre Notebooks im Repository-Ordner notebooks/ ab. Dieser Ordner wird durch docker/docker-compose.yml automatisch in den Notebook‑Container gemountet.
+  - Host: <repo>/notebooks
+  - Container: /workspace/notebooks
 - `VisualLoadAndTransform.ipynb` is a notebook that loads some images and applies the transformation-agents to them.
   - It assumes that the validation dataset has been downloaded (using `TEstTarDownloader.py`. The yaml configiraton must be adjusted for the local environment settings.
   - In the section "Adjust/set environment variables - no fun with that" the environment and the project root directory need to be set according to the local environment.

@@ -24,7 +24,7 @@ WORKDIR /notebook
 
 RUN --mount=type=cache,target=/root/.cache/pip \
     python -m pip install --upgrade pip && \
-    pip install jupyterlab ipykernel
+    pip install jupyterlab ipykernel jupytext
 
 EXPOSE $NOTEBOOK_PORT
 
