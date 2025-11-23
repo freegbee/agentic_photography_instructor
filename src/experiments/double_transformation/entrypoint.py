@@ -86,8 +86,37 @@ def entrypoint():
     except ValueError:
         num_workers = 4
 
-    logger.info("Starting DoubleTransformationExperiment with experiment_name=%s, source_dataset_id=%s, target_directory=%s, max_images=%s, seed=%s, transformer_sample_size=%s, transformer_sample_seed=%s, batch_size=%s, num_workers=%s", experiment_name, source_dataset_id, target_directory_name, max_images, seed, transformer_sample_size, transformer_sample_seed, batch_size, num_workers)
-    exp = DoubleTransformationExperiment(experiment_name=experiment_name, target_directory_root=target_directory_name, run_name=run_name, source_dataset_id=source_dataset_id, max_images=max_images, seed=seed, transformer_sample_size=transformer_sample_size, transformer_sample_seed=transformer_sample_seed, batch_size=batch_size, num_workers=num_workers)
+    # Async image saver configuration: io_workers and max_queue_size
+    # Compute sensible defaults (must mirror logic used in experiment)
+    try:
+        default_io_workers = max(2, min(16, int(num_workers or 4)))
+    except Exception:
+        default_io_workers = 4
+    try:
+        default_max_queue = max(128, int(batch_size * max(1, num_workers) * 8))
+    except Exception:
+        default_max_queue = 256
+
+    try:
+        io_workers_input = input(f"Async IO workers [{default_io_workers}]: ").strip()
+    except EOFError:
+        io_workers_input = ""
+    try:
+        io_workers = int(io_workers_input) if io_workers_input else default_io_workers
+    except ValueError:
+        io_workers = default_io_workers
+
+    try:
+        max_queue_input = input(f"Async saver max queue size [{default_max_queue}]: ").strip()
+    except EOFError:
+        max_queue_input = ""
+    try:
+        max_queue_size = int(max_queue_input) if max_queue_input else default_max_queue
+    except ValueError:
+        max_queue_size = default_max_queue
+
+    logger.info("Starting DoubleTransformationExperiment with experiment_name=%s, source_dataset_id=%s, target_directory=%s, max_images=%s, seed=%s, transformer_sample_size=%s, transformer_sample_seed=%s, batch_size=%s, num_workers=%s, io_workers=%s, max_queue_size=%s", experiment_name, source_dataset_id, target_directory_name, max_images, seed, transformer_sample_size, transformer_sample_seed, batch_size, num_workers, io_workers, max_queue_size)
+    exp = DoubleTransformationExperiment(experiment_name=experiment_name, target_directory_root=target_directory_name, run_name=run_name, source_dataset_id=source_dataset_id, max_images=max_images, seed=seed, transformer_sample_size=transformer_sample_size, transformer_sample_seed=transformer_sample_seed, batch_size=batch_size, num_workers=num_workers, io_workers=io_workers, max_queue_size=max_queue_size)
     exp.run()
 
 

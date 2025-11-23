@@ -29,7 +29,7 @@ class DoubleTransformationExperiment(PhotographyExperiment):
                  run_name: Optional[str] = None, source_dataset_id: str = "single_image",
                  max_images: Optional[int] = None, seed: int = 42,
                  transformer_sample_size: Optional[int] = None, transformer_sample_seed: Optional[int] = None,
-                 batch_size: int = 4, num_workers: int = 4):
+                 batch_size: int = 32, num_workers: int = 4, io_workers: Optional[int] = None, max_queue_size: Optional[int] = None):
         super().__init__(experiment_name)
         self.run_name = run_name
         self.source_dataset_id = source_dataset_id
@@ -48,6 +48,10 @@ class DoubleTransformationExperiment(PhotographyExperiment):
         # ensure attributes exist so other methods can reference them directly
         self.jurorClient = None
         logger.info("Initialized DoubleTransformationExperiment: %s", experiment_name)
+
+        # Async saver configuration (may be None -> compute defaults in _run_impl if absent)
+        self.io_workers = int(io_workers) if io_workers is not None else None
+        self.max_queue_size = int(max_queue_size) if max_queue_size is not None else None
 
     def configure(self, config: dict):
         pass
@@ -143,14 +147,27 @@ class DoubleTransformationExperiment(PhotographyExperiment):
         else:
             dataloader = DataLoader(source_dataset, **dataloader_kwargs)
 
-        # Asynchronen Image-Saver initialisieren. Parameterwahl zielt auf gute Default-Backpressure ab.
+        # Asynchronen Image-Saver initialisieren. Nutze Werte aus Konstruktor falls vorhanden,
+        # sonst berechne sinnvolle Defaults wie zuvor.
         try:
-            # bestimme Anzahl IO-Worker: benutze num_workers als Hinweis, min=2, max=16
-            io_workers = max(2, min(16, int(self.num_workers or 4)))
-            # max queued tasks: proportional zu batch_size * num_workers, mit sicherer Untergrenze
-            max_pending = max(128, int(self.batch_size * max(1, self.num_workers) * 8))
+            if self.io_workers is not None:
+                io_workers = max(1, int(self.io_workers))
+            else:
+                io_workers = max(2, min(16, int(self.num_workers or 4)))
+
+            if self.max_queue_size is not None:
+                max_pending = max(1, int(self.max_queue_size))
+            else:
+                max_pending = max(128, int(self.batch_size * max(1, self.num_workers) * 8))
+
             saver = AsyncImageSaver(max_workers=io_workers, max_queue_size=max_pending)
             logger.debug("Started AsyncImageSaver max_workers=%s max_pending=%s", io_workers, max_pending)
+            # Log saver config to MLflow as params
+            try:
+                self.log_param("async_io_workers", str(io_workers))
+                self.log_param("async_max_queue_size", str(max_pending))
+            except Exception:
+                logger.debug("Failed to log async saver params to MLflow")
         except Exception:
             logger.exception("Failed to start AsyncImageSaver; falling back to synchronous saves")
             saver = None
