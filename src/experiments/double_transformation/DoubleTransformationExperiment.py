@@ -20,15 +20,16 @@ from utils.CocoBuilder import CocoBuilder
 from utils.ConfigLoader import ConfigLoader
 from utils.ImageUtils import ImageUtils
 from utils.Registries import TRANSFORMER_REGISTRY
+from utils.AsyncImageSaver import AsyncImageSaver
 
 logger = logging.getLogger(__name__)
-
 
 class DoubleTransformationExperiment(PhotographyExperiment):
     def __init__(self, experiment_name: str, target_directory_root: str = "double_transformed",
                  run_name: Optional[str] = None, source_dataset_id: str = "single_image",
                  max_images: Optional[int] = None, seed: int = 42,
-                 transformer_sample_size: Optional[int] = None, transformer_sample_seed: Optional[int] = None):
+                 transformer_sample_size: Optional[int] = None, transformer_sample_seed: Optional[int] = None,
+                 batch_size: int = 32, num_workers: int = 4, io_workers: Optional[int] = None, max_queue_size: Optional[int] = None, save_executor_type: str = "process"):
         super().__init__(experiment_name)
         self.run_name = run_name
         self.source_dataset_id = source_dataset_id
@@ -36,6 +37,10 @@ class DoubleTransformationExperiment(PhotographyExperiment):
         self.target_directory_root = Path(os.environ.get("IMAGE_VOLUME_PATH", ".")) / target_directory_root
         self.seed = seed
         self.random = random.Random(seed)
+        # Performance tuning: batch_size for DataLoader
+        self.batch_size = int(batch_size)
+        # Number of DataLoader workers
+        self.num_workers = int(num_workers)
         # Einstellungen für Transformer-Paare
         self.transformer_sample_size = transformer_sample_size
         self.transformer_sample_seed = transformer_sample_seed
@@ -44,19 +49,25 @@ class DoubleTransformationExperiment(PhotographyExperiment):
         self.jurorClient = None
         logger.info("Initialized DoubleTransformationExperiment: %s", experiment_name)
 
+        # Async saver configuration (may be None -> compute defaults in _run_impl if absent)
+        self.io_workers = int(io_workers) if io_workers is not None else None
+        self.max_queue_size = int(max_queue_size) if max_queue_size is not None else None
+        self.save_executor_type = save_executor_type
+
     def configure(self, config: dict):
         pass
 
     def _get_tags_for_run(self) -> Dict[str, Any]:
-        return {"dataset_id": self.source_dataset_id}
+        # Tag run with dataset_id and performance indicator (we use num_workers tuning)
+        return {"dataset_id": self.source_dataset_id, "performance": "async_saver"}
 
     def _get_run_name(self) -> Optional[str]:
         return self.run_name
 
     def _run_impl(self, experiment_created, active_run):
         logger.info(
-            "Running DoubleTransformationExperiment with source_dataset_id=%s, target_directory_root=%s, max_images=%s, seed=%d",
-            self.source_dataset_id, self.target_directory_root, self.max_images, self.seed)
+            "Running DoubleTransformationExperiment with source_dataset_id=%s, target_directory_root=%s, max_images=%s, seed=%d, batch_size=%s",
+            self.source_dataset_id, self.target_directory_root, self.max_images, self.seed, self.batch_size)
 
         try:
             config_dict = ConfigLoader.load_dataset_config(self.source_dataset_id)
@@ -77,6 +88,8 @@ class DoubleTransformationExperiment(PhotographyExperiment):
         try:
             self.log_param("transformer_sample_size", str(self.transformer_sample_size))
             self.log_param("transformer_sample_seed", str(self.transformer_sample_seed))
+            self.log_param("batch_size", str(self.batch_size))
+            self.log_param("num_workers", str(self.num_workers))
         except Exception:
             logger.debug("Failed to log transformer sampling params to MLflow")
 
@@ -126,11 +139,41 @@ class DoubleTransformationExperiment(PhotographyExperiment):
             self.jurorClient = None
 
         # DataLoader aufbauen (TopKSampler falls vorhanden)
+        # Configure DataLoader using configured batch_size and num_workers
+        dataloader_kwargs = dict(batch_size=self.batch_size, collate_fn=DatasetUtils.collate_keep_size)
+        if self.num_workers > 0:
+            dataloader_kwargs.update({"num_workers": self.num_workers, "pin_memory": True, "persistent_workers": True})
         if sampler is not None:
-            dataloader = DataLoader(source_dataset, batch_size=1, sampler=sampler,
-                                    collate_fn=DatasetUtils.collate_keep_size)
+            dataloader = DataLoader(source_dataset, sampler=sampler, **dataloader_kwargs)
         else:
-            dataloader = DataLoader(source_dataset, batch_size=1, collate_fn=DatasetUtils.collate_keep_size)
+            dataloader = DataLoader(source_dataset, **dataloader_kwargs)
+
+        # Asynchronen Image-Saver initialisieren. Nutze Werte aus Konstruktor falls vorhanden,
+        # sonst berechne sinnvolle Defaults wie zuvor.
+        try:
+            if self.io_workers is not None:
+                io_workers = max(1, int(self.io_workers))
+            else:
+                io_workers = max(2, min(16, int(self.num_workers or 4)))
+
+            if self.max_queue_size is not None:
+                max_pending = max(1, int(self.max_queue_size))
+            else:
+                max_pending = max(128, int(self.batch_size * max(1, self.num_workers) * 8))
+
+            saver = AsyncImageSaver(max_workers=io_workers, max_queue_size=max_pending, executor_type=self.save_executor_type)
+            logger.debug("Started AsyncImageSaver max_workers=%s max_pending=%s", io_workers, max_pending)
+            # Log saver config to MLflow as params
+            try:
+                self.log_param("async_io_workers", str(io_workers))
+                self.log_param("async_max_queue_size", str(max_pending))
+                # log executor type choice
+                self.log_param("save_executor_type", str(self.save_executor_type))
+            except Exception:
+                logger.debug("Failed to log async saver params to MLflow")
+        except Exception:
+            logger.exception("Failed to start AsyncImageSaver; falling back to synchronous saves")
+            saver = None
 
         # Erzeuge Transformer-Paare (Kreuzprodukt mit Filter). Verwende sample_size/seed falls gesetzt.
         pair_labels = generate_transformer_pairs(sample_size=self.transformer_sample_size,
@@ -168,7 +211,8 @@ class DoubleTransformationExperiment(PhotographyExperiment):
                         t2 = transformer_cache.get(t2_label)
 
                         # Process image with transformer instances (can be None -> identity)
-                        self.process_image(image_data, t1, t2)
+                        # Pass in saver so write is executed asynchronously with backpressure
+                        self.process_image(image_data, t1, t2, saver=saver)
                         successful_pairs += 1
                     except Exception as e:
                         logger.exception("Error processing image %s with transformers %s,%s: %s",
@@ -210,9 +254,16 @@ class DoubleTransformationExperiment(PhotographyExperiment):
         except Exception:
             logger.debug("log_artifact failed or mlflow not reachable during final save")
 
+        # Warte auf alle async IO-Tasks bevor finale COCO-Datei gespeichert wird
+        try:
+            if saver is not None:
+                saver.shutdown(wait=True)
+        except Exception:
+            logger.exception("Error shutting down AsyncImageSaver")
+
         logger.info("Finished processing images in DoubleTransformationExperiment")
 
-    def process_image(self, image_data, transformer1, transformer2):
+    def process_image(self, image_data, transformer1, transformer2, saver: Optional["AsyncImageSaver"] = None):
         """
         Process a single image with two transformers, save the resulting image and register it in the CocoBuilder.
         If `transformer1` or `transformer2` is None, treat them as identity transformers.
@@ -276,16 +327,35 @@ class DoubleTransformationExperiment(PhotographyExperiment):
         out_filename = f"{orig_name}__{t1_label}__{t2_label}__{unique_suffix}.png"
         out_path = self.target_directory_root / "images" / out_filename
 
-        # Speichern
+        # Speichern: entweder asynchron enqueuen (saver) oder synchron schreiben
         saved_successfully = False
         try:
-            ImageUtils.save_image(img_t2, str(out_path))
-            saved_successfully = True
-            # Inkrementiere echten Schreibzähler
-            try:
-                self._images_created_count += 1
-            except Exception:
-                self._images_created_count = getattr(self, '_images_created_count', 0) + 1
+            if saver is not None:
+                fut = saver.save_async(img_t2, str(out_path))
+                # optional: attach a done callback that increments counter on success
+                def _on_done(f):
+                    try:
+                        if f.result():
+                            try:
+                                self._images_created_count += 1
+                            except Exception:
+                                self._images_created_count = getattr(self, '_images_created_count', 0) + 1
+                    except Exception:
+                        logger.exception("Error in async save done callback for %s", out_path)
+
+                try:
+                    fut.add_done_callback(_on_done)
+                except Exception:
+                    # If adding callback fails, fall back to not tracking
+                    pass
+            else:
+                ImageUtils.save_image(img_t2, str(out_path))
+                saved_successfully = True
+                # Inkrementiere echten Schreibzähler
+                try:
+                    self._images_created_count += 1
+                except Exception:
+                    self._images_created_count = getattr(self, '_images_created_count', 0) + 1
         except Exception:
             logger.exception("Failed to save transformed image to %s", out_path)
 

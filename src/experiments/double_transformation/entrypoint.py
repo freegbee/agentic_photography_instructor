@@ -66,8 +66,64 @@ def entrypoint():
     except ValueError:
         transformer_sample_seed = None
 
-    logger.info("Starting DoubleTransformationExperiment with experiment_name=%s, source_dataset_id=%s, target_directory=%s, max_images=%s, seed=%s, transformer_sample_size=%s, transformer_sample_seed=%s", experiment_name, source_dataset_id, target_directory_name, max_images, seed, transformer_sample_size, transformer_sample_seed)
-    exp = DoubleTransformationExperiment(experiment_name=experiment_name, target_directory_root=target_directory_name, run_name=run_name, source_dataset_id=source_dataset_id, max_images=max_images, seed=seed, transformer_sample_size=transformer_sample_size, transformer_sample_seed=transformer_sample_seed)
+    # Batch size for DataLoader / performance tuning
+    try:
+        batch_size_input = input("Batch size [32]: ").strip()
+    except EOFError:
+        batch_size_input = ""
+    try:
+        batch_size = int(batch_size_input) if batch_size_input else 32
+    except ValueError:
+        batch_size = 32
+
+    # Number of workers for DataLoader (num_workers)
+    try:
+        num_workers_input = input("Num workers [4]: ").strip()
+    except EOFError:
+        num_workers_input = ""
+    try:
+        num_workers = int(num_workers_input) if num_workers_input else 4
+    except ValueError:
+        num_workers = 4
+
+    # Async image saver configuration: io_workers and max_queue_size
+    # Compute sensible defaults (must mirror logic used in experiment)
+    try:
+        default_io_workers = max(2, min(16, int(num_workers or 4)))
+    except Exception:
+        default_io_workers = 4
+    try:
+        default_max_queue = max(128, int(batch_size * max(1, num_workers) * 8))
+    except Exception:
+        default_max_queue = 256
+
+    try:
+        io_workers_input = input(f"Async IO workers [{default_io_workers}]: ").strip()
+    except EOFError:
+        io_workers_input = ""
+    try:
+        io_workers = int(io_workers_input) if io_workers_input else default_io_workers
+    except ValueError:
+        io_workers = default_io_workers
+
+    try:
+        max_queue_input = input(f"Async saver max queue size [{default_max_queue}]: ").strip()
+    except EOFError:
+        max_queue_input = ""
+    try:
+        max_queue_size = int(max_queue_input) if max_queue_input else default_max_queue
+    except ValueError:
+        max_queue_size = default_max_queue
+
+    # Choose executor type for AsyncImageSaver: 'process', 'thread' or 'noop'
+    try:
+        save_executor_input = input("Async saver executor type ('process'|'thread'|'noop') [process]: ").strip().lower()
+    except EOFError:
+        save_executor_input = ""
+    save_executor_type = save_executor_input if save_executor_input in ("process", "thread", "noop") else "process"
+
+    logger.info("Starting DoubleTransformationExperiment with experiment_name=%s, source_dataset_id=%s, target_directory=%s, max_images=%s, seed=%s, transformer_sample_size=%s, transformer_sample_seed=%s, batch_size=%s, num_workers=%s, io_workers=%s, max_queue_size=%s, save_executor_type=%s", experiment_name, source_dataset_id, target_directory_name, max_images, seed, transformer_sample_size, transformer_sample_seed, batch_size, num_workers, io_workers, max_queue_size, save_executor_type)
+    exp = DoubleTransformationExperiment(experiment_name=experiment_name, target_directory_root=target_directory_name, run_name=run_name, source_dataset_id=source_dataset_id, max_images=max_images, seed=seed, transformer_sample_size=transformer_sample_size, transformer_sample_seed=transformer_sample_seed, batch_size=batch_size, num_workers=num_workers, io_workers=io_workers, max_queue_size=max_queue_size, save_executor_type=save_executor_type)
     exp.run()
 
 
