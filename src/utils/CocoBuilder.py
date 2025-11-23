@@ -28,6 +28,8 @@ class CocoBuilder:
         self._next_image_id = 1
         self._next_ann_id = 1
         self._category_name_to_id: Dict[str, int] = {}
+        # sequence counter per image_id for ordered annotations
+        self._image_sequence_counters: Dict[int, int] = {}
 
     def set_description(self, description: str):
         self.info["description"] = description
@@ -54,11 +56,11 @@ class CocoBuilder:
         """
         return self._add_image_score_annotation(image_id=image_id, score=score)
 
-    def add_image_transformation_score_annotation(self, image_id: int, score: float, initial_score: float) -> int:
+    def add_image_transformation_score_annotation(self, image_id: int, score: float, initial_score: float, transformer_name: Optional[str] = None) -> int:
         """
         Fügt eine Annotation mit einem Score und einem initial_score für das gegebene Bild hinzu.
         """
-        return self._add_image_score_annotation(image_id=image_id, score=score, initial_score=initial_score)
+        return self._add_image_score_annotation(image_id=image_id, score=score, initial_score=initial_score, transformer_name=transformer_name)
 
     def add_image_transformation_annotation(self, image_id: int, transformer_name: str):
         """
@@ -71,6 +73,10 @@ class CocoBuilder:
         cat_id = self._category_name_to_id[transformer_name]
         annotation_builder.with_category_id(cat_id)
 
+        # set sequence for this transformation annotation
+        seq = self._get_next_sequence_for_image(image_id)
+        annotation_builder.with_sequence(seq)
+
         ann = annotation_builder.build()
         self.annotations.append(ann)
         self._next_ann_id += 1
@@ -80,7 +86,8 @@ class CocoBuilder:
             self,
             image_id: int,
             score: float,
-            initial_score: Optional[float] = None
+            initial_score: Optional[float] = None,
+            transformer_name: Optional[str] = None
     ) -> int:
         """
         Gemeinsame Implementierung zum Erstellen und Hinzufügen einer Score-Annotation.
@@ -98,6 +105,19 @@ class CocoBuilder:
 
         if initial_score is not None:
             annotation_builder.with_initial_score(initial_score)
+
+        # If a transformer_name is provided, ensure its category exists and set category_id and transformation label
+        if transformer_name is not None:
+            super_category_id = self.ensure_transformer_supercategory()
+            if transformer_name not in self._category_name_to_id:
+                self.add_category(transformer_name, None, super_category_id)
+            cat_id = self._category_name_to_id[transformer_name]
+            annotation_builder.with_category_id(cat_id)
+            annotation_builder.with_transformation(transformer_name)
+
+        # set sequence for this annotation (increment per image)
+        seq = self._get_next_sequence_for_image(image_id)
+        annotation_builder.with_sequence(seq)
 
         ann = annotation_builder.build()
         self.annotations.append(ann)
@@ -163,6 +183,15 @@ class CocoBuilder:
         }
         return json.dumps(coco, ensure_ascii=False, indent=2)
 
+    def _get_next_sequence_for_image(self, image_id: int) -> int:
+        """Return the next sequence number for `image_id` and increment the internal counter."""
+        if image_id not in self._image_sequence_counters:
+            self._image_sequence_counters[image_id] = 1
+            return 1
+        else:
+            self._image_sequence_counters[image_id] += 1
+            return self._image_sequence_counters[image_id]
+
 
 class CocoScoreAnnotationBuilder:
     """
@@ -175,6 +204,7 @@ class CocoScoreAnnotationBuilder:
         self.score: Optional[float] = None
         self.initial_score: Optional[float] = None
         self.category_id: int = 0
+        self.sequence: Optional[int] = None
 
     def with_id(self, ann_id: int) -> 'CocoScoreAnnotationBuilder':
         self.id = ann_id
@@ -196,6 +226,14 @@ class CocoScoreAnnotationBuilder:
         self.category_id = 0 if category_id is None else category_id
         return self
 
+    def with_sequence(self, sequence: int) -> 'CocoScoreAnnotationBuilder':
+        self.sequence = sequence
+        return self
+
+    def with_transformation(self, transformation: str) -> 'CocoScoreAnnotationBuilder':
+        self.transformation = transformation
+        return self
+
     def build(self) -> Dict:
         if self.id is None:
             raise ValueError("Annotation ID must be set")
@@ -212,8 +250,13 @@ class CocoScoreAnnotationBuilder:
             "iscrowd": 0,
             "segmentation": [],
         }
+        if self.sequence is not None:
+            ann["sequence"] = self.sequence
         if self.score is not None:
             ann["score"] = self.score
         if self.initial_score is not None:
             ann["initial_score"] = self.initial_score
+        if getattr(self, 'transformation', None) is not None:
+            ann["transformation"] = self.transformation
         return ann
+

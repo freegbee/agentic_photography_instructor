@@ -1,8 +1,11 @@
 import logging
 import os
 import random
+import uuid
 from pathlib import Path
 from typing import Optional, Dict, Any
+
+from torch.utils.data import DataLoader
 
 from data_types.ImageDatasetConfiguration import ImageDatasetConfiguration
 from dataset.COCODataset import COCODataset
@@ -10,14 +13,11 @@ from dataset.TopKSampler import TopKSampler
 from dataset.Utils import Utils as DatasetUtils
 from experiments.shared.PhotographyExperiment import PhotographyExperiment
 from experiments.shared.Utils import Utils as SharedUtils
-from utils.CocoBuilder import CocoBuilder
-from utils.ConfigLoader import ConfigLoader
-
 # lokale Imports für Verarbeitung
 from juror_client import JurorClient
+from utils.CocoBuilder import CocoBuilder
+from utils.ConfigLoader import ConfigLoader
 from utils.ImageUtils import ImageUtils
-import uuid
-from torch.utils.data import DataLoader
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +111,8 @@ class DoubleTransformationExperiment(PhotographyExperiment):
 
         # DataLoader aufbauen (TopKSampler falls vorhanden)
         if sampler is not None:
-            dataloader = DataLoader(source_dataset, batch_size=1, sampler=sampler, collate_fn=DatasetUtils.collate_keep_size)
+            dataloader = DataLoader(source_dataset, batch_size=1, sampler=sampler,
+                                    collate_fn=DatasetUtils.collate_keep_size)
         else:
             dataloader = DataLoader(source_dataset, batch_size=1, collate_fn=DatasetUtils.collate_keep_size)
 
@@ -210,18 +211,32 @@ class DoubleTransformationExperiment(PhotographyExperiment):
         # Füge Bild ins COCO-Builder ein
         image_id = self.coco_builder.add_image(out_filename, w, h)
 
-        # TODO: Ergänzen der Annotationen und Kategorien (z.B. Transformation, initial_score, score)
-        # Platzhalter: Hier sollten später `add_category`, `add_image_transformation_annotation` und
-        # `add_image_transformation_score_annotation` aufgerufen werden.
+        # Schreibe Annotationen für Transformation 1 (falls vorhanden)
+        try:
+            # Transformation-Label hinzufügen
+            self.coco_builder.add_image_transformation_annotation(image_id, t1_label)
+            # Score-Annotation mit initial_score und score_after_t1
+            if score_after_t1 is not None or initial_score is not None:
+                # Wenn score_after_t1 None, wird trotzdem eingetragen (value kann None sein)
+                # CocoBuilder erwartet float; guard: only pass if score_after_t1 is not None
+                if score_after_t1 is not None:
+                    self.coco_builder.add_image_transformation_score_annotation(image_id, float(score_after_t1), float(initial_score) if initial_score is not None else None, transformer_name=t1_label)
+                else:
+                    # Wenn kein After-Score, speichern wir nur initial als score (fallback)
+                    if initial_score is not None:
+                        self.coco_builder.add_image_transformation_score_annotation(image_id, float(initial_score), float(initial_score), transformer_name=t1_label)
+        except Exception:
+            logger.exception("Failed to add transformation 1 annotations for image_id %s", image_id)
 
-        # Option: Logge die Scores als Metriken
-        if initial_score is not None:
-            try:
-                self.log_metric("image_initial_score", float(initial_score))
-            except Exception:
-                pass
-        if score_after_t2 is not None:
-            try:
-                self.log_metric("image_score_after_two_transformations", float(score_after_t2))
-            except Exception:
-                pass
+        # Schreibe Annotationen für Transformation 2 (falls vorhanden)
+        try:
+            self.coco_builder.add_image_transformation_annotation(image_id, t2_label)
+            if score_after_t2 is not None or score_after_t1 is not None:
+                if score_after_t2 is not None:
+                    self.coco_builder.add_image_transformation_score_annotation(image_id, float(score_after_t2), float(score_after_t1) if score_after_t1 is not None else None, transformer_name=t2_label)
+                else:
+                    if score_after_t1 is not None:
+                        self.coco_builder.add_image_transformation_score_annotation(image_id, float(score_after_t1), float(score_after_t1), transformer_name=t2_label)
+
+        except Exception:
+            logger.exception("Failed to add transformation 1 annotations for image_id %s", image_id)
