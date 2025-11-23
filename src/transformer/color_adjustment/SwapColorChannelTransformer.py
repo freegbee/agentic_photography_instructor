@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, List
 
 from numpy import ndarray
 
@@ -34,6 +34,7 @@ class SwapColorChannelTransformerRG(AbstractColorAdjustmentTransformer):
 
     label = "CA_SWAP_RG"
     description = "Swap the red and green color channels while keeping BGR format."
+    reverse_transformer_labels: List[str] = ["CA_SWAP_RG"]
 
     def transform(self, image: ndarray) -> ndarray:
         return _swap_channels(image, "R", "G")
@@ -44,6 +45,7 @@ class SwapColorChannelTransformerRB(AbstractColorAdjustmentTransformer):
 
     label = "CA_SWAP_RB"
     description = "Swap the red and blue color channels while keeping BGR format."
+    reverse_transformer_labels: List[str] = ["CA_SWAP_RB"]
 
     def transform(self, image: ndarray) -> ndarray:
         return _swap_channels(image, "R", "B")
@@ -54,6 +56,7 @@ class SwapColorChannelTransformerGB(AbstractColorAdjustmentTransformer):
 
     label = "CA_SWAP_GB"
     description = "Swap the green and blue color channels while keeping BGR format."
+    reverse_transformer_labels: List[str] = ["CA_SWAP_GB"]
 
     def transform(self, image: ndarray) -> ndarray:
         return _swap_channels(image, "G", "B")
