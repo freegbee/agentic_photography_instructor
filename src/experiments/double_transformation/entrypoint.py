@@ -66,8 +66,18 @@ def entrypoint():
     except ValueError:
         transformer_sample_seed = None
 
-    logger.info("Starting DoubleTransformationExperiment with experiment_name=%s, source_dataset_id=%s, target_directory=%s, max_images=%s, seed=%s, transformer_sample_size=%s, transformer_sample_seed=%s", experiment_name, source_dataset_id, target_directory_name, max_images, seed, transformer_sample_size, transformer_sample_seed)
-    exp = DoubleTransformationExperiment(experiment_name=experiment_name, target_directory_root=target_directory_name, run_name=run_name, source_dataset_id=source_dataset_id, max_images=max_images, seed=seed, transformer_sample_size=transformer_sample_size, transformer_sample_seed=transformer_sample_seed)
+    # Batch size for DataLoader / performance tuning
+    try:
+        batch_size_input = input("Batch size [4]: ").strip()
+    except EOFError:
+        batch_size_input = ""
+    try:
+        batch_size = int(batch_size_input) if batch_size_input else 4
+    except ValueError:
+        batch_size = 4
+
+    logger.info("Starting DoubleTransformationExperiment with experiment_name=%s, source_dataset_id=%s, target_directory=%s, max_images=%s, seed=%s, transformer_sample_size=%s, transformer_sample_seed=%s, batch_size=%s", experiment_name, source_dataset_id, target_directory_name, max_images, seed, transformer_sample_size, transformer_sample_seed, batch_size)
+    exp = DoubleTransformationExperiment(experiment_name=experiment_name, target_directory_root=target_directory_name, run_name=run_name, source_dataset_id=source_dataset_id, max_images=max_images, seed=seed, transformer_sample_size=transformer_sample_size, transformer_sample_seed=transformer_sample_seed, batch_size=batch_size)
     exp.run()
 
 

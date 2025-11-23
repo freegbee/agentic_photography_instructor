@@ -28,7 +28,8 @@ class DoubleTransformationExperiment(PhotographyExperiment):
     def __init__(self, experiment_name: str, target_directory_root: str = "double_transformed",
                  run_name: Optional[str] = None, source_dataset_id: str = "single_image",
                  max_images: Optional[int] = None, seed: int = 42,
-                 transformer_sample_size: Optional[int] = None, transformer_sample_seed: Optional[int] = None):
+                 transformer_sample_size: Optional[int] = None, transformer_sample_seed: Optional[int] = None,
+                 batch_size: int = 4):
         super().__init__(experiment_name)
         self.run_name = run_name
         self.source_dataset_id = source_dataset_id
@@ -36,6 +37,8 @@ class DoubleTransformationExperiment(PhotographyExperiment):
         self.target_directory_root = Path(os.environ.get("IMAGE_VOLUME_PATH", ".")) / target_directory_root
         self.seed = seed
         self.random = random.Random(seed)
+        # Performance tuning: batch_size for DataLoader
+        self.batch_size = int(batch_size)
         # Einstellungen für Transformer-Paare
         self.transformer_sample_size = transformer_sample_size
         self.transformer_sample_seed = transformer_sample_seed
@@ -48,15 +51,15 @@ class DoubleTransformationExperiment(PhotographyExperiment):
         pass
 
     def _get_tags_for_run(self) -> Dict[str, Any]:
-        return {"dataset_id": self.source_dataset_id}
+        return {"dataset_id": self.source_dataset_id, "performance": "batchsize"}
 
     def _get_run_name(self) -> Optional[str]:
         return self.run_name
 
     def _run_impl(self, experiment_created, active_run):
         logger.info(
-            "Running DoubleTransformationExperiment with source_dataset_id=%s, target_directory_root=%s, max_images=%s, seed=%d",
-            self.source_dataset_id, self.target_directory_root, self.max_images, self.seed)
+            "Running DoubleTransformationExperiment with source_dataset_id=%s, target_directory_root=%s, max_images=%s, seed=%d, batch_size=%s",
+            self.source_dataset_id, self.target_directory_root, self.max_images, self.seed, self.batch_size)
 
         try:
             config_dict = ConfigLoader.load_dataset_config(self.source_dataset_id)
@@ -77,6 +80,11 @@ class DoubleTransformationExperiment(PhotographyExperiment):
         try:
             self.log_param("transformer_sample_size", str(self.transformer_sample_size))
             self.log_param("transformer_sample_seed", str(self.transformer_sample_seed))
+            # Log batch_size as MLflow parameter
+            try:
+                self.log_param("batch_size", str(self.batch_size))
+            except Exception:
+                logger.debug("Failed to log batch_size to MLflow")
         except Exception:
             logger.debug("Failed to log transformer sampling params to MLflow")
 
@@ -127,10 +135,10 @@ class DoubleTransformationExperiment(PhotographyExperiment):
 
         # DataLoader aufbauen (TopKSampler falls vorhanden)
         if sampler is not None:
-            dataloader = DataLoader(source_dataset, batch_size=1, sampler=sampler,
+            dataloader = DataLoader(source_dataset, batch_size=self.batch_size, sampler=sampler,
                                     collate_fn=DatasetUtils.collate_keep_size)
         else:
-            dataloader = DataLoader(source_dataset, batch_size=1, collate_fn=DatasetUtils.collate_keep_size)
+            dataloader = DataLoader(source_dataset, batch_size=self.batch_size, collate_fn=DatasetUtils.collate_keep_size)
 
         # Erzeuge Transformer-Paare (Kreuzprodukt mit Filter). Verwende sample_size/seed falls gesetzt.
         pair_labels = generate_transformer_pairs(sample_size=self.transformer_sample_size,
