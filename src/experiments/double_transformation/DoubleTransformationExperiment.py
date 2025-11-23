@@ -287,39 +287,28 @@ class DoubleTransformationExperiment(PhotographyExperiment):
 
         # Schreibe Annotationen für Transformation 1 (falls vorhanden)
         try:
-            # Transformation-Label hinzufügen
-            self.coco_builder.add_image_transformation_annotation(image_id, t1_label)
-            # Score-Annotation mit initial_score und score_after_t1
+            # Schreibe genau eine Annotation für Transformation 1: category (t1_label), sequence (vom Builder), score und initial_score
             if score_after_t1 is not None or initial_score is not None:
-                # Wenn score_after_t1 None, wird trotzdem eingetragen (value kann None sein)
-                # CocoBuilder erwartet float; guard: only pass if score_after_t1 is not None
                 if score_after_t1 is not None:
-                    self.coco_builder.add_image_transformation_score_annotation(image_id, float(score_after_t1), float(
-                        initial_score) if initial_score is not None else None, transformer_name=t1_label)
+                    self.coco_builder.add_image_transformation_score_annotation(image_id, float(score_after_t1), float(initial_score) if initial_score is not None else None, transformer_name=t1_label)
                 else:
-                    # Wenn kein After-Score, speichern wir nur initial als score (fallback)
+                    # Fallback: kein After-Score, nutze initial als score
                     if initial_score is not None:
-                        self.coco_builder.add_image_transformation_score_annotation(image_id, float(initial_score),
-                                                                                    float(initial_score),
-                                                                                    transformer_name=t1_label)
+                        self.coco_builder.add_image_transformation_score_annotation(image_id, float(initial_score), float(initial_score), transformer_name=t1_label)
         except Exception:
-            logger.exception("Failed to add transformation 1 annotations for image_id %s", image_id)
+            logger.exception("Failed to add transformation 1 annotation for image_id %s", image_id)
 
         # Schreibe Annotationen für Transformation 2 (falls vorhanden)
         try:
-            self.coco_builder.add_image_transformation_annotation(image_id, t2_label)
+            # Schreibe genau eine Annotation für Transformation 2: category (t2_label), sequence, score und initial_score = score_after_t1
             if score_after_t2 is not None or score_after_t1 is not None:
                 if score_after_t2 is not None:
-                    self.coco_builder.add_image_transformation_score_annotation(image_id, float(score_after_t2), float(
-                        score_after_t1) if score_after_t1 is not None else None, transformer_name=t2_label)
+                    self.coco_builder.add_image_transformation_score_annotation(image_id, float(score_after_t2), float(score_after_t1) if score_after_t1 is not None else None, transformer_name=t2_label)
                 else:
                     if score_after_t1 is not None:
-                        self.coco_builder.add_image_transformation_score_annotation(image_id, float(score_after_t1),
-                                                                                    float(score_after_t1),
-                                                                                    transformer_name=t2_label)
-
+                        self.coco_builder.add_image_transformation_score_annotation(image_id, float(score_after_t1), float(score_after_t1), transformer_name=t2_label)
         except Exception:
-            logger.exception("Failed to add transformation 1 annotations for image_id %s", image_id)
+            logger.exception("Failed to add transformation 2 annotation for image_id %s", image_id)
 
         # Füge abschliessende Bild-Level-Annotation mit initial_score und finalem Score hinzu (ohne sequence, category_id=0)
         try:
