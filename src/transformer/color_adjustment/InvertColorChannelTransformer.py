@@ -1,4 +1,4 @@
-from typing import Iterable, Literal, Set
+from typing import Iterable, Literal, Set, List
 
 import numpy as np
 from numpy import ndarray
@@ -50,6 +50,7 @@ class InvertColorChannelTransformerB(AbstractColorAdjustmentTransformer):
 
     label = "CA_INV_B"
     description = "Invert the blue color channel while keeping BGR format and other channels unchanged."
+    reverse_transformer_labels: List[str] = ["CA_INV_B"]
 
     def transform(self, image: ndarray) -> ndarray:
         return _invert_channels(image, ["B"])
@@ -60,6 +61,7 @@ class InvertColorChannelTransformerG(AbstractColorAdjustmentTransformer):
 
     label = "CA_INV_G"
     description = "Invert the green color channel while keeping BGR format and other channels unchanged."
+    reverse_transformer_labels: List[str] = ["CA_INV_G"]
 
     def transform(self, image: ndarray) -> ndarray:
         return _invert_channels(image, ["G"])
@@ -70,6 +72,7 @@ class InvertColorChannelTransformerR(AbstractColorAdjustmentTransformer):
 
     label = "CA_INV_R"
     description = "Invert the red color channel while keeping BGR format and other channels unchanged."
+    reverse_transformer_labels: List[str] = ["CA_INV_R"]
 
     def transform(self, image: ndarray) -> ndarray:
         return _invert_channels(image, ["R"])
@@ -80,6 +83,7 @@ class InvertColorChannelTransformerBG(AbstractColorAdjustmentTransformer):
 
     label = "CA_INV_BG"
     description = "Invert the blue and green color channels while keeping BGR format; red unchanged."
+    reverse_transformer_labels: List[str] = ["CA_INV_BG"]
 
     def transform(self, image: ndarray) -> ndarray:
         return _invert_channels(image, ["B", "G"])
@@ -90,6 +94,7 @@ class InvertColorChannelTransformerBR(AbstractColorAdjustmentTransformer):
 
     label = "CA_INV_BR"
     description = "Invert the blue and red color channels while keeping BGR format; green unchanged."
+    reverse_transformer_labels: List[str] = ["CA_INV_BR"]
 
     def transform(self, image: ndarray) -> ndarray:
         return _invert_channels(image, ["B", "R"])
@@ -100,6 +105,7 @@ class InvertColorChannelTransformerGR(AbstractColorAdjustmentTransformer):
 
     label = "CA_INV_GR"
     description = "Invert the green and red color channels while keeping BGR format; blue unchanged."
+    reverse_transformer_labels = "CA_INV_GR"
 
     def transform(self, image: ndarray) -> ndarray:
         return _invert_channels(image, ["G", "R"])
@@ -110,6 +116,7 @@ class InvertColorChannelTransformerAll(AbstractColorAdjustmentTransformer):
 
     label = "CA_INV_ALL"
     description = "Invert all B, G, and R color channels while keeping BGR format."
+    reverse_transformer_labels: List[str] = ["CA_INV_ALL"]
 
     def transform(self, image: ndarray) -> ndarray:
         return _invert_channels(image, ["B", "G", "R"])

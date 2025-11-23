@@ -132,7 +132,7 @@ class ImageDegradationExperiment(PhotographyExperiment):
             logger.info("Transformed image %s with transformer %s", image_data.image_path, transformer_label)
             scoring_response: ScoringResponsePayloadV1 = self.jurorClient.score_image(transformed_image_path)
             logger.info("scoring response %s", scoring_response)
-            coco_builder.add_image_transformation_score_annotation(image_id, scoring_response.score, image_data.score)
+            coco_builder.add_image_transformation_score_annotation(image_id, scoring_response.score, image_data.score, transformer_name=transformer_label)
             coco_builder.add_image_transformation_annotation(image_id, transformer_label)
             metrics_accumulator.add_score(scoring_response.score, image_data.score)
 

@@ -7,14 +7,14 @@ einfach in Tests gemockt oder ersetzt werden.
 """
 
 import logging
-from typing import Optional, Union, cast
+from typing import Optional, Union, cast, Dict
 
 import numpy as np
 
 from juror_shared.models_v1 import ScoringResponsePayloadV1
 
-from juror_client.juror_service import JurorService, JurorHttpService
-from juror_client.registry import register_service, get_registered_service
+from juror_client.juror_service import JurorService
+from juror_client.registry import get_juror_service
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +40,9 @@ class JurorClient:
             client: Optional[object] = None,
             service: Optional[JurorService] = None,
             register_name: str = "default_juror_client",
+            use_cache: bool = True,
+            cache_maxsize: int = 1024,
+            cache_ttl: Optional[float] = None,
     ):
         """Erzeuge einen neuen `JurorClient`.
 
@@ -55,26 +58,30 @@ class JurorClient:
                            noch keine Instanz existiert.
         """
 
-        # Falls bereits ein Service übergeben wurde, diesen verwenden.
-        if service is not None:
-            if not isinstance(service, JurorService):
-                raise TypeError("service muss eine Instanz von JurorService sein")
-            self._service = service
-        else:
-            # Sonst eine Standard-HTTP-Service-Instanz erstellen
-            self._service = JurorHttpService(base_url=base_url, timeout=timeout, client=cast(Optional[object], client))  # type: ignore[arg-type]
-
-        # Registrierung in der globalen Registry durchführen, wenn ein Name übergeben wurde
-        if register_name is not None:
-            try:
-                existing = get_registered_service(register_name)
-                if existing is None:
-                    register_service(register_name, self._service)
-                    logger.debug("JurorService unter Namen '%s' registriert", register_name)
-                else:
-                    logger.debug("JurorService-Name '%s' bereits registriert; Registrierung übersprungen", register_name)
-            except Exception:
-                logger.exception("Fehler beim Registrieren des JurorService in der Registry")
+        # Verwende die zentrale Fabrik/Registry, damit Caching-Wrapper und
+        # registrierte Instanzen korrekt gehandhabt werden. get_juror_service
+        # übernimmt die Logik: falls `service` übergeben ist, wird diese Instanz
+        # verwendet; falls `register_name` angegeben und bereits registriert,
+        # wird die registrierte Instanz zurückgegeben; sonst wird eine neue
+        # HttpService erzeugt und optional mit JurorCachingService umhüllt.
+        self._service = None
+        try:
+            self._service = get_juror_service(
+                name=register_name,
+                service=service,
+                base_url=base_url,
+                timeout=timeout,
+                client=cast(Optional[object], client),
+                use_cache=use_cache,
+                cache_maxsize=cache_maxsize,
+                cache_ttl=cache_ttl,
+            )
+        except Exception:
+            # Fallback: falls die Fabrik versagt, werfe eine aussagekräftige Exception
+            logger.exception("Failed to obtain JurorService via get_juror_service; falling back to direct HTTP service")
+            # create direct HTTP service as last resort (no caching)
+            from juror_client.juror_service import JurorHttpService
+            self._service = JurorHttpService(base_url=base_url, timeout=timeout, client=cast(Optional[object], client))
 
     def score_image(self, image_path: str) -> Union[ScoringResponsePayloadV1, str]:
         """Delegiert an `JurorService.score_image`.
@@ -104,3 +111,25 @@ class JurorClient:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
+
+    def get_cache_metrics(self) -> Dict[str, int]:
+        """Gebe Cache-Metriken des zugrundeliegenden Juror-Services zurück.
+
+        Falls der aktuelle Service einen Cache unterstützt und eine
+        `get_metrics()`-Methode anbietet, werden die Felder `hits`, `misses` und
+        `size` ausgelesen und als ints zurückgegeben. Andernfalls wird ein
+        Default-Dict mit 0-Werten zurückgegeben.
+        """
+        try:
+            if self._service is None:
+                return {"hits": 0, "misses": 0, "size": 0}
+            else:
+                metrics = self._service.get_metrics()
+                return {
+                    "hits": int(metrics.get('hits', 0)),
+                    "misses": int(metrics.get('misses', 0)),
+                    "size": int(metrics.get('size', 0)),
+                }
+        except Exception:
+            logger.exception("Failed to read cache metrics from underlying juror service")
+        return {"hits": 0, "misses": 0, "size": 0}

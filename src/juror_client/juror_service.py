@@ -58,6 +58,14 @@ class JurorService(ABC):
         """
         raise NotImplementedError
 
+    def get_metrics(self) -> dict:
+        """Optional: Gebe Metriken des Services zurück (z. B. Cache-Statistiken).
+
+        Returns:
+            Ein Dictionary mit Metriken.
+        """
+        return {}
+
     def close(self) -> None:  # pragma: no cover - trivial default
         """Standard-Implementierung: keine Aktion. Konkrete Klassen können
         Ressourcen freigeben.
