@@ -40,6 +40,8 @@ class DoubleTransformationExperiment(PhotographyExperiment):
         self.transformer_sample_size = transformer_sample_size
         self.transformer_sample_seed = transformer_sample_seed
         self.coco_builder = None
+        # ensure attributes exist so other methods can reference them directly
+        self.jurorClient = None
         logger.info("Initialized DoubleTransformationExperiment: %s", experiment_name)
 
     def configure(self, config: dict):
@@ -118,6 +120,7 @@ class DoubleTransformationExperiment(PhotographyExperiment):
         # JurorClient initialisieren
         try:
             self.jurorClient = JurorClient(os.environ.get("JUROR_SERVICE_URL", "http://localhost:5010"))
+            logger.debug("Juror client ready to process images. Using service %s", self.jurorClient._service)
         except Exception:
             logger.exception("Unable to initialize JurorClient; proceeding without juror (scores will be None)")
             self.jurorClient = None
@@ -179,6 +182,20 @@ class DoubleTransformationExperiment(PhotographyExperiment):
             self.log_metric("images_created_count", float(self._images_created_count))
             # Anzahl aufgerufener Juror-Anfragen
             self.log_metric("juror_call_count", float(self._juror_call_count))
+
+            # Juror cache metrics via public JurorClient API (graceful fallback if unsupported)
+            cache_hits = cache_misses = cache_size = 0
+            if self.jurorClient is not None:
+                cm = self.jurorClient.get_cache_metrics() or {}
+                cache_hits = int(cm.get('hits', 0))
+                cache_misses = int(cm.get('misses', 0))
+                cache_size = int(cm.get('size', 0))
+
+            # log regardless (0 if not available)
+            self.log_metric("juror_cache_hits", float(cache_hits))
+            self.log_metric("juror_cache_misses", float(cache_misses))
+            self.log_metric("juror_cache_size", float(cache_size))
+
             # Anzahl angewendeter Paare
             self.log_metric("applied_pairs_attempted", float(attempted_pairs))
             self.log_metric("applied_pairs_successful", float(successful_pairs))
@@ -199,9 +216,6 @@ class DoubleTransformationExperiment(PhotographyExperiment):
         """
         Process a single image with two transformers, save the resulting image and register it in the CocoBuilder.
         If `transformer1` or `transformer2` is None, treat them as identity transformers.
-
-        NOTE: This function currently only saves the transformed image and adds the image entry to the CocoBuilder.
-        The annotations and categories are left as a TODO placeholder to be implemented in a later step.
         """
         # Lade Originalbild als ndarray
         original = image_data.get_image_data("BGR")
@@ -233,6 +247,7 @@ class DoubleTransformationExperiment(PhotographyExperiment):
         # Verwende zuerst den bereits vom DataLoader gelieferten score (falls vorhanden).
         initial_score = getattr(image_data, 'score', None)
         if initial_score is None:
+            logger.info("No score found for image %s", image_data.image_relative_path)
             initial_score = _score(original)
 
         # Transformer 1 (identity if None)
@@ -290,11 +305,14 @@ class DoubleTransformationExperiment(PhotographyExperiment):
             # Schreibe genau eine Annotation für Transformation 1: category (t1_label), sequence (vom Builder), score und initial_score
             if score_after_t1 is not None or initial_score is not None:
                 if score_after_t1 is not None:
-                    self.coco_builder.add_image_transformation_score_annotation(image_id, float(score_after_t1), float(initial_score) if initial_score is not None else None, transformer_name=t1_label)
+                    self.coco_builder.add_image_transformation_score_annotation(image_id, float(score_after_t1), float(
+                        initial_score) if initial_score is not None else None, transformer_name=t1_label)
                 else:
                     # Fallback: kein After-Score, nutze initial als score
                     if initial_score is not None:
-                        self.coco_builder.add_image_transformation_score_annotation(image_id, float(initial_score), float(initial_score), transformer_name=t1_label)
+                        self.coco_builder.add_image_transformation_score_annotation(image_id, float(initial_score),
+                                                                                    float(initial_score),
+                                                                                    transformer_name=t1_label)
         except Exception:
             logger.exception("Failed to add transformation 1 annotation for image_id %s", image_id)
 
@@ -303,10 +321,13 @@ class DoubleTransformationExperiment(PhotographyExperiment):
             # Schreibe genau eine Annotation für Transformation 2: category (t2_label), sequence, score und initial_score = score_after_t1
             if score_after_t2 is not None or score_after_t1 is not None:
                 if score_after_t2 is not None:
-                    self.coco_builder.add_image_transformation_score_annotation(image_id, float(score_after_t2), float(score_after_t1) if score_after_t1 is not None else None, transformer_name=t2_label)
+                    self.coco_builder.add_image_transformation_score_annotation(image_id, float(score_after_t2), float(
+                        score_after_t1) if score_after_t1 is not None else None, transformer_name=t2_label)
                 else:
                     if score_after_t1 is not None:
-                        self.coco_builder.add_image_transformation_score_annotation(image_id, float(score_after_t1), float(score_after_t1), transformer_name=t2_label)
+                        self.coco_builder.add_image_transformation_score_annotation(image_id, float(score_after_t1),
+                                                                                    float(score_after_t1),
+                                                                                    transformer_name=t2_label)
         except Exception:
             logger.exception("Failed to add transformation 2 annotation for image_id %s", image_id)
 

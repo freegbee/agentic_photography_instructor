@@ -238,11 +238,6 @@ class JurorCachingService(JurorService):
         with self._lock:
             self._cache.clear()
 
-    def cache_info(self) -> Dict[str, Any]:
-        """Gibt einfache Metriken zum Cache zurück (Anzahl, maxsize, ttl)."""
-        with self._lock:
-            return {"size": len(self._cache), "maxsize": self._maxsize, "ttl": self._ttl}
-
     def close(self) -> None:
         """Gibt Ressourcen frei und schliesst den inneren Service."""
         try:
