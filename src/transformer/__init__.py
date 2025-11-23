@@ -3,6 +3,7 @@ from . import color_adjustment
 from . import cropping
 from . import image_adjustment
 from .color_adjustment import *
+from .PairGenerator import generate_transformer_pairs
 
 REVERSIBLE_TRANSFORMERS = [SwapColorChannelTransformerGB.label,
                            SwapColorChannelTransformerRB.label,
@@ -14,3 +15,5 @@ REVERSIBLE_TRANSFORMERS = [SwapColorChannelTransformerGB.label,
                            InvertColorChannelTransformerBR.label,
                            InvertColorChannelTransformerGR.label,
                            InvertColorChannelTransformerAll.label]
+
+__all__ = ["generate_transformer_pairs", "REVERSIBLE_TRANSFORMERS"]

@@ -1,8 +1,8 @@
 import json
 from pathlib import Path
 
-from utils.CocoBuilder import CocoBuilder
 from dataset.Utils import TRANSFORMER_CATEGORY_NAME
+from utils.CocoBuilder import CocoBuilder
 
 
 def test_sequence_and_transformation_field(tmp_path: Path):
@@ -12,8 +12,10 @@ def test_sequence_and_transformation_field(tmp_path: Path):
     image_id = cb.add_image("img1.png", 100, 200)
 
     # add two transformation score annotations with transformer names
-    ann1_id = cb.add_image_transformation_score_annotation(image_id, score=0.5, initial_score=0.6, transformer_name="TF_A")
-    ann2_id = cb.add_image_transformation_score_annotation(image_id, score=0.7, initial_score=0.5, transformer_name="TF_B")
+    ann1_id = cb.add_image_transformation_score_annotation(image_id, score=0.5, initial_score=0.6,
+                                                           transformer_name="TF_A")
+    ann2_id = cb.add_image_transformation_score_annotation(image_id, score=0.7, initial_score=0.5,
+                                                           transformer_name="TF_B")
 
     # There should be two annotations
     assert len(cb.annotations) == 2
@@ -77,7 +79,7 @@ def test_categories_and_explicit_id_assignment():
     # add category without id
     cat1 = cb.add_category("catA")
     # add category with explicit id
-    cat2 = cb.add_category("catB", category_id:=42)
+    cat2 = cb.add_category("catB", category_id := 42)
     # ensure both present
     names = {c['name'] for c in cb.categories}
     ids = {c['id'] for c in cb.categories}
