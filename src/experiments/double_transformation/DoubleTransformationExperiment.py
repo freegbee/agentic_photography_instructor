@@ -21,6 +21,7 @@ from utils.ConfigLoader import ConfigLoader
 from utils.ImageUtils import ImageUtils
 from utils.Registries import TRANSFORMER_REGISTRY
 from utils.AsyncImageSaver import AsyncImageSaver
+from experiments.shared.BatchImageMetricAccumulator import BatchImageMetricAccumulator
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,12 @@ class DoubleTransformationExperiment(PhotographyExperiment):
         self.io_workers = int(io_workers) if io_workers is not None else None
         self.max_queue_size = int(max_queue_size) if max_queue_size is not None else None
         self.save_executor_type = save_executor_type
+
+        # Accumulator für globale Aggregation
+        self._global_initial_scores = []
+        self._global_final_scores = []
+        self._global_changes = []
+        self._global_images_created = 0
 
     def configure(self, config: dict):
         pass
@@ -103,7 +110,7 @@ class DoubleTransformationExperiment(PhotographyExperiment):
             DatasetUtils.calculate_dataset_scores(source_dataset)
             logger.info("Calculated %d scores for dataset", len(source_dataset.scores))
             sampler = TopKSampler(source_dataset, k=int(self.max_images))
-            # Note: 'sampler' is assigned here for future use in image selection, but is not yet used in this skeleton implementation.
+            # Note: 'sampler' is assigned hier für zukünftige Verwendung in der Bildauswahl.
         else:
             sampler = None
 
@@ -189,8 +196,15 @@ class DoubleTransformationExperiment(PhotographyExperiment):
         self._images_created_count = 0
         self._juror_call_count = 0
 
+        # Accumulator für Batch-Metriken
+        batch_accumulator = BatchImageMetricAccumulator()
+
         # Haupt-Loop: Verarbeite Bilder. Für jedes Bild wende alle Paare systematisch an.
         for batch_index, batch in enumerate(dataloader):
+            # Starte Batch-Accumulator
+            batch_accumulator.reset()
+            batch_accumulator.start(batch_index)
+
             for image_data in batch:
                 for t1_label, t2_label in pair_labels:
                     try:
@@ -212,11 +226,37 @@ class DoubleTransformationExperiment(PhotographyExperiment):
 
                         # Process image with transformer instances (can be None -> identity)
                         # Pass in saver so write is executed asynchronously with backpressure
-                        self.process_image(image_data, t1, t2, saver=saver)
+                        # process_image will update coco_builder and counters; it returns tuple of (initial, final)
+                        init_score, final_score = self.process_image(image_data, t1, t2, saver=saver)
+
+                        # add to batch accumulator
+                        batch_accumulator.add_image(init_score, final_score)
+
                         successful_pairs += 1
                     except Exception as e:
                         logger.exception("Error processing image %s with transformers %s,%s: %s",
                                          getattr(image_data, 'image_path', None), t1_label, t2_label, e)
+
+            # Batch abgeschlossen
+            batch_accumulator.stop()
+            # Logge Batch-Metriken
+            try:
+                self.log_batch_metrics(batch_accumulator.compute_metrics(), batch_index)
+            except Exception:
+                logger.exception("Failed to log batch metrics for batch %s", batch_index)
+
+            # Update globale Aggregation
+            try:
+                self._global_images_created += batch_accumulator.number_of_images
+                # extend lists while ignoring None
+                for v in batch_accumulator.initial_scores:
+                    self._global_initial_scores.append(v)
+                for v in batch_accumulator.final_scores:
+                    self._global_final_scores.append(v)
+                for v in batch_accumulator.changes:
+                    self._global_changes.append(v)
+            except Exception:
+                logger.exception("Failed to update global metrics from batch %s", batch_index)
 
         # Nachverarbeitung: Logge Kennzahlen und speichere das finale COCO-File
         try:
@@ -261,12 +301,45 @@ class DoubleTransformationExperiment(PhotographyExperiment):
         except Exception:
             logger.exception("Error shutting down AsyncImageSaver")
 
+        # Berechne globale Metriken (average/min/max for initial and final scores and change)
+        try:
+            def safe_stats(vals):
+                if not vals:
+                    return None, None, None
+                avg = sum(vals) / len(vals)
+                return avg, min(vals), max(vals)
+
+            avg_init, min_init, max_init = safe_stats(self._global_initial_scores)
+            avg_final, min_final, max_final = safe_stats(self._global_final_scores)
+            avg_change, min_change, max_change = safe_stats(self._global_changes)
+
+            # log global metrics
+            if avg_init is not None:
+                self.log_metric("global_average_initial_score", float(avg_init))
+                self.log_metric("global_min_initial_score", float(min_init))
+                self.log_metric("global_max_initial_score", float(max_init))
+            if avg_final is not None:
+                self.log_metric("global_average_final_score", float(avg_final))
+                self.log_metric("global_min_final_score", float(min_final))
+                self.log_metric("global_max_final_score", float(max_final))
+            if avg_change is not None:
+                self.log_metric("global_average_change_score", float(avg_change))
+                self.log_metric("global_min_change_score", float(min_change))
+                self.log_metric("global_max_change_score", float(max_change))
+
+            # log aggregate counts
+            self.log_metric("global_images_created_count", float(self._global_images_created))
+        except Exception:
+            logger.exception("Failed to compute or log global aggregated metrics")
+
         logger.info("Finished processing images in DoubleTransformationExperiment")
 
     def process_image(self, image_data, transformer1, transformer2, saver: Optional["AsyncImageSaver"] = None):
         """
         Process a single image with two transformers, save the resulting image and register it in the CocoBuilder.
         If `transformer1` or `transformer2` is None, treat them as identity transformers.
+
+        Returns (initial_score, final_score) so callers (batch aggregator) can record metrics.
         """
         # Lade Originalbild als ndarray
         original = image_data.get_image_data("BGR")
@@ -298,7 +371,7 @@ class DoubleTransformationExperiment(PhotographyExperiment):
         # Verwende zuerst den bereits vom DataLoader gelieferten score (falls vorhanden).
         initial_score = getattr(image_data, 'score', None)
         if initial_score is None:
-            logger.info("No score found for image %s", image_data.image_relative_path)
+            logger.info("No score found für image %s", image_data.image_relative_path)
             initial_score = _score(original)
 
         # Transformer 1 (identity if None)
@@ -341,7 +414,7 @@ class DoubleTransformationExperiment(PhotographyExperiment):
                             except Exception:
                                 self._images_created_count = getattr(self, '_images_created_count', 0) + 1
                     except Exception:
-                        logger.exception("Error in async save done callback for %s", out_path)
+                        logger.exception("Error in async save done callback für %s", out_path)
 
                 try:
                     fut.add_done_callback(_on_done)
@@ -403,7 +476,7 @@ class DoubleTransformationExperiment(PhotographyExperiment):
 
         # Füge abschliessende Bild-Level-Annotation mit initial_score und finalem Score hinzu (ohne sequence, category_id=0)
         try:
-            # use score_after_t2 as final score if available, otherwise fall back to score_after_t1 or initial
+            # use score_after_t2 as final score if available, otherwise fall back to score_after_t1 oder initial
             final_score = score_after_t2 if score_after_t2 is not None else (
                 score_after_t1 if score_after_t1 is not None else initial_score)
             if final_score is not None:
@@ -428,3 +501,6 @@ class DoubleTransformationExperiment(PhotographyExperiment):
                 self.log_metric("image_score_after_two_transformations", float(score_after_t2))
             except Exception:
                 pass
+
+        # return scores for batch aggregator
+        return initial_score, (score_after_t2 if score_after_t2 is not None else (score_after_t1 if score_after_t1 is not None else None))
