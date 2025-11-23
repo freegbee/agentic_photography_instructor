@@ -20,9 +20,9 @@ from utils.CocoBuilder import CocoBuilder
 from utils.ConfigLoader import ConfigLoader
 from utils.ImageUtils import ImageUtils
 from utils.Registries import TRANSFORMER_REGISTRY
+from utils.AsyncImageSaver import AsyncImageSaver
 
 logger = logging.getLogger(__name__)
-
 
 class DoubleTransformationExperiment(PhotographyExperiment):
     def __init__(self, experiment_name: str, target_directory_root: str = "double_transformed",
@@ -54,7 +54,7 @@ class DoubleTransformationExperiment(PhotographyExperiment):
 
     def _get_tags_for_run(self) -> Dict[str, Any]:
         # Tag run with dataset_id and performance indicator (we use num_workers tuning)
-        return {"dataset_id": self.source_dataset_id, "performance": "num_workers"}
+        return {"dataset_id": self.source_dataset_id, "performance": "async_saver"}
 
     def _get_run_name(self) -> Optional[str]:
         return self.run_name
@@ -143,6 +143,18 @@ class DoubleTransformationExperiment(PhotographyExperiment):
         else:
             dataloader = DataLoader(source_dataset, **dataloader_kwargs)
 
+        # Asynchronen Image-Saver initialisieren. Parameterwahl zielt auf gute Default-Backpressure ab.
+        try:
+            # bestimme Anzahl IO-Worker: benutze num_workers als Hinweis, min=2, max=16
+            io_workers = max(2, min(16, int(self.num_workers or 4)))
+            # max queued tasks: proportional zu batch_size * num_workers, mit sicherer Untergrenze
+            max_pending = max(128, int(self.batch_size * max(1, self.num_workers) * 8))
+            saver = AsyncImageSaver(max_workers=io_workers, max_queue_size=max_pending)
+            logger.debug("Started AsyncImageSaver max_workers=%s max_pending=%s", io_workers, max_pending)
+        except Exception:
+            logger.exception("Failed to start AsyncImageSaver; falling back to synchronous saves")
+            saver = None
+
         # Erzeuge Transformer-Paare (Kreuzprodukt mit Filter). Verwende sample_size/seed falls gesetzt.
         pair_labels = generate_transformer_pairs(sample_size=self.transformer_sample_size,
                                                  seed=self.transformer_sample_seed)  # default: exclude_identity=True
@@ -179,7 +191,8 @@ class DoubleTransformationExperiment(PhotographyExperiment):
                         t2 = transformer_cache.get(t2_label)
 
                         # Process image with transformer instances (can be None -> identity)
-                        self.process_image(image_data, t1, t2)
+                        # Pass in saver so write is executed asynchronously with backpressure
+                        self.process_image(image_data, t1, t2, saver=saver)
                         successful_pairs += 1
                     except Exception as e:
                         logger.exception("Error processing image %s with transformers %s,%s: %s",
@@ -221,9 +234,16 @@ class DoubleTransformationExperiment(PhotographyExperiment):
         except Exception:
             logger.debug("log_artifact failed or mlflow not reachable during final save")
 
+        # Warte auf alle async IO-Tasks bevor finale COCO-Datei gespeichert wird
+        try:
+            if saver is not None:
+                saver.shutdown(wait=True)
+        except Exception:
+            logger.exception("Error shutting down AsyncImageSaver")
+
         logger.info("Finished processing images in DoubleTransformationExperiment")
 
-    def process_image(self, image_data, transformer1, transformer2):
+    def process_image(self, image_data, transformer1, transformer2, saver: Optional["AsyncImageSaver"] = None):
         """
         Process a single image with two transformers, save the resulting image and register it in the CocoBuilder.
         If `transformer1` or `transformer2` is None, treat them as identity transformers.
@@ -287,16 +307,35 @@ class DoubleTransformationExperiment(PhotographyExperiment):
         out_filename = f"{orig_name}__{t1_label}__{t2_label}__{unique_suffix}.png"
         out_path = self.target_directory_root / "images" / out_filename
 
-        # Speichern
+        # Speichern: entweder asynchron enqueuen (saver) oder synchron schreiben
         saved_successfully = False
         try:
-            ImageUtils.save_image(img_t2, str(out_path))
-            saved_successfully = True
-            # Inkrementiere echten Schreibzähler
-            try:
-                self._images_created_count += 1
-            except Exception:
-                self._images_created_count = getattr(self, '_images_created_count', 0) + 1
+            if saver is not None:
+                fut = saver.save_async(img_t2, str(out_path))
+                # optional: attach a done callback that increments counter on success
+                def _on_done(f):
+                    try:
+                        if f.result():
+                            try:
+                                self._images_created_count += 1
+                            except Exception:
+                                self._images_created_count = getattr(self, '_images_created_count', 0) + 1
+                    except Exception:
+                        logger.exception("Error in async save done callback for %s", out_path)
+
+                try:
+                    fut.add_done_callback(_on_done)
+                except Exception:
+                    # If adding callback fails, fall back to not tracking
+                    pass
+            else:
+                ImageUtils.save_image(img_t2, str(out_path))
+                saved_successfully = True
+                # Inkrementiere echten Schreibzähler
+                try:
+                    self._images_created_count += 1
+                except Exception:
+                    self._images_created_count = getattr(self, '_images_created_count', 0) + 1
         except Exception:
             logger.exception("Failed to save transformed image to %s", out_path)
 
