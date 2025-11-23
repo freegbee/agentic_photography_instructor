@@ -58,3 +58,64 @@ def test_no_transformer_name_sets_no_transformation(tmp_path: Path):
     # category_id should default to 0 (builder uses 0 for None)
     assert ann.get("category_id") == 0
 
+
+def test_add_image_id_and_map_behavior():
+    cb = CocoBuilder("dset")
+    id1 = cb.add_image("a.png", 10, 10)
+    id2 = cb.add_image("b.png", 20, 20)
+    # adding same filename returns same id
+    id1_again = cb.add_image("a.png", 10, 10)
+    assert id1 == id1_again
+    assert id1 != id2
+    # internal mapping contains filenames
+    assert "a.png" in cb._image_id_map
+    assert cb._image_id_map["b.png"] == id2
+
+
+def test_categories_and_explicit_id_assignment():
+    cb = CocoBuilder("dset2")
+    # add category without id
+    cat1 = cb.add_category("catA")
+    # add category with explicit id
+    cat2 = cb.add_category("catB", category_id:=42)
+    # ensure both present
+    names = {c['name'] for c in cb.categories}
+    ids = {c['id'] for c in cb.categories}
+    assert "catA" in names
+    assert "catB" in names
+    assert category_id in ids
+
+
+def test_save_creates_valid_coco_json(tmp_path: Path):
+    cb = CocoBuilder("myds")
+    cb.set_description("desc")
+    img_id = cb.add_image("img.png", 5, 5)
+    cb.add_image_transformation_annotation(img_id, "TF_X")
+    cb.add_image_transformation_score_annotation(img_id, score=0.1, initial_score=0.2, transformer_name="TF_X")
+
+    target = tmp_path / "annotations.json"
+    cb.save(str(target))
+    assert target.exists()
+    content = json.loads(target.read_text(encoding='utf-8'))
+    assert "images" in content and isinstance(content["images"], list)
+    assert "annotations" in content and isinstance(content["annotations"], list)
+    assert "categories" in content and isinstance(content["categories"], list)
+    assert len(content["images"]) == 1
+    assert len(content["annotations"]) >= 1
+
+
+def test_sequence_counter_is_per_image():
+    cb = CocoBuilder("dset-seq")
+    id_a = cb.add_image("a.png", 10, 10)
+    id_b = cb.add_image("b.png", 10, 10)
+
+    # add annotations interleaved
+    cb.add_image_transformation_annotation(id_a, "T1")
+    cb.add_image_transformation_annotation(id_b, "T2")
+    cb.add_image_transformation_annotation(id_a, "T3")
+
+    # inspect sequences
+    seqs_a = [ann['sequence'] for ann in cb.annotations if ann['image_id'] == id_a]
+    seqs_b = [ann['sequence'] for ann in cb.annotations if ann['image_id'] == id_b]
+    assert seqs_a == [1, 2]
+    assert seqs_b == [1]
