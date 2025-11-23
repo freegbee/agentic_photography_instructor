@@ -13,6 +13,12 @@ from experiments.shared.Utils import Utils as SharedUtils
 from utils.CocoBuilder import CocoBuilder
 from utils.ConfigLoader import ConfigLoader
 
+# lokale Imports für Verarbeitung
+from juror_client import JurorClient
+from utils.ImageUtils import ImageUtils
+import uuid
+from torch.utils.data import DataLoader
+
 logger = logging.getLogger(__name__)
 
 
@@ -96,9 +102,126 @@ class DoubleTransformationExperiment(PhotographyExperiment):
 
         logger.info("DoubleTransformationExperiment preparation complete. Ready to process images.")
 
+        # JurorClient initialisieren
+        try:
+            self.jurorClient = JurorClient(os.environ.get("JUROR_SERVICE_URL", "http://localhost:5010"))
+        except Exception:
+            logger.exception("Unable to initialize JurorClient; proceeding without juror (scores will be None)")
+            self.jurorClient = None
+
+        # DataLoader aufbauen (TopKSampler falls vorhanden)
+        if sampler is not None:
+            dataloader = DataLoader(source_dataset, batch_size=1, sampler=sampler, collate_fn=DatasetUtils.collate_keep_size)
+        else:
+            dataloader = DataLoader(source_dataset, batch_size=1, collate_fn=DatasetUtils.collate_keep_size)
+
+        # Haupt-Loop: Verarbeite Bilder
+        for batch_index, batch in enumerate(dataloader):
+            for image_data in batch:
+                try:
+                    # Aktuell werden noch keine echten Transformer-Paare übergeben. Verwende None als Identity-Transformer.
+                    self.process_image(image_data, None, None)
+                except Exception as e:
+                    logger.exception("Error processing image %s: %s", getattr(image_data, 'image_path', None), e)
+
+        # Nachverarbeitung: speichere das finale COCO-File
+        coco_file_path = self.target_directory_root / "annotations.json"
+        self.coco_builder.save(str(coco_file_path))
+        try:
+            self.log_artifact(local_path=str(coco_file_path))
+        except Exception:
+            logger.debug("log_artifact failed or mlflow not reachable during final save")
+
+        logger.info("Finished processing images in DoubleTransformationExperiment")
+
     def process_image(self, image_data, transformer1, transformer2):
         """
-        Placeholder for processing a single image with two transformers.
-        To be implemented in later steps.
+        Process a single image with two transformers, save the resulting image and register it in the CocoBuilder.
+        If `transformer1` or `transformer2` is None, treat them as identity transformers.
+
+        NOTE: This function currently only saves the transformed image and adds the image entry to the CocoBuilder.
+        The annotations and categories are left as a TODO placeholder to be implemented in a later step.
         """
-        raise NotImplementedError("process_image is not implemented in the skeleton")
+        # Lade Originalbild als ndarray
+        original = image_data.get_image_data("BGR")
+
+        # Hilfsfunktion: score via jurorClient if available
+        def _score(arr):
+            if self.jurorClient is None:
+                return None
+            try:
+                resp = self.jurorClient.score_ndarray(arr, filename=str(image_data.image_relative_path.name))
+                # support different return types
+                score = None
+                if hasattr(resp, 'score'):
+                    score = getattr(resp, 'score')
+                elif isinstance(resp, dict):
+                    score = resp.get('score')
+                return score
+            except Exception:
+                logger.exception("Juror scoring failed")
+                return None
+
+        # Verwende zuerst den bereits vom DataLoader gelieferten score (falls vorhanden).
+        initial_score = getattr(image_data, 'score', None)
+        if initial_score is None:
+            initial_score = _score(original)
+
+        # Transformer 1 (identity if None)
+        if transformer1 is None:
+            img_t1 = original
+            t1_label = "IDENTITY"
+        else:
+            img_t1 = transformer1.transform(original)
+            t1_label = getattr(transformer1, 'label', transformer1.__class__.__name__)
+
+        score_after_t1 = _score(img_t1)
+
+        # Transformer 2 (identity if None)
+        if transformer2 is None:
+            img_t2 = img_t1
+            t2_label = "IDENTITY"
+        else:
+            img_t2 = transformer2.transform(img_t1)
+            t2_label = getattr(transformer2, 'label', transformer2.__class__.__name__)
+
+        score_after_t2 = _score(img_t2)
+
+        # Generiere eindeutigen Dateinamen
+        orig_name = image_data.image_relative_path.stem if image_data.image_relative_path is not None else "img"
+        unique_suffix = uuid.uuid4().hex
+        out_filename = f"{orig_name}__{t1_label}__{t2_label}__{unique_suffix}.png"
+        out_path = self.target_directory_root / "images" / out_filename
+
+        # Speichern
+        try:
+            ImageUtils.save_image(img_t2, str(out_path))
+        except Exception:
+            logger.exception("Failed to save transformed image to %s", out_path)
+
+        # Bildgröße bestimmen
+        if hasattr(img_t2, 'shape'):
+            h = int(img_t2.shape[0])
+            w = int(img_t2.shape[1])
+        else:
+            h = 0
+            w = 0
+
+        # Füge Bild ins COCO-Builder ein
+        image_id = self.coco_builder.add_image(out_filename, w, h)
+
+        # TODO: Ergänzen der Annotationen und Kategorien (z.B. Transformation, initial_score, score)
+        # Platzhalter: Hier sollten später `add_category`, `add_image_transformation_annotation` und
+        # `add_image_transformation_score_annotation` aufgerufen werden.
+
+        # Option: Logge die Scores als Metriken
+        if initial_score is not None:
+            try:
+                self.log_metric("image_initial_score", float(initial_score))
+            except Exception:
+                pass
+        if score_after_t2 is not None:
+            try:
+                self.log_metric("image_score_after_two_transformations", float(score_after_t2))
+            except Exception:
+                pass
