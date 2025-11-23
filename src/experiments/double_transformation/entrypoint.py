@@ -28,7 +28,7 @@ def entrypoint():
         max_images_input = input("Max images (leer = none): ").strip()
     except EOFError:
         max_images_input = ""
-        try:
+    try:
         max_images = int(max_images_input) if max_images_input else None
     except ValueError:
         max_images = None
@@ -47,8 +47,27 @@ def entrypoint():
     except EOFError:
         run_name = None
 
-    logger.info("Starting DoubleTransformationExperiment with experiment_name=%s, source_dataset_id=%s, target_directory=%s, max_images=%s, seed=%s", experiment_name, source_dataset_id, target_directory_name, max_images, seed)
-    exp = DoubleTransformationExperiment(experiment_name=experiment_name, target_directory_root=target_directory_name, run_name=run_name, source_dataset_id=source_dataset_id, max_images=max_images, seed=seed)
+    # Transformer sampling options
+    try:
+        transformer_sample_input = input("Transformer sample size (leer = none): ").strip()
+    except EOFError:
+        transformer_sample_input = ""
+    try:
+        transformer_sample_size = int(transformer_sample_input) if transformer_sample_input else None
+    except ValueError:
+        transformer_sample_size = None
+
+    try:
+        transformer_seed_input = input("Transformer sample seed (leer = none): ").strip()
+    except EOFError:
+        transformer_seed_input = ""
+    try:
+        transformer_sample_seed = int(transformer_seed_input) if transformer_seed_input else None
+    except ValueError:
+        transformer_sample_seed = None
+
+    logger.info("Starting DoubleTransformationExperiment with experiment_name=%s, source_dataset_id=%s, target_directory=%s, max_images=%s, seed=%s, transformer_sample_size=%s, transformer_sample_seed=%s", experiment_name, source_dataset_id, target_directory_name, max_images, seed, transformer_sample_size, transformer_sample_seed)
+    exp = DoubleTransformationExperiment(experiment_name=experiment_name, target_directory_root=target_directory_name, run_name=run_name, source_dataset_id=source_dataset_id, max_images=max_images, seed=seed, transformer_sample_size=transformer_sample_size, transformer_sample_seed=transformer_sample_seed)
     exp.run()
 
 
@@ -58,4 +77,3 @@ if __name__ == "__main__":
     SslHelper.create_unverified_ssl_context()
 
     entrypoint()
-

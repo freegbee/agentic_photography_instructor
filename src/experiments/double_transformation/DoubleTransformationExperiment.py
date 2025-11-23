@@ -15,9 +15,11 @@ from experiments.shared.PhotographyExperiment import PhotographyExperiment
 from experiments.shared.Utils import Utils as SharedUtils
 # lokale Imports für Verarbeitung
 from juror_client import JurorClient
+from transformer import generate_transformer_pairs
 from utils.CocoBuilder import CocoBuilder
 from utils.ConfigLoader import ConfigLoader
 from utils.ImageUtils import ImageUtils
+from utils.Registries import TRANSFORMER_REGISTRY
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +27,8 @@ logger = logging.getLogger(__name__)
 class DoubleTransformationExperiment(PhotographyExperiment):
     def __init__(self, experiment_name: str, target_directory_root: str = "double_transformed",
                  run_name: Optional[str] = None, source_dataset_id: str = "single_image",
-                 max_images: Optional[int] = None, seed: int = 42):
+                 max_images: Optional[int] = None, seed: int = 42,
+                 transformer_sample_size: Optional[int] = None, transformer_sample_seed: Optional[int] = None):
         super().__init__(experiment_name)
         self.run_name = run_name
         self.source_dataset_id = source_dataset_id
@@ -33,6 +36,9 @@ class DoubleTransformationExperiment(PhotographyExperiment):
         self.target_directory_root = Path(os.environ.get("IMAGE_VOLUME_PATH", ".")) / target_directory_root
         self.seed = seed
         self.random = random.Random(seed)
+        # Einstellungen für Transformer-Paare
+        self.transformer_sample_size = transformer_sample_size
+        self.transformer_sample_seed = transformer_sample_seed
         self.coco_builder = None
         logger.info("Initialized DoubleTransformationExperiment: %s", experiment_name)
 
@@ -64,6 +70,13 @@ class DoubleTransformationExperiment(PhotographyExperiment):
         image_dataset_hash = SharedUtils.ensure_image_dataset(self.dataset_config.dataset_id)
         self.log_metric("ensure_image_dataset_duration_seconds", 0.0)
         self.log_param("dataset_hash", image_dataset_hash)
+
+        # Log transformer sampling params to MLflow (safe stringify)
+        try:
+            self.log_param("transformer_sample_size", str(self.transformer_sample_size))
+            self.log_param("transformer_sample_seed", str(self.transformer_sample_seed))
+        except Exception:
+            logger.debug("Failed to log transformer sampling params to MLflow")
 
         # COCO-Input Dataset
         annotation_path = self.dataset_config.calculate_annotations_file_path()
@@ -116,14 +129,61 @@ class DoubleTransformationExperiment(PhotographyExperiment):
         else:
             dataloader = DataLoader(source_dataset, batch_size=1, collate_fn=DatasetUtils.collate_keep_size)
 
-        # Haupt-Loop: Verarbeite Bilder
+        # Erzeuge Transformer-Paare (Kreuzprodukt mit Filter). Verwende sample_size/seed falls gesetzt.
+        pair_labels = generate_transformer_pairs(sample_size=self.transformer_sample_size,
+                                                 seed=self.transformer_sample_seed)  # default: exclude_identity=True
+
+        # Transformer-Instanz-Cache (Label -> transformer instance)
+        transformer_cache = {}
+
+        # Zähler für MLflow-Logging
+        attempted_pairs = 0
+        successful_pairs = 0
+        # Persistent counters stored on self so process_image can increment when save succeeds
+        self._images_created_count = 0
+        self._juror_call_count = 0
+
+        # Haupt-Loop: Verarbeite Bilder. Für jedes Bild wende alle Paare systematisch an.
         for batch_index, batch in enumerate(dataloader):
             for image_data in batch:
-                try:
-                    # Aktuell werden noch keine echten Transformer-Paare übergeben. Verwende None als Identity-Transformer.
-                    self.process_image(image_data, None, None)
-                except Exception as e:
-                    logger.exception("Error processing image %s: %s", getattr(image_data, 'image_path', None), e)
+                for t1_label, t2_label in pair_labels:
+                    try:
+                        attempted_pairs += 1
+                        # Hole Transformer-Instanzen aus Cache oder Registry
+                        if t1_label not in transformer_cache:
+                            try:
+                                transformer_cache[t1_label] = TRANSFORMER_REGISTRY.get(t1_label)
+                            except Exception:
+                                transformer_cache[t1_label] = None
+                        if t2_label not in transformer_cache:
+                            try:
+                                transformer_cache[t2_label] = TRANSFORMER_REGISTRY.get(t2_label)
+                            except Exception:
+                                transformer_cache[t2_label] = None
+
+                        t1 = transformer_cache.get(t1_label)
+                        t2 = transformer_cache.get(t2_label)
+
+                        # Process image with transformer instances (can be None -> identity)
+                        self.process_image(image_data, t1, t2)
+                        successful_pairs += 1
+                    except Exception as e:
+                        logger.exception("Error processing image %s with transformers %s,%s: %s",
+                                         getattr(image_data, 'image_path', None), t1_label, t2_label, e)
+
+        # Nachverarbeitung: Logge Kennzahlen und speichere das finale COCO-File
+        try:
+            # Anzahl erzeugter Bilder via CocoBuilder
+            self.log_metric("total_number_of_images", float(len(self.coco_builder.images)))
+            # Anzahl tatsächlich erzeugter Bilddateien während dieses Runs (tatsächliche Dateischreibvorgänge)
+            self.log_metric("images_created_count", float(self._images_created_count))
+            # Anzahl aufgerufener Juror-Anfragen
+            self.log_metric("juror_call_count", float(self._juror_call_count))
+            # Anzahl angewendeter Paare
+            self.log_metric("applied_pairs_attempted", float(attempted_pairs))
+            self.log_metric("applied_pairs_successful", float(successful_pairs))
+        except Exception:
+            logger.debug("Failed to log pair/image metrics to MLflow")
 
         # Nachverarbeitung: speichere das finale COCO-File
         coco_file_path = self.target_directory_root / "annotations.json"
@@ -151,6 +211,13 @@ class DoubleTransformationExperiment(PhotographyExperiment):
             if self.jurorClient is None:
                 return None
             try:
+                # Track juror invocations
+                try:
+                    self._juror_call_count += 1
+                except Exception:
+                    # defensive: if counter missing, set it
+                    self._juror_call_count = getattr(self, '_juror_call_count', 0) + 1
+
                 resp = self.jurorClient.score_ndarray(arr, filename=str(image_data.image_relative_path.name))
                 # support different return types
                 score = None
@@ -195,8 +262,15 @@ class DoubleTransformationExperiment(PhotographyExperiment):
         out_path = self.target_directory_root / "images" / out_filename
 
         # Speichern
+        saved_successfully = False
         try:
             ImageUtils.save_image(img_t2, str(out_path))
+            saved_successfully = True
+            # Inkrementiere echten Schreibzähler
+            try:
+                self._images_created_count += 1
+            except Exception:
+                self._images_created_count = getattr(self, '_images_created_count', 0) + 1
         except Exception:
             logger.exception("Failed to save transformed image to %s", out_path)
 
@@ -220,11 +294,14 @@ class DoubleTransformationExperiment(PhotographyExperiment):
                 # Wenn score_after_t1 None, wird trotzdem eingetragen (value kann None sein)
                 # CocoBuilder erwartet float; guard: only pass if score_after_t1 is not None
                 if score_after_t1 is not None:
-                    self.coco_builder.add_image_transformation_score_annotation(image_id, float(score_after_t1), float(initial_score) if initial_score is not None else None, transformer_name=t1_label)
+                    self.coco_builder.add_image_transformation_score_annotation(image_id, float(score_after_t1), float(
+                        initial_score) if initial_score is not None else None, transformer_name=t1_label)
                 else:
                     # Wenn kein After-Score, speichern wir nur initial als score (fallback)
                     if initial_score is not None:
-                        self.coco_builder.add_image_transformation_score_annotation(image_id, float(initial_score), float(initial_score), transformer_name=t1_label)
+                        self.coco_builder.add_image_transformation_score_annotation(image_id, float(initial_score),
+                                                                                    float(initial_score),
+                                                                                    transformer_name=t1_label)
         except Exception:
             logger.exception("Failed to add transformation 1 annotations for image_id %s", image_id)
 
@@ -233,10 +310,41 @@ class DoubleTransformationExperiment(PhotographyExperiment):
             self.coco_builder.add_image_transformation_annotation(image_id, t2_label)
             if score_after_t2 is not None or score_after_t1 is not None:
                 if score_after_t2 is not None:
-                    self.coco_builder.add_image_transformation_score_annotation(image_id, float(score_after_t2), float(score_after_t1) if score_after_t1 is not None else None, transformer_name=t2_label)
+                    self.coco_builder.add_image_transformation_score_annotation(image_id, float(score_after_t2), float(
+                        score_after_t1) if score_after_t1 is not None else None, transformer_name=t2_label)
                 else:
                     if score_after_t1 is not None:
-                        self.coco_builder.add_image_transformation_score_annotation(image_id, float(score_after_t1), float(score_after_t1), transformer_name=t2_label)
+                        self.coco_builder.add_image_transformation_score_annotation(image_id, float(score_after_t1),
+                                                                                    float(score_after_t1),
+                                                                                    transformer_name=t2_label)
 
         except Exception:
             logger.exception("Failed to add transformation 1 annotations for image_id %s", image_id)
+
+        # Füge abschliessende Bild-Level-Annotation mit initial_score und finalem Score hinzu (ohne sequence, category_id=0)
+        try:
+            # use score_after_t2 as final score if available, otherwise fall back to score_after_t1 or initial
+            final_score = score_after_t2 if score_after_t2 is not None else (
+                score_after_t1 if score_after_t1 is not None else initial_score)
+            if final_score is not None:
+                # CocoBuilder hat eine Helfermethode für image-level final score annotation
+                try:
+                    self.coco_builder.add_image_final_score_annotation(image_id, float(final_score), float(
+                        initial_score) if initial_score is not None else None)
+                except Exception:
+                    # fallback: use generic add_image_score_annotation
+                    self.coco_builder.add_image_score_annotation(image_id, float(final_score))
+        except Exception:
+            logger.exception("Failed to add final image-level score annotation for image_id %s", image_id)
+
+        # Option: Logge die Scores als Metriken
+        if initial_score is not None:
+            try:
+                self.log_metric("image_initial_score", float(initial_score))
+            except Exception:
+                pass
+        if score_after_t2 is not None:
+            try:
+                self.log_metric("image_score_after_two_transformations", float(score_after_t2))
+            except Exception:
+                pass

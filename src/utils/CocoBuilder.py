@@ -192,6 +192,29 @@ class CocoBuilder:
             self._image_sequence_counters[image_id] += 1
             return self._image_sequence_counters[image_id]
 
+    def add_image_final_score_annotation(self, image_id: int, score: float, initial_score: Optional[float] = None) -> int:
+        """Add an image-level score annotation WITHOUT sequence and with category_id set to 0.
+
+        This is intended to log the overall initial and final score for the image after
+        all transformations. It deliberately does NOT set a sequence value.
+        """
+        if image_id not in {v for v in self._image_id_map.values()}:
+            raise ValueError(f"image_id {image_id} not known")
+
+        annotation_builder = (CocoScoreAnnotationBuilder()
+                              .with_id(self._next_ann_id)
+                              .with_image_id(image_id)
+                              .with_score(score)
+                              .with_category_id(None))
+
+        if initial_score is not None:
+            annotation_builder.with_initial_score(initial_score)
+
+        ann = annotation_builder.build()
+        self.annotations.append(ann)
+        self._next_ann_id += 1
+        return ann["id"]
+
 
 class CocoScoreAnnotationBuilder:
     """
@@ -259,4 +282,3 @@ class CocoScoreAnnotationBuilder:
         if getattr(self, 'transformation', None) is not None:
             ann["transformation"] = self.transformation
         return ann
-
