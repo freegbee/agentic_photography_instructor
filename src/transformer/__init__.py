@@ -10,10 +10,6 @@ REVERSIBLE_TRANSFORMERS = [SwapColorChannelTransformerGB.label,
                            SwapColorChannelTransformerRG.label,
                            InvertColorChannelTransformerB.label,
                            InvertColorChannelTransformerG.label,
-                           InvertColorChannelTransformerR.label,
-                           InvertColorChannelTransformerBG.label,
-                           InvertColorChannelTransformerBR.label,
-                           InvertColorChannelTransformerGR.label,
-                           InvertColorChannelTransformerAll.label]
+                           InvertColorChannelTransformerR.label,]
 
 __all__ = ["generate_transformer_pairs", "REVERSIBLE_TRANSFORMERS"]
