@@ -68,16 +68,26 @@ def entrypoint():
 
     # Batch size for DataLoader / performance tuning
     try:
-        batch_size_input = input("Batch size [4]: ").strip()
+        batch_size_input = input("Batch size [32]: ").strip()
     except EOFError:
         batch_size_input = ""
     try:
-        batch_size = int(batch_size_input) if batch_size_input else 4
+        batch_size = int(batch_size_input) if batch_size_input else 32
     except ValueError:
-        batch_size = 4
+        batch_size = 32
 
-    logger.info("Starting DoubleTransformationExperiment with experiment_name=%s, source_dataset_id=%s, target_directory=%s, max_images=%s, seed=%s, transformer_sample_size=%s, transformer_sample_seed=%s, batch_size=%s", experiment_name, source_dataset_id, target_directory_name, max_images, seed, transformer_sample_size, transformer_sample_seed, batch_size)
-    exp = DoubleTransformationExperiment(experiment_name=experiment_name, target_directory_root=target_directory_name, run_name=run_name, source_dataset_id=source_dataset_id, max_images=max_images, seed=seed, transformer_sample_size=transformer_sample_size, transformer_sample_seed=transformer_sample_seed, batch_size=batch_size)
+    # Number of workers for DataLoader (num_workers)
+    try:
+        num_workers_input = input("Num workers [4]: ").strip()
+    except EOFError:
+        num_workers_input = ""
+    try:
+        num_workers = int(num_workers_input) if num_workers_input else 4
+    except ValueError:
+        num_workers = 4
+
+    logger.info("Starting DoubleTransformationExperiment with experiment_name=%s, source_dataset_id=%s, target_directory=%s, max_images=%s, seed=%s, transformer_sample_size=%s, transformer_sample_seed=%s, batch_size=%s, num_workers=%s", experiment_name, source_dataset_id, target_directory_name, max_images, seed, transformer_sample_size, transformer_sample_seed, batch_size, num_workers)
+    exp = DoubleTransformationExperiment(experiment_name=experiment_name, target_directory_root=target_directory_name, run_name=run_name, source_dataset_id=source_dataset_id, max_images=max_images, seed=seed, transformer_sample_size=transformer_sample_size, transformer_sample_seed=transformer_sample_seed, batch_size=batch_size, num_workers=num_workers)
     exp.run()
 
 

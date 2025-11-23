@@ -29,7 +29,7 @@ class DoubleTransformationExperiment(PhotographyExperiment):
                  run_name: Optional[str] = None, source_dataset_id: str = "single_image",
                  max_images: Optional[int] = None, seed: int = 42,
                  transformer_sample_size: Optional[int] = None, transformer_sample_seed: Optional[int] = None,
-                 batch_size: int = 4):
+                 batch_size: int = 4, num_workers: int = 4):
         super().__init__(experiment_name)
         self.run_name = run_name
         self.source_dataset_id = source_dataset_id
@@ -39,6 +39,8 @@ class DoubleTransformationExperiment(PhotographyExperiment):
         self.random = random.Random(seed)
         # Performance tuning: batch_size for DataLoader
         self.batch_size = int(batch_size)
+        # Number of DataLoader workers
+        self.num_workers = int(num_workers)
         # Einstellungen für Transformer-Paare
         self.transformer_sample_size = transformer_sample_size
         self.transformer_sample_seed = transformer_sample_seed
@@ -51,7 +53,8 @@ class DoubleTransformationExperiment(PhotographyExperiment):
         pass
 
     def _get_tags_for_run(self) -> Dict[str, Any]:
-        return {"dataset_id": self.source_dataset_id, "performance": "batchsize"}
+        # Tag run with dataset_id and performance indicator (we use num_workers tuning)
+        return {"dataset_id": self.source_dataset_id, "performance": "num_workers"}
 
     def _get_run_name(self) -> Optional[str]:
         return self.run_name
@@ -80,11 +83,8 @@ class DoubleTransformationExperiment(PhotographyExperiment):
         try:
             self.log_param("transformer_sample_size", str(self.transformer_sample_size))
             self.log_param("transformer_sample_seed", str(self.transformer_sample_seed))
-            # Log batch_size as MLflow parameter
-            try:
-                self.log_param("batch_size", str(self.batch_size))
-            except Exception:
-                logger.debug("Failed to log batch_size to MLflow")
+            self.log_param("batch_size", str(self.batch_size))
+            self.log_param("num_workers", str(self.num_workers))
         except Exception:
             logger.debug("Failed to log transformer sampling params to MLflow")
 
@@ -134,11 +134,14 @@ class DoubleTransformationExperiment(PhotographyExperiment):
             self.jurorClient = None
 
         # DataLoader aufbauen (TopKSampler falls vorhanden)
+        # Configure DataLoader using configured batch_size and num_workers
+        dataloader_kwargs = dict(batch_size=self.batch_size, collate_fn=DatasetUtils.collate_keep_size)
+        if self.num_workers > 0:
+            dataloader_kwargs.update({"num_workers": self.num_workers, "pin_memory": True, "persistent_workers": True})
         if sampler is not None:
-            dataloader = DataLoader(source_dataset, batch_size=self.batch_size, sampler=sampler,
-                                    collate_fn=DatasetUtils.collate_keep_size)
+            dataloader = DataLoader(source_dataset, sampler=sampler, **dataloader_kwargs)
         else:
-            dataloader = DataLoader(source_dataset, batch_size=self.batch_size, collate_fn=DatasetUtils.collate_keep_size)
+            dataloader = DataLoader(source_dataset, **dataloader_kwargs)
 
         # Erzeuge Transformer-Paare (Kreuzprodukt mit Filter). Verwende sample_size/seed falls gesetzt.
         pair_labels = generate_transformer_pairs(sample_size=self.transformer_sample_size,
