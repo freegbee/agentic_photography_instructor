@@ -1,5 +1,27 @@
 name: ${NAME}
 services:
+  notebook:
+    build:
+      context: notebook
+      dockerfile: Dockerfile
+    container_name: notebook
+    ports:
+      - "${NOTEBOOK_PORT:-8888}:${NOTEBOOK_PORT:-8888}"
+    environment:
+      - PYTHONPATH=/workspace/src
+      - NOTEBOOK_PORT=${NOTEBOOK_PORT:-8888}
+      - MLFLOW_TRACKING_URI=http://mlflow:${MLFLOW_PORT}
+      - MLFLOW_ARTIFACT_ROOT=/mlruns
+    volumes:
+      - ../notebooks:/workspace/notebooks
+      - ../src:/workspace/src
+      - ../configs:/workspace/configs
+      - resources:/workspace/volumes/resources
+      - mlruns:/mlruns
+    depends_on:
+      - mlflow
+    networks:
+      - ml-network
   experiment-service:
     build:
       context: experiment-service
