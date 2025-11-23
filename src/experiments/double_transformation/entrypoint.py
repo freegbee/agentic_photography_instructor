@@ -115,8 +115,15 @@ def entrypoint():
     except ValueError:
         max_queue_size = default_max_queue
 
+    # Choose executor type for AsyncImageSaver: 'process' or 'thread'
+    try:
+        save_executor_input = input("Async saver executor type ('process'|'thread') [process]: ").strip().lower()
+    except EOFError:
+        save_executor_input = ""
+    save_executor_type = save_executor_input if save_executor_input in ("process", "thread") else "process"
+
     logger.info("Starting DoubleTransformationExperiment with experiment_name=%s, source_dataset_id=%s, target_directory=%s, max_images=%s, seed=%s, transformer_sample_size=%s, transformer_sample_seed=%s, batch_size=%s, num_workers=%s, io_workers=%s, max_queue_size=%s", experiment_name, source_dataset_id, target_directory_name, max_images, seed, transformer_sample_size, transformer_sample_seed, batch_size, num_workers, io_workers, max_queue_size)
-    exp = DoubleTransformationExperiment(experiment_name=experiment_name, target_directory_root=target_directory_name, run_name=run_name, source_dataset_id=source_dataset_id, max_images=max_images, seed=seed, transformer_sample_size=transformer_sample_size, transformer_sample_seed=transformer_sample_seed, batch_size=batch_size, num_workers=num_workers, io_workers=io_workers, max_queue_size=max_queue_size)
+    exp = DoubleTransformationExperiment(experiment_name=experiment_name, target_directory_root=target_directory_name, run_name=run_name, source_dataset_id=source_dataset_id, max_images=max_images, seed=seed, transformer_sample_size=transformer_sample_size, transformer_sample_seed=transformer_sample_seed, batch_size=batch_size, num_workers=num_workers, io_workers=io_workers, max_queue_size=max_queue_size, save_executor_type=save_executor_type)
     exp.run()
 
 

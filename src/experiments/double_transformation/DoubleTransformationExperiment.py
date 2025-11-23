@@ -29,7 +29,7 @@ class DoubleTransformationExperiment(PhotographyExperiment):
                  run_name: Optional[str] = None, source_dataset_id: str = "single_image",
                  max_images: Optional[int] = None, seed: int = 42,
                  transformer_sample_size: Optional[int] = None, transformer_sample_seed: Optional[int] = None,
-                 batch_size: int = 32, num_workers: int = 4, io_workers: Optional[int] = None, max_queue_size: Optional[int] = None):
+                 batch_size: int = 32, num_workers: int = 4, io_workers: Optional[int] = None, max_queue_size: Optional[int] = None, save_executor_type: str = "process"):
         super().__init__(experiment_name)
         self.run_name = run_name
         self.source_dataset_id = source_dataset_id
@@ -52,6 +52,7 @@ class DoubleTransformationExperiment(PhotographyExperiment):
         # Async saver configuration (may be None -> compute defaults in _run_impl if absent)
         self.io_workers = int(io_workers) if io_workers is not None else None
         self.max_queue_size = int(max_queue_size) if max_queue_size is not None else None
+        self.save_executor_type = save_executor_type
 
     def configure(self, config: dict):
         pass
@@ -160,12 +161,14 @@ class DoubleTransformationExperiment(PhotographyExperiment):
             else:
                 max_pending = max(128, int(self.batch_size * max(1, self.num_workers) * 8))
 
-            saver = AsyncImageSaver(max_workers=io_workers, max_queue_size=max_pending)
+            saver = AsyncImageSaver(max_workers=io_workers, max_queue_size=max_pending, executor_type=self.save_executor_type)
             logger.debug("Started AsyncImageSaver max_workers=%s max_pending=%s", io_workers, max_pending)
             # Log saver config to MLflow as params
             try:
                 self.log_param("async_io_workers", str(io_workers))
                 self.log_param("async_max_queue_size", str(max_pending))
+                # log executor type choice
+                self.log_param("save_executor_type", str(self.save_executor_type))
             except Exception:
                 logger.debug("Failed to log async saver params to MLflow")
         except Exception:
