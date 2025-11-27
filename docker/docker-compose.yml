@@ -18,6 +18,8 @@ services:
       - ../src:/app/src
       - ../configs:/app/configs
       - resources:/app/volumes/resources
+      # WICHTIG: Artefakt-Volume auch im Notebook mounten, falls der Client lokal auf Dateisystem zugreift
+      - mlruns:/mlruns
     command: [
       "tini", "--",
       "jupyter", "lab",
@@ -238,7 +240,7 @@ volumes:
     driver: local
   mlruns:
     name: mlruns
-    driver: local
+    external: true
   prometheus_data:
     driver: local
   grafana_data:

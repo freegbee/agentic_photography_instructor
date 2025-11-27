@@ -3,6 +3,9 @@
 # MLflow (Version passend zu experiment-service)
 mlflow~=3.5.1
 
+# Json-File laden
+json5
+
 # Datenverarbeitung & -formate
 pandas
 numpy
