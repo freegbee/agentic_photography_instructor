@@ -1,0 +1,28 @@
+# Basis-Tools für Analyse von MLflow-Artefakten in Jupyter-Notebooks
+
+# MLflow (Version passend zu experiment-service)
+mlflow~=3.5.1
+
+# Datenverarbeitung & -formate
+pandas
+numpy
+pyarrow   # für Parquet/Arrow, oft von pandas genutzt
+
+# Visualisierung
+matplotlib
+seaborn
+plotly
+
+# Bilder & Medien
+pillow
+
+# Statistik & Metriken
+scikit-learn
+scipy
+
+# Notebook-UX (optional, aber praktisch für Interaktivität)
+ipywidgets
+
+# Nützliches
+requests
+tqdm

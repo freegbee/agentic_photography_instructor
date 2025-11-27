@@ -8,19 +8,31 @@ services:
     ports:
       - "${NOTEBOOK_PORT:-8888}:${NOTEBOOK_PORT:-8888}"
     environment:
-      - PYTHONPATH=/workspace/src
-      - NOTEBOOK_PORT=${NOTEBOOK_PORT:-8888}
+      - PYTHONPATH=/app/src
+      - NOTEBOOK_PORT=${NOTEBOOK_PORT}
       - MLFLOW_TRACKING_URI=http://mlflow:${MLFLOW_PORT}
       - MLFLOW_ARTIFACT_ROOT=/mlruns
+      - JUPYTER_TOKEN=${JUPYTER_TOKEN}
     volumes:
-      - ../notebooks:/workspace/notebooks
-      - ../src:/workspace/src
-      - ../configs:/workspace/configs
-      - resources:/workspace/volumes/resources
+      - ../notebooks:/app/notebooks
+      - ../src:/app/src
+      - ../configs:/app/configs
+      - resources:/app/volumes/resources
+    command: [
+      "tini", "--",
+      "jupyter", "lab",
+      "--ip=0.0.0.0",
+      "--port", "${NOTEBOOK_PORT:-8888}",
+      "--no-browser",
+      "--IdentityProvider.token=${JUPYTER_TOKEN}",
+      "--ServerApp.root_dir=/app/notebooks",
+      "--allow-root"
+    ]
     depends_on:
       - mlflow
     networks:
       - ml-network
+
   experiment-service:
     build:
       context: experiment-service

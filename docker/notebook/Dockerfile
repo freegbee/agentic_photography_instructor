@@ -22,17 +22,12 @@ RUN apt-get update && \
 
 WORKDIR /notebook
 
+# WICHTIG: explizit die Notebook-spezifischen Requirements kopieren
+# (vermeidet, dass versehentlich die Root-requirements installiert werden)
+COPY requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
     python -m pip install --upgrade pip && \
-    pip install jupyterlab ipykernel jupytext
+    pip install jupyterlab ipykernel jupytext && \
+    pip install -r requirements.txt
 
 EXPOSE $NOTEBOOK_PORT
-
-CMD tini -- jupyter lab \
-     --ip=0.0.0.0 \
-     --port ${NOTEBOOK_PORT} \
-     --no-browser \
-     --ServerApp.token= \
-     --ServerApp.password= \
-     --allow-root \
-     --NotebookApp.notebook_dir=/workspace/notebooks
