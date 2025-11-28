@@ -213,3 +213,5 @@ resources/flickr2k/
 resources/tar/
 volumes/
 places365/
+
+src/_annotation_uploads/
