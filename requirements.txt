@@ -14,6 +14,7 @@ pytest~=9.0.1
 
 # Only for mlflow
 mlflow~=3.5.1
+paramiko~=3.4.0  # Required for MLflow SFTP artifact storage
 
 # Only for FastAPI server, Juror Service
 fastapi~=0.120.0

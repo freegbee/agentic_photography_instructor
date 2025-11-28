@@ -12,25 +12,33 @@ services:
       - NOTEBOOK_PORT=${NOTEBOOK_PORT}
       - MLFLOW_PORT=${MLFLOW_PORT}
       - MLFLOW_TRACKING_URI=http://mlflow:${MLFLOW_PORT}
-      - MLFLOW_ARTIFACT_ROOT=/mlruns
+      - MLFLOW_ARTIFACT_ROOT=${MLFLOW_ARTIFACT_ROOT}
+      - MLFLOW_ARTIFACT_URI=${MLFLOW_ARTIFACT_URI}
       - JUPYTER_TOKEN=${JUPYTER_TOKEN}
+    secrets:
+      - mlflow_sftp_key
     volumes:
       - ../notebooks:/app/notebooks
       - ../src:/app/src
       - ../configs:/app/configs
       - resources:/app/volumes/resources
-      # WICHTIG: Artefakt-Volume auch im Notebook mounten, falls der Client lokal auf Dateisystem zugreift
       - mlruns:/mlruns
-    command: [
-      "tini", "--",
-      "jupyter", "lab",
-      "--ip=0.0.0.0",
-      "--port", "${NOTEBOOK_PORT:-8888}",
-      "--no-browser",
-      "--IdentityProvider.token=${JUPYTER_TOKEN}",
-      "--ServerApp.root_dir=/app/notebooks",
-      "--allow-root"
-    ]
+      - ./ssh_config:/root/.ssh/config:ro
+      - ./init_ssh_keys.sh:/init_ssh_keys.sh:ro
+    entrypoint: /bin/bash
+    command: >
+      -c "mkdir -p /root/.ssh &&
+      chmod 700 /root/.ssh &&
+      cp /run/secrets/mlflow_sftp_key /root/.ssh/id_rsa &&
+      chmod 600 /root/.ssh/id_rsa &&
+      bash /init_ssh_keys.sh &&
+      tini -- jupyter lab
+      --ip=0.0.0.0
+      --port ${NOTEBOOK_PORT:-8888}
+      --no-browser
+      --IdentityProvider.token=${JUPYTER_TOKEN}
+      --ServerApp.root_dir=/app/notebooks
+      --allow-root"
     depends_on:
       - mlflow
     networks:
@@ -48,14 +56,28 @@ services:
       - ENV_NAME=docker
       - PYTHONPATH=/app
       - MLFLOW_TRACKING_URI=http://mlflow:${MLFLOW_PORT}
+      - MLFLOW_ARTIFACT_ROOT=${MLFLOW_ARTIFACT_ROOT}
+      - MLFLOW_ARTIFACT_URI=${MLFLOW_ARTIFACT_URI}
       - IMAGE_VOLUME_PATH=/app/volumes/resources
       - IMAGE_ACQUISITION_SERVICE_URL=http://image-acquisition-service:${IMAGE_ACQUISITION_PORT}
       - JUROR_SERVICE_URL=http://juror-service:${JUROR_PORT}
+    secrets:
+      - mlflow_sftp_key
     volumes:
       - ../src/:/app
       - resources:/app/volumes/resources
       - ../configs:/app/configs
       - mlruns:/mlruns
+      - ./ssh_config:/root/.ssh/config:ro
+      - ./init_ssh_keys.sh:/init_ssh_keys.sh:ro
+    entrypoint: /bin/bash
+    command: >
+      -c "mkdir -p /root/.ssh &&
+      chmod 700 /root/.ssh &&
+      cp /run/secrets/mlflow_sftp_key /root/.ssh/id_rsa &&
+      chmod 600 /root/.ssh/id_rsa &&
+      bash /init_ssh_keys.sh &&
+      tail -f /dev/null"
     depends_on:
       - prometheus
       - mlflow
@@ -124,6 +146,8 @@ services:
       context: train
       dockerfile: Dockerfile
     container_name: train
+    stdin_open: true
+    tty: true
     environment:
       - ENV_NAME=docker
       - PYTHONPATH=/app/src
@@ -132,12 +156,25 @@ services:
       - IMAGE_ACQUISITION_SERVICE_URL=http://image-acquisition-service:${IMAGE_ACQUISITION_PORT}
       - JUROR_SERVICE_URL=http://juror-service:${JUROR_PORT}
       - MLFLOW_ARTIFACT_ROOT=${MLFLOW_ARTIFACT_ROOT}
+      - MLFLOW_ARTIFACT_URI=${MLFLOW_ARTIFACT_URI}
+    secrets:
+      - mlflow_sftp_key
     volumes:
       - resources:/app/volumes/resources
       - ../src:/app/src
       - ../configs:/app/configs
       - ../test:/app/test
       - mlruns:/mlruns
+      - ./ssh_config:/root/.ssh/config:ro
+      - ./init_ssh_keys.sh:/init_ssh_keys.sh:ro
+    entrypoint: /bin/bash
+    command: >
+      -c "mkdir -p /root/.ssh &&
+      chmod 700 /root/.ssh &&
+      cp /run/secrets/mlflow_sftp_key /root/.ssh/id_rsa &&
+      chmod 600 /root/.ssh/id_rsa &&
+      bash /init_ssh_keys.sh &&
+      tail -f /dev/null"
     depends_on:
       - mlflow
     networks:
@@ -150,19 +187,32 @@ services:
     container_name: mlflow
     ports:
       - "${MLFLOW_PORT}:${MLFLOW_PORT}"
+    environment:
+      - MLFLOW_ARTIFACT_ROOT=${MLFLOW_ARTIFACT_ROOT}
+      - MLFLOW_ARTIFACT_URI=${MLFLOW_ARTIFACT_URI}
+    secrets:
+      - mlflow_sftp_key
     volumes:
       # Artefakte (Runs) persistent speichern
       - mlruns:/mlruns
       # Backend-DB persistent speichern
       - mlflow:/mlflow
+      - ./ssh_config:/root/.ssh/config:ro
+      - ./init_ssh_keys.sh:/init_ssh_keys.sh:ro
+    entrypoint: /bin/bash
     command: >
+      -c "mkdir -p /root/.ssh &&
+      chmod 700 /root/.ssh &&
+      cp /run/secrets/mlflow_sftp_key /root/.ssh/id_rsa &&
+      chmod 600 /root/.ssh/id_rsa &&
+      bash /init_ssh_keys.sh &&
       mlflow server
       --host 0.0.0.0
       --port ${MLFLOW_PORT}
       --backend-store-uri ${MLFLOW_BACKEND_STORE_URI}
       --default-artifact-root ${MLFLOW_ARTIFACT_ROOT}
-      --allowed-hosts "*"
-      --serve-artifacts
+      --allowed-hosts '*'
+      --serve-artifacts"
     networks:
       - ml-network
 
@@ -253,3 +303,7 @@ volumes:
 networks:
   ml-network:
     driver: bridge
+
+secrets:
+  mlflow_sftp_key:
+    file: ./.secrets/mlflow_sftp_key/id_rsa

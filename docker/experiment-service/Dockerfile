@@ -10,6 +10,7 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       git \
       curl \
+      openssh-client \
       libgl1 \
       libglib2.0-0 \
       libsm6 \

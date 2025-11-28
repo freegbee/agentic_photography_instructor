@@ -213,3 +213,7 @@ resources/flickr2k/
 resources/tar/
 volumes/
 places365/
+
+
+# Docker secrets
+/docker/.secrets/

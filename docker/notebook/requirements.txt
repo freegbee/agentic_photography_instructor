@@ -2,6 +2,7 @@
 
 # MLflow (Version passend zu experiment-service)
 mlflow~=3.5.1
+paramiko~=3.4.0  # Required for MLflow SFTP artifact storage
 
 # Json-File laden
 json5
@@ -29,3 +30,6 @@ ipywidgets
 # Nützliches
 requests
 tqdm
+
+# Python sftp
+pysftp

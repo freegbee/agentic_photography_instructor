@@ -15,6 +15,7 @@ RUN apt-get update && \
       curl \
       git \
       tini \
+      openssh-client \
       libglib2.0-0 \
       libgl1 \
       libgomp1 && \

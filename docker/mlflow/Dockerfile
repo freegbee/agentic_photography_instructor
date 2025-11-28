@@ -24,7 +24,9 @@ WORKDIR /mlflow
 
 RUN --mount=type=cache,target=/root/.cache/pip \
     python -m pip install --upgrade pip && \
-    pip install mlflow
+    pip install mlflow && \
+    pip install paramiko && \
+    pip install pysftp
 
 # MLflow-Port
 EXPOSE $MLFLOW_PORT

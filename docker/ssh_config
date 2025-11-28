@@ -1,0 +1,5 @@
+Host tajo.host.ch
+    Port 2121
+    User freegee
+    IdentityFile /root/.ssh/id_rsa
+    StrictHostKeyChecking accept-new

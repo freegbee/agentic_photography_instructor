@@ -10,6 +10,7 @@ pydantic~=2.11.9
 compress_pickle~=2.1.0
 mlflow~=3.5.1
 pycocotools~=2.0.10
+paramiko~=3.4.0  # Required for MLflow SFTP artifact storage
 
 
 # Torch and torchvision installation based on platform and CUDA version
@@ -26,3 +27,7 @@ torch; sys_platform == 'darwin'
 torchvision; sys_platform == 'darwin'
 
 fiftyone~=1.8.0
+
+
+# Python sftp
+pysftp
