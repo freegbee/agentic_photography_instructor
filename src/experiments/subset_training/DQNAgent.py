@@ -8,7 +8,13 @@ import torch.optim as optim
 
 
 def default_device():
-    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+
+    elif torch.mps.is_available():
+        return torch.device("mps")
+
+    return torch.device("cpu")
 
 
 class SimpleQNetwork(nn.Module):
