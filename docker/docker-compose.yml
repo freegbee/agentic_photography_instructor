@@ -10,6 +10,7 @@ services:
     environment:
       - PYTHONPATH=/app/src
       - NOTEBOOK_PORT=${NOTEBOOK_PORT}
+      - MLFLOW_PORT=${MLFLOW_PORT}
       - MLFLOW_TRACKING_URI=http://mlflow:${MLFLOW_PORT}
       - MLFLOW_ARTIFACT_ROOT=/mlruns
       - JUPYTER_TOKEN=${JUPYTER_TOKEN}
