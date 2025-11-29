@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import io
 import logging
@@ -34,6 +35,19 @@ prometheus_metrics = init_metrics(registry=registry)
 
 # Global juror-service instance (initialized in lifespan)
 _juror: Optional[Juror] = None
+
+# Hilfsfunktionen (synchron, werden mit to_thread aufgerufen)
+def _decode_base64_to_array(payload: ScoringRequestPayloadV1) -> np.ndarray:
+    data = base64.b64decode(payload.b64)
+    pil_img = Image.open(io.BytesIO(data)).convert("RGB")
+    return np.array(pil_img).astype(np.uint8)
+
+def _load_numpy_bytes_to_array(data: bytes) -> np.ndarray:
+    return load_numpy_from_bytes(data)  # bestehende Funktion, synchron
+
+def _run_inference(arr: np.ndarray) -> float:
+    # ggf. hier Locks nutzen, falls das Modell nicht thread-safe ist
+    return float(_juror.inference(arr))
 
 
 def load_numpy_from_bytes(data: bytes) -> np.ndarray:
@@ -189,7 +203,7 @@ async def score_ndarray_file(array_file: Optional[UploadFile] = File(None)):
 
     # Load numpy array from bytes (support npy and npz)
     try:
-        image_np = load_numpy_from_bytes(data)
+        image_np = await asyncio.to_thread(_load_numpy_bytes_to_array, data)
         logger.debug("image_np shape: %s, dtype: %s", image_np.shape, image_np.dtype)
     except Exception as e:
         logger.warning("exception decoding data: %s", e)
@@ -203,7 +217,7 @@ async def score_ndarray_file(array_file: Optional[UploadFile] = File(None)):
     try:
         logger.debug("start to score ndarray")
         start = time.perf_counter()
-        score = float(_juror.inference(image_np))
+        score = await asyncio.to_thread(_run_inference, image_np)
         elapsed = time.perf_counter() - start
 
         try:
