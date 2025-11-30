@@ -294,6 +294,19 @@ window.addEventListener('load', async () => {
     state.page += 1;
     loadImages();
   });
+  // page size input: apply immediately on change (bound to max 100)
+  const pageSizeInput = document.getElementById('pageSize');
+  if (pageSizeInput) {
+    pageSizeInput.addEventListener('change', () => {
+      let v = parseInt(pageSizeInput.value, 10) || 20;
+      if (v < 1) v = 1;
+      if (v > 100) v = 100;
+      pageSizeInput.value = v;
+      state.pageSize = v;
+      state.page = 1; // reset to first page when page size changes
+      loadImages();
+    });
+  }
   document.getElementById('loadFileBtn').addEventListener('click', async () => {
     const sel = document.getElementById('fileSelect');
     const fp = sel.value;
