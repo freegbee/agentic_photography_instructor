@@ -1,0 +1,48 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Annotations Browser</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>Annotations Browser</h1>
+      <div class="controls">
+        <select id="fileSelect"><option value="">Select annotations.json...</option></select>
+        <button id="loadFileBtn">Load</button>
+        <select id="categorySelect"><option value="">All categories</option></select>
+        <input id="annotationInput" placeholder="Search annotations..." />
+        <select id="sortSelect">
+          <option value="file_name">File name</option>
+          <option value="image_id">Image ID</option>
+          <option value="width">Width</option>
+          <option value="height">Height</option>
+          <option value="score">Score</option>
+        </select>
+        <select id="orderSelect"><option value="asc">Asc</option><option value="desc">Desc</option></select>
+        <button id="applyBtn">Apply</button>
+      </div>
+    </header>
+
+    <main>
+      <div id="grid" class="grid"></div>
+      <div class="pagination">
+        <button id="prevBtn">Prev</button>
+        <span id="pageInfo">Page 1</span>
+        <button id="nextBtn">Next</button>
+        <label>Page Size: <input id="pageSize" type="number" min="1" max="100" value="20"/></label>
+      </div>
+    </main>
+
+    <div id="modal" class="modal hidden">
+      <div class="modal-content">
+        <span id="closeModal" class="close">&times;</span>
+        <img id="modalImage" src="" alt="Full size" />
+      </div>
+    </div>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
