@@ -10,7 +10,8 @@ logger = logging.getLogger(__name__)
 
 def entrypoint():
     try:
-        experiment_name = input("Experiment Name (leer = Double Transformation PoC): ").strip() or "Double Transformation PoC"
+        experiment_name = input(
+            "Experiment Name (leer = Double Transformation PoC): ").strip() or "Double Transformation PoC"
     except EOFError:
         experiment_name = "Double Transformation PoC"
 
@@ -20,7 +21,8 @@ def entrypoint():
         source_dataset_id = "single_image"
 
     try:
-        target_directory_name = input("Target Directory Name (leer = double_transformed/<source>): ").strip() or str(Path("double_transformed") / source_dataset_id)
+        target_directory_name = input("Target Directory Name (leer = double_transformed/<source>): ").strip() or str(
+            Path("double_transformed") / source_dataset_id)
     except EOFError:
         target_directory_name = str(Path("double_transformed") / source_dataset_id)
 
@@ -87,7 +89,6 @@ def entrypoint():
         num_workers = 4
 
     # Async image saver configuration: io_workers and max_queue_size
-    # Compute sensible defaults (must mirror logic used in experiment)
     try:
         default_io_workers = max(2, min(16, int(num_workers or 4)))
     except Exception:
@@ -122,8 +123,32 @@ def entrypoint():
         save_executor_input = ""
     save_executor_type = save_executor_input if save_executor_input in ("process", "thread", "noop") else "process"
 
-    logger.info("Starting DoubleTransformationExperiment with experiment_name=%s, source_dataset_id=%s, target_directory=%s, max_images=%s, seed=%s, transformer_sample_size=%s, transformer_sample_seed=%s, batch_size=%s, num_workers=%s, io_workers=%s, max_queue_size=%s, save_executor_type=%s", experiment_name, source_dataset_id, target_directory_name, max_images, seed, transformer_sample_size, transformer_sample_seed, batch_size, num_workers, io_workers, max_queue_size, save_executor_type)
-    exp = DoubleTransformationExperiment(experiment_name=experiment_name, target_directory_root=target_directory_name, run_name=run_name, source_dataset_id=source_dataset_id, max_images=max_images, seed=seed, transformer_sample_size=transformer_sample_size, transformer_sample_seed=transformer_sample_seed, batch_size=batch_size, num_workers=num_workers, io_workers=io_workers, max_queue_size=max_queue_size, save_executor_type=save_executor_type)
+    # activate profiling?
+    try:
+        instrumentation_input = input("Activate instrumentation for performance profiling? (j/n) [n]: ").strip().lower()
+    except EOFError:
+        instrumentation_input = ""
+    instrumentation = instrumentation_input == "j"
+
+    logger.info(
+        "Starting DoubleTransformationExperiment with experiment_name=%s, source_dataset_id=%s, target_directory=%s, max_images=%s, seed=%s, transformer_sample_size=%s, transformer_sample_seed=%s, batch_size=%s, num_workers=%s, io_workers=%s, max_queue_size=%s, save_executor_type=%s, instrumentation=%s",
+        experiment_name, source_dataset_id, target_directory_name, max_images, seed, transformer_sample_size,
+        transformer_sample_seed, batch_size, num_workers, io_workers, max_queue_size, save_executor_type,
+        instrumentation)
+    exp = DoubleTransformationExperiment(experiment_name=experiment_name,
+                                         target_directory_root=target_directory_name,
+                                         run_name=run_name,
+                                         source_dataset_id=source_dataset_id,
+                                         max_images=max_images,
+                                         seed=seed,
+                                         transformer_sample_size=transformer_sample_size,
+                                         transformer_sample_seed=transformer_sample_seed,
+                                         batch_size=batch_size,
+                                         num_workers=num_workers,
+                                         io_workers=io_workers,
+                                         max_queue_size=max_queue_size,
+                                         save_executor_type=save_executor_type,
+                                         instrumentation=instrumentation)
     exp.run()
 
 

@@ -9,6 +9,11 @@ pillow~=11.3.0
 pydantic~=2.11.9
 compress_pickle~=2.1.0
 pycocotools~=2.0.10
+pyinstrument~=5.1.1
+
+# Additional packages for hashing benchmark
+xxhash
+psutil~=5.9.5
 
 # Only for mlflow
 mlflow~=3.5.1

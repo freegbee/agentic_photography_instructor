@@ -5,32 +5,43 @@ import uuid
 from pathlib import Path
 from typing import Optional, Dict, Any
 
+from pyinstrument import Profiler
 from torch.utils.data import DataLoader
 
 from data_types.ImageDatasetConfiguration import ImageDatasetConfiguration
 from dataset.COCODataset import COCODataset
 from dataset.TopKSampler import TopKSampler
 from dataset.Utils import Utils as DatasetUtils
+from experiments.shared.BatchImageMetricAccumulator import BatchImageMetricAccumulator
 from experiments.shared.PhotographyExperiment import PhotographyExperiment
 from experiments.shared.Utils import Utils as SharedUtils
 # lokale Imports für Verarbeitung
 from juror_client import JurorClient
 from transformer import generate_transformer_pairs
+from utils.AsyncImageSaver import AsyncImageSaver
 from utils.CocoBuilder import CocoBuilder
 from utils.ConfigLoader import ConfigLoader
 from utils.ImageUtils import ImageUtils
 from utils.Registries import TRANSFORMER_REGISTRY
-from utils.AsyncImageSaver import AsyncImageSaver
-from experiments.shared.BatchImageMetricAccumulator import BatchImageMetricAccumulator
 
 logger = logging.getLogger(__name__)
 
+
 class DoubleTransformationExperiment(PhotographyExperiment):
-    def __init__(self, experiment_name: str, target_directory_root: str = "double_transformed",
-                 run_name: Optional[str] = None, source_dataset_id: str = "single_image",
-                 max_images: Optional[int] = None, seed: int = 42,
-                 transformer_sample_size: Optional[int] = None, transformer_sample_seed: Optional[int] = None,
-                 batch_size: int = 32, num_workers: int = 4, io_workers: Optional[int] = None, max_queue_size: Optional[int] = None, save_executor_type: str = "process"):
+    def __init__(self, experiment_name: str,
+                 target_directory_root: str = "double_transformed",
+                 run_name: Optional[str] = None,
+                 source_dataset_id: str = "single_image",
+                 max_images: Optional[int] = None,
+                 seed: int = 42,
+                 transformer_sample_size: Optional[int] = None,
+                 transformer_sample_seed: Optional[int] = None,
+                 batch_size: int = 32,
+                 num_workers: int = 4,
+                 io_workers: Optional[int] = None,
+                 max_queue_size: Optional[int] = None,
+                 save_executor_type: str = "process",
+                 instrumentation: bool = False):
         super().__init__(experiment_name)
         self.run_name = run_name
         self.source_dataset_id = source_dataset_id
@@ -60,6 +71,11 @@ class DoubleTransformationExperiment(PhotographyExperiment):
         self._global_final_scores = []
         self._global_changes = []
         self._global_images_created = 0
+
+        if instrumentation:
+            self.profiler = Profiler()
+        else:
+            self.profiler = None
 
     def configure(self, config: dict):
         pass
@@ -168,7 +184,8 @@ class DoubleTransformationExperiment(PhotographyExperiment):
             else:
                 max_pending = max(128, int(self.batch_size * max(1, self.num_workers) * 8))
 
-            saver = AsyncImageSaver(max_workers=io_workers, max_queue_size=max_pending, executor_type=self.save_executor_type)
+            saver = AsyncImageSaver(max_workers=io_workers, max_queue_size=max_pending,
+                                    executor_type=self.save_executor_type)
             logger.debug("Started AsyncImageSaver max_workers=%s max_pending=%s", io_workers, max_pending)
             # Log saver config to MLflow as params
             try:
@@ -198,6 +215,9 @@ class DoubleTransformationExperiment(PhotographyExperiment):
 
         # Accumulator für Batch-Metriken
         batch_accumulator = BatchImageMetricAccumulator()
+
+        if self.profiler is not None:
+            self.profiler.start()
 
         # Haupt-Loop: Verarbeite Bilder. Für jedes Bild wende alle Paare systematisch an.
         for batch_index, batch in enumerate(dataloader):
@@ -285,6 +305,17 @@ class DoubleTransformationExperiment(PhotographyExperiment):
             self.log_metric("applied_pairs_successful", float(successful_pairs))
         except Exception:
             logger.debug("Failed to log pair/image metrics to MLflow")
+        finally:
+            if self.profiler is not None:
+                self.profiler.stop()
+                profile_output_path = self.target_directory_root / "profiling.html"
+                try:
+                    with open(profile_output_path, "w") as f:
+                        f.write(self.profiler.output_html())
+                    # log profiling output as artifact
+                    self.log_artifact(local_path=str(profile_output_path))
+                except Exception:
+                    logger.exception("Failed to write or log profiling output to %s", profile_output_path)
 
         # Nachverarbeitung: speichere das finale COCO-File
         coco_file_path = self.target_directory_root / "annotations.json"
@@ -405,6 +436,7 @@ class DoubleTransformationExperiment(PhotographyExperiment):
         try:
             if saver is not None:
                 fut = saver.save_async(img_t2, str(out_path))
+
                 # optional: attach a done callback that increments counter on success
                 def _on_done(f):
                     try:
@@ -490,17 +522,6 @@ class DoubleTransformationExperiment(PhotographyExperiment):
         except Exception:
             logger.exception("Failed to add final image-level score annotation for image_id %s", image_id)
 
-        # Option: Logge die Scores als Metriken
-        if initial_score is not None:
-            try:
-                self.log_metric("image_initial_score", float(initial_score))
-            except Exception:
-                pass
-        if score_after_t2 is not None:
-            try:
-                self.log_metric("image_score_after_two_transformations", float(score_after_t2))
-            except Exception:
-                pass
-
         # return scores for batch aggregator
-        return initial_score, (score_after_t2 if score_after_t2 is not None else (score_after_t1 if score_after_t1 is not None else None))
+        return initial_score, (
+            score_after_t2 if score_after_t2 is not None else (score_after_t1 if score_after_t1 is not None else None))
