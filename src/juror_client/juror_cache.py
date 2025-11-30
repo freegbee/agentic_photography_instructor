@@ -13,13 +13,13 @@ Alle Docstrings und Kommentare sind auf Deutsch.
 """
 from __future__ import annotations
 
-import hashlib
 import threading
 import time
 from collections import OrderedDict
 from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
+import xxhash
 
 from juror_client.juror_service import JurorService
 
@@ -35,7 +35,7 @@ def _hash_ndarray(array: np.ndarray) -> str:
     Rückgabe: Hexadezimaler SHA256-String.
     """
     arr = np.ascontiguousarray(array)
-    h = hashlib.sha256()
+    h = xxhash.xxh64()
     # shape and dtype deterministisch einschliessen
     meta = f"shape={arr.shape};dtype={str(arr.dtype)};"
     h.update(meta.encode("utf-8"))
