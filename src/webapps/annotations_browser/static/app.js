@@ -167,18 +167,107 @@ function closeModal() {
   modal.classList.add('hidden');
 }
 
-function showSpinner(msg) {
+let _loadStatusInterval = null;
+async function _fetchLoadStatus() {
+  try {
+    const r = await fetch('/api/load_status');
+    if (!r.ok) return null;
+    return await r.json();
+  } catch (e) {
+    return null;
+  }
+}
+
+function showSpinner() {
   const gp = document.getElementById('glasspane');
+  const msg = document.getElementById('glasspaneMsg');
+  const counts = document.getElementById('glasspaneCounts');
+  const loadBtn = document.getElementById('loadFileBtn');
   if (!gp) return;
   gp.classList.remove('hidden');
   gp.setAttribute('aria-hidden', 'false');
+  if (loadBtn) loadBtn.disabled = true;
+
+  // initial message
+  if (msg) msg.textContent = 'Loading annotations...';
+  if (counts) counts.textContent = '';
+
+  // wire cancel button
+  const cancelBtn = document.getElementById('glasspaneCancelBtn');
+  if (cancelBtn) {
+    cancelBtn.disabled = false;
+    cancelBtn.onclick = async () => {
+      cancelBtn.disabled = true;
+      if (msg) msg.textContent = 'Cancelling...';
+      try {
+        const r = await fetch('/api/load_cancel', {method: 'POST'});
+        if (!r.ok) {
+          const text = await r.text();
+          console.warn('cancel failed', r.status, text);
+        }
+      } catch (e) {
+        console.warn('cancel request failed', e);
+      }
+    }
+  }
+
+  // start polling status every 800ms
+  if (_loadStatusInterval) clearInterval(_loadStatusInterval);
+  _loadStatusInterval = setInterval(async () => {
+    const st = await _fetchLoadStatus();
+    if (!st) return;
+    if (msg) msg.textContent = `State: ${st.state} — file: ${st.file || ''}`;
+    if (counts) counts.textContent = st.total ? `Parsed: ${st.processed}/${st.total} images` : `Parsed: ${st.processed} images`;
+    if (st.state === 'done' || st.state === 'error' || st.state === 'cancelled') {
+      // stop polling shortly after completion to allow UI update
+      clearInterval(_loadStatusInterval);
+      _loadStatusInterval = null;
+      if (loadBtn) loadBtn.disabled = false;
+      if (cancelBtn) cancelBtn.disabled = true;
+
+      // show skipped images modal if present
+      if (st.skipped_images && st.skipped_images.length > 0) {
+        setTimeout(() => showSkippedModal(st.skipped_images), 100);
+      }
+    }
+  }, 800);
 }
 
 function hideSpinner() {
   const gp = document.getElementById('glasspane');
+  const loadBtn = document.getElementById('loadFileBtn');
   if (!gp) return;
   gp.classList.add('hidden');
   gp.setAttribute('aria-hidden', 'true');
+  if (_loadStatusInterval) {
+    clearInterval(_loadStatusInterval);
+    _loadStatusInterval = null;
+  }
+  if (loadBtn) loadBtn.disabled = false;
+  const msg = document.getElementById('glasspaneMsg');
+  const counts = document.getElementById('glasspaneCounts');
+  if (msg) msg.textContent = '';
+  if (counts) counts.textContent = '';
+}
+
+function showSkippedModal(skipped) {
+  const modal = document.getElementById('skippedModal');
+  const list = document.getElementById('skippedList');
+  if (!modal || !list) return;
+  list.innerHTML = '';
+  if (!skipped || skipped.length === 0) return;
+  skipped.forEach(s => {
+    const li = document.createElement('li');
+    li.textContent = `${s.file_name || s.file || ''} — ${s.reason || ''}`;
+    list.appendChild(li);
+  });
+  modal.classList.remove('hidden');
+}
+
+function hideSkippedModal() {
+  const modal = document.getElementById('skippedModal');
+  if (!modal) return;
+  modal.classList.add('hidden');
 }
 
 // wire controls
@@ -213,19 +302,32 @@ window.addEventListener('load', async () => {
       showSpinner();
       const r = await fetch('/api/load_annotations', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({file_path: fp})});
       if(!r.ok) throw new Error('Load failed');
-      const j = await r.json();
-      // after load, fetch categories and images
+      // after starting background load, poll until done, then refresh categories/images
+      // we'll wait until load_status reports done
+      const waitForDone = async () => {
+        while (true) {
+          const st = await _fetchLoadStatus();
+          if (!st) break;
+          if (st.state === 'done' || st.state === 'cancelled') return st;
+          if (st.state === 'error') throw new Error(st.error || 'load error');
+          await new Promise(r => setTimeout(r, 500));
+        }
+        return null;
+      }
+      await waitForDone();
       await fetchCategories();
       state.page = 1;
       loadImages();
     }catch(e){
-      console.error('Failed to load annotations', e); alert('Failed to load annotations.json');
+      console.error('Failed to load annotations', e); alert('Failed to load annotations.json: '+(e && e.message ? e.message : e));
     } finally {
       hideSpinner();
     }
   });
   document.getElementById('closeModal').addEventListener('click', closeModal);
+  document.getElementById('closeSkipped').addEventListener('click', hideSkippedModal);
   document.getElementById('modal').addEventListener('click', (e) => { if (e.target.id === 'modal') closeModal(); });
+  document.getElementById('skippedModal').addEventListener('click', (e) => { if (e.target.id === 'skippedModal') hideSkippedModal(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
 
   // do not load images initially until a file is loaded

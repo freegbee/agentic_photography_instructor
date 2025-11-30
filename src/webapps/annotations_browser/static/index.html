@@ -42,10 +42,26 @@
         <img id="modalImage" src="" alt="Full size" />
       </div>
     </div>
+    <!-- skipped images modal -->
+    <div id="skippedModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="skippedTitle">
+      <div class="modal-content">
+        <span id="closeSkipped" class="close">&times;</span>
+        <h2 id="skippedTitle">Skipped images</h2>
+        <div id="skippedBody">
+          <p>The following image files were referenced in the annotations but could not be loaded:</p>
+          <ul id="skippedList"></ul>
+        </div>
+      </div>
+    </div>
   </div>
   <!-- glasspane + spinner shown during long-running operations -->
   <div id="glasspane" class="glasspane hidden" role="status" aria-live="polite" aria-hidden="true">
-    <div class="spinner" aria-hidden="true"></div>
+    <div>
+      <div class="spinner" aria-hidden="true"></div>
+      <div id="glasspaneMsg" class="glasspane-msg">Loading...</div>
+      <div id="glasspaneCounts" class="glasspane-counts"></div>
+      <div style="margin-top:8px"><button id="glasspaneCancelBtn">Cancel</button></div>
+    </div>
   </div>
   <script src="/static/app.js"></script>
 </body>

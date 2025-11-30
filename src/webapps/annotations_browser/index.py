@@ -68,7 +68,7 @@ class AnnotationsIndex:
             "skipped_images": [],
         }
 
-    def load_file(self, file_path: Union[str, Path]) -> Dict:
+    def load_file(self, file_path: Union[str, Path], progress_callback=None) -> Dict:
         """Load a single annotations.json file specified by file_path.
 
         file_path may be absolute or relative to search_root/image_root.
@@ -115,10 +115,18 @@ class AnnotationsIndex:
         except Exception:
             return {"loaded_files": [], "loaded_images": 0, "skipped_images": [{"file_name": str(file_path), "reason": "invalid path"}]}
 
+        # initialize progress counters to ensure they exist for callbacks and cancellation checks
+        processed_images = 0
+        total_images_est = 0
+
         try:
             with open(fp, 'r', encoding='utf-8') as fh:
                 coco = json.load(fh)
             self.loaded_files.append(fp)
+
+            # prepare total count for progress reporting
+            total_images_est = len(coco.get('images', [])) if isinstance(coco.get('images', []), list) else 0
+            processed_images = 0
 
             # load categories
             for c in coco.get('categories', []):
@@ -129,6 +137,12 @@ class AnnotationsIndex:
                     self.category_name_to_id[name] = cid
 
             # load images
+            # helper to probe cancellation via progress_callback
+            def _maybe_check_cancel():
+                if progress_callback:
+                    # progress_callback may raise LoadCancelled
+                    progress_callback(processed_images, total_images_est)
+
             for img in coco.get('images', []):
                 img_id = img.get('id')
                 try:
@@ -143,6 +157,12 @@ class AnnotationsIndex:
                     continue
                 abs_path = None
                 p = Path(file_name)
+                # quick cancellation probe before filesystem ops
+                try:
+                    _maybe_check_cancel()
+                except Exception:
+                    # propagate cancellation
+                    raise
                 if p.is_absolute():
                     try:
                         p.relative_to(self.image_root)
@@ -158,12 +178,26 @@ class AnnotationsIndex:
                         except Exception:
                             abs_path = candidate
                     else:
-                        matches = list(self.image_root.rglob(p.name))
-                        if matches:
+                        # iterate rglob to allow cancellation checks between iterations
+                        abs_path = None
+                        try:
+                            for m in self.image_root.rglob(p.name):
+                                # check cancellation between iterations
+                                try:
+                                    _maybe_check_cancel()
+                                except Exception:
+                                    raise
+                                abs_path = m
+                                # take first match and stop
+                                break
+                        except Exception:
+                            # if cancellation or other exception occurred, re-raise
+                            raise
+                        if abs_path:
                             try:
-                                abs_path = matches[0].resolve()
+                                abs_path = abs_path.resolve()
                             except Exception:
-                                abs_path = matches[0]
+                                pass
                         else:
                             self.skipped_images.append({"file_name": str(file_name), "reason": "file missing"})
                             continue
@@ -178,8 +212,20 @@ class AnnotationsIndex:
                     "width": width,
                     "height": height,
                 }
+                # report progress for each image processed
+                processed_images += 1
+                if progress_callback:
+                    try:
+                        progress_callback(processed_images, total_images_est)
+                    except LoadCancelled:
+                        raise
+                    except Exception:
+                        # ignore other callback errors
+                        pass
 
             # load annotations
+            ann_processed = 0
+            total_anns_est = len(coco.get('annotations', [])) if isinstance(coco.get('annotations', []), list) else 0
             for ann in coco.get('annotations', []):
                 image_id_raw = ann.get('image_id')
                 if image_id_raw is None:
@@ -205,7 +251,20 @@ class AnnotationsIndex:
                     self.skipped_images.append({"file_name": str(image_id), "reason": "annotation for unknown image"})
                     continue
                 self.annotations_by_image_id[image_id].append(ann)
+                ann_processed += 1
+                # report annotation-level progress (allows cancellation during annotation processing)
+                if progress_callback:
+                    try:
+                        progress_callback(processed_images, total_images_est)
+                    except LoadCancelled:
+                        raise
+                    except Exception:
+                        # ignore other callback errors
+                        pass
 
+        except LoadCancelled:
+             # propagate cancellation to caller
+             raise
         except Exception as e:
             self.skipped_images.append({"file_name": str(fp), "reason": f"failed to load: {e}"})
 
@@ -248,6 +307,15 @@ class AnnotationsIndex:
                         img_score = _get_num(a, ['score', 'final_score', 'value'])
                     if img_initial is None:
                         img_initial = _get_num(a, ['initial_score', 'initial', 'initialValue', 'initial_value'])
+                # allow cancellation check during score computation
+                if progress_callback:
+                    try:
+                        progress_callback(processed_images, total_images_est)
+                    except LoadCancelled:
+                        raise
+                    except Exception:
+                        # ignore other callback errors
+                        pass
             # attach to image meta
             if img_score is not None:
                 self.images_by_id[img_id]['score'] = img_score
@@ -443,3 +511,38 @@ class AnnotationsIndex:
             'page_size': page_size,
             'items': result_items
         }
+
+    def resolve_relative_path(self, rel_path: str) -> Optional[Path]:
+        """Resolve a relative path (as appears in annotations) to an absolute Path under image_root.
+        Returns Path if found and exists, otherwise None.
+        """
+        try:
+            p = Path(rel_path)
+            if p.is_absolute():
+                # ensure under image_root
+                try:
+                    p.relative_to(self.image_root)
+                    return p.resolve()
+                except Exception:
+                    return None
+            # try direct candidate under image_root
+            candidate = self.image_root / rel_path
+            if candidate.exists():
+                try:
+                    return candidate.resolve()
+                except Exception:
+                    return candidate
+            # fall back to searching by name
+            name = p.name
+            for m in self.image_root.rglob(name):
+                try:
+                    return m.resolve()
+                except Exception:
+                    return m
+        except Exception:
+            return None
+
+
+class LoadCancelled(Exception):
+    """Raised when a load operation was cancelled by the caller."""
+    pass
