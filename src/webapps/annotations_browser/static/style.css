@@ -14,3 +14,25 @@ main{padding:10px}
 .modal-content img{max-width:100%;height:auto}
 .close{position:absolute;right:20px;top:20px;font-size:24px;color:#fff;cursor:pointer}
 
+/* Score table styling */
+.score-table{width:100%;border-collapse:collapse;margin-top:6px;font-size:12px}
+.score-table thead th{font-weight:600;padding:2px 6px;color:#333;text-align:left}
+.score-table tbody td{padding:2px 6px;border-top:1px solid #eee}
+.score-table td.label{font-weight:600;padding-right:8px}
+.score-table td.num{font-family:monospace;text-align:right}
+.score-table th, .score-table td{vertical-align:middle}
+
+/* Glasspane + spinner */
+.glasspane{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(255,255,255,0.6);display:flex;align-items:center;justify-content:center;z-index:9999}
+.glasspane.hidden{display:none}
+.spinner{width:60px;height:60px;border-radius:50%;border:6px solid rgba(0,0,0,0.1);border-top-color:#0078d4;animation:spin 1s linear infinite}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+
+/* Categories table styling */
+.categories-table{width:100%;border-collapse:collapse;margin-top:6px;font-size:12px}
+.categories-table tbody td{padding:2px 6px;border-top:1px solid #eee}
+.categories-table td.label{font-weight:600;padding-right:8px}
+.categories-table td.num{font-family:monospace;text-align:right;white-space:nowrap}
+
+/* spacer between category and score tables */
+.table-spacer{height:8px}

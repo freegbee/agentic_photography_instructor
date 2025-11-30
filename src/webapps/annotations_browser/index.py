@@ -209,6 +209,56 @@ class AnnotationsIndex:
         except Exception as e:
             self.skipped_images.append({"file_name": str(fp), "reason": f"failed to load: {e}"})
 
+        # compute image-level score fields from annotations with category_id == 0
+        for img_id, img in list(self.images_by_id.items()):
+            anns = self.annotations_by_image_id.get(img_id, [])
+            img_score = None
+            img_initial = None
+            for a in anns:
+                try:
+                    cat = a.get('category_id')
+                except Exception:
+                    cat = None
+                if cat == 0:
+                    # check for score and initial_score in annotation (tolerant keys)
+                    # prefer numeric conversion
+                    def _get_num(d, keys):
+                        for k in keys:
+                            if k in d:
+                                try:
+                                    return float(d[k])
+                                except Exception:
+                                    try:
+                                        return float(str(d[k]).replace(',','.'))
+                                    except Exception:
+                                        return None
+                        # case-insensitive keys
+                        for kk, vv in d.items():
+                            if isinstance(kk, str) and kk.lower() in [k.lower() for k in keys]:
+                                try:
+                                    return float(vv)
+                                except Exception:
+                                    try:
+                                        return float(str(vv).replace(',','.'))
+                                    except Exception:
+                                        return None
+                        return None
+
+                    if img_score is None:
+                        img_score = _get_num(a, ['score', 'final_score', 'value'])
+                    if img_initial is None:
+                        img_initial = _get_num(a, ['initial_score', 'initial', 'initialValue', 'initial_value'])
+            # attach to image meta
+            if img_score is not None:
+                self.images_by_id[img_id]['score'] = img_score
+            if img_initial is not None:
+                self.images_by_id[img_id]['initial_score'] = img_initial
+            if (img_score is not None) and (img_initial is not None):
+                try:
+                    self.images_by_id[img_id]['change'] = float(img_score) - float(img_initial)
+                except Exception:
+                    self.images_by_id[img_id]['change'] = None
+
         return {
             "loaded_files": [str(p) for p in self.loaded_files],
             "loaded_images": len(self.images_by_id),
@@ -319,14 +369,71 @@ class AnnotationsIndex:
         result_items = []
         for img in page_items:
             img_id = img.get('id')
+            # per-image level score data (may be absent)
+            score = img.get('score') if img.get('score') is not None else None
+            initial_score = img.get('initial_score') if img.get('initial_score') is not None else None
+            change = img.get('change') if img.get('change') is not None else None
+
+            # build per-category metadata from annotations for this image
+            cat_map = {}
+            anns = self.annotations_by_image_id.get(img_id, [])
+            def _to_num(v):
+                try:
+                    return float(v)
+                except Exception:
+                    try:
+                        return float(str(v).replace(',','.'))
+                    except Exception:
+                        return None
+
+            for a in anns:
+                cid = a.get('category_id')
+                if cid is None:
+                    continue
+                if cid not in cat_map:
+                    cat_map[cid] = {'id': cid, 'name': self.category_id_to_name.get(cid), 'score': None, 'initial_score': None}
+                # try find score/initial in annotation
+                if cat_map[cid]['score'] is None:
+                    s = None
+                    for k in ('score','final_score','value'):
+                        if k in a:
+                            s = _to_num(a.get(k))
+                            if s is not None:
+                                break
+                    cat_map[cid]['score'] = s
+                if cat_map[cid]['initial_score'] is None:
+                    isv = None
+                    for k in ('initial_score','initial','initialValue','initial_value'):
+                        if k in a:
+                            isv = _to_num(a.get(k))
+                            if isv is not None:
+                                break
+                    cat_map[cid]['initial_score'] = isv
+
+            categories_meta = []
+            for cid, info in cat_map.items():
+                sc = info.get('score')
+                ic = info.get('initial_score')
+                ch = None
+                if sc is not None and ic is not None:
+                    try:
+                        ch = float(sc) - float(ic)
+                    except Exception:
+                        ch = None
+                categories_meta.append({'id': cid, 'name': info.get('name'), 'score': sc, 'initial_score': ic, 'change': ch})
+
             result_items.append({
                 'image_id': img_id,
                 'file_name': img.get('file_name'),
                 'meta': {
                     'width': img.get('width', 0),
                     'height': img.get('height', 0),
-                    'categories': [ { 'id': a.get('category_id'), 'name': self.category_id_to_name.get(a.get('category_id')) } for a in self.annotations_by_image_id.get(img_id, []) if a.get('category_id') is not None ],
-                    'scores': [ a.get('score') for a in self.annotations_by_image_id.get(img_id, []) if 'score' in a ]
+                    'categories': [ { 'id': a.get('category_id'), 'name': self.category_id_to_name.get(a.get('category_id')) } for a in anns if a.get('category_id') is not None ],
+                    'scores': [ a.get('score') for a in anns if 'score' in a ],
+                    'score': score,
+                    'initial_score': initial_score,
+                    'change': change,
+                    'categories_meta': categories_meta
                 }
             })
 

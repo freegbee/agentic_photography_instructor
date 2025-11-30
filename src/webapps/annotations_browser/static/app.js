@@ -73,11 +73,82 @@ function renderGrid(data) {
     img.src = item.thumbnail_url;
     img.alt = item.file_name;
     img.addEventListener('click', () => openModal(item.image_url));
+    // show filename only as tooltip (title) and aria-label on the image
+    img.title = item.file_name;
+    img.setAttribute('aria-label', item.file_name);
+    img.setAttribute('role', 'img');
     el.appendChild(img);
-    const fname = document.createElement('div');
-    fname.className = 'fname';
-    fname.textContent = item.file_name;
-    el.appendChild(fname);
+
+    // show scores/categories info if available
+    const meta = item.meta || {};
+
+    // helper to format numbers to 4 decimal places (shared)
+    const fmt = (v) => {
+      if (v === undefined || v === null || isNaN(Number(v))) return '-';
+      try { return Number(v).toFixed(4); } catch(e) { return '-'; }
+    }
+
+    // Categories table (exclude category_id == 0)
+    // Prefer detailed per-category meta if available (meta.categories_meta),
+    // otherwise fall back to meta.categories and show '-' for change.
+    const catsMeta = Array.isArray(meta.categories_meta) ? meta.categories_meta.filter(c => c && c.id !== 0) : null;
+    const catsBasic = Array.isArray(meta.categories) ? meta.categories.filter(c => c && c.id !== 0) : [];
+    const catsToRender = catsMeta !== null ? catsMeta : catsBasic.map(c => ({ id: c.id, name: c.name, change: null }));
+    if (catsToRender.length > 0) {
+      const catTbl = document.createElement('table');
+      catTbl.className = 'categories-table';
+      const catTbody = document.createElement('tbody');
+      catsToRender.forEach(c => {
+        const tr = document.createElement('tr');
+        const tdName = document.createElement('td');
+        tdName.className = 'label';
+        tdName.textContent = c.name || String(c.id);
+        const tdChange = document.createElement('td');
+        tdChange.className = 'num';
+        // use per-category change if available, otherwise '-' (fmt handles null)
+        const changeVal = (c.change !== undefined) ? c.change : null;
+        tdChange.textContent = fmt(changeVal);
+        tr.appendChild(tdName);
+        tr.appendChild(tdChange);
+        catTbody.appendChild(tr);
+      });
+      catTbl.appendChild(catTbody);
+      el.appendChild(catTbl);
+
+      // spacer between categories and scores
+      const spacer = document.createElement('div');
+      spacer.className = 'table-spacer';
+      el.appendChild(spacer);
+    }
+
+    // show scores table (below categories)
+    if (meta.score !== undefined || meta.initial_score !== undefined || meta.change !== undefined) {
+      // create a compact 3-row table: label (left) | value (right)
+      const tbl = document.createElement('table');
+      tbl.className = 'score-table';
+      const tbody = document.createElement('tbody');
+
+      const rows = [
+        ['Score', meta.score],
+        ['Initial', meta.initial_score],
+        ['Change', meta.change]
+      ];
+
+      rows.forEach(rw => {
+        const tr = document.createElement('tr');
+        const tdLabel = document.createElement('td');
+        tdLabel.className = 'label';
+        tdLabel.textContent = rw[0];
+        const tdVal = document.createElement('td');
+        tdVal.className = 'num';
+        tdVal.textContent = fmt(rw[1]);
+        tr.appendChild(tdLabel);
+        tr.appendChild(tdVal);
+        tbody.appendChild(tr);
+      });
+      tbl.appendChild(tbody);
+      el.appendChild(tbl);
+    }
     grid.appendChild(el);
   });
 }
@@ -94,6 +165,20 @@ function closeModal() {
   const img = document.getElementById('modalImage');
   img.src = '';
   modal.classList.add('hidden');
+}
+
+function showSpinner(msg) {
+  const gp = document.getElementById('glasspane');
+  if (!gp) return;
+  gp.classList.remove('hidden');
+  gp.setAttribute('aria-hidden', 'false');
+}
+
+function hideSpinner() {
+  const gp = document.getElementById('glasspane');
+  if (!gp) return;
+  gp.classList.add('hidden');
+  gp.setAttribute('aria-hidden', 'true');
 }
 
 // wire controls
@@ -125,6 +210,7 @@ window.addEventListener('load', async () => {
     const fp = sel.value;
     if (!fp) return alert('Please select an annotations.json file');
     try{
+      showSpinner();
       const r = await fetch('/api/load_annotations', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({file_path: fp})});
       if(!r.ok) throw new Error('Load failed');
       const j = await r.json();
@@ -134,6 +220,8 @@ window.addEventListener('load', async () => {
       loadImages();
     }catch(e){
       console.error('Failed to load annotations', e); alert('Failed to load annotations.json');
+    } finally {
+      hideSpinner();
     }
   });
   document.getElementById('closeModal').addEventListener('click', closeModal);
