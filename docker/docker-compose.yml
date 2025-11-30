@@ -237,6 +237,33 @@ services:
     networks:
       - ml-network
 
+  annotations-browser:
+    # reuse the build context so dependencies are the same as image-acquisition-service
+    build:
+      context: image-acquisition-service
+      dockerfile: Dockerfile
+    container_name: annotations-browser
+    ports:
+      - "${ANNOTATIONS_BROWSER_PORT}:${ANNOTATIONS_BROWSER_PORT}"
+    environment:
+      - ENV_NAME=docker
+      - PYTHONPATH=/app
+      - IMAGE_VOLUME_PATH=/app/volumes/resources
+      - ANNOTATIONS_BROWSER_PORT=${ANNOTATIONS_BROWSER_PORT}
+    command: >
+      python -m uvicorn webapps.annotations_browser.app:app
+      --host 0.0.0.0
+      --port ${ANNOTATIONS_BROWSER_PORT}
+      --log-level info
+    volumes:
+      - ../src/:/app
+      - resources:/app/volumes/resources
+      - ../configs:/app/configs
+    depends_on:
+      - image-acquisition-service
+    networks:
+      - ml-network
+
 volumes:
   test:
     external: true

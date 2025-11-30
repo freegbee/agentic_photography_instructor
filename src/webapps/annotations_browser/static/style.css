@@ -1,0 +1,43 @@
+body{font-family: Arial, sans-serif;margin:0;padding:0}
+header{background:#222;color:#fff;padding:10px}
+header h1{margin:0}
+.controls{margin-top:8px;display:flex;gap:8px;align-items:center}
+main{padding:10px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+.thumb{border:1px solid #ddd;padding:6px;background:#fff;display:flex;flex-direction:column;align-items:center}
+.thumb img{max-width:160px;max-height:160px;cursor:pointer}
+.fname{font-size:12px;margin-top:6px;word-break:break-all}
+.pagination{margin-top:12px;display:flex;gap:8px;align-items:center}
+.modal{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,0.7);display:flex;justify-content:center;align-items:center}
+.modal.hidden{display:none}
+.modal-content{background:#fff;padding:10px;max-width:90%;max-height:90%;overflow:auto}
+.modal-content img{max-width:100%;height:auto}
+.close{position:absolute;right:20px;top:20px;font-size:24px;color:#fff;cursor:pointer}
+
+/* Score table styling */
+.score-table{width:100%;border-collapse:collapse;margin-top:6px;font-size:12px}
+.score-table thead th{font-weight:600;padding:2px 6px;color:#333;text-align:left}
+.score-table tbody td{padding:2px 6px;border-top:1px solid #eee}
+.score-table td.label{font-weight:600;padding-right:8px}
+.score-table td.num{font-family:monospace;text-align:right}
+.score-table th, .score-table td{vertical-align:middle}
+
+/* Glasspane + spinner */
+.glasspane{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(255,255,255,0.6);display:flex;align-items:center;justify-content:center;z-index:9999}
+.glasspane.hidden{display:none}
+.spinner{width:60px;height:60px;border-radius:50%;border:6px solid rgba(0,0,0,0.1);border-top-color:#0078d4;animation:spin 1s linear infinite}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+
+/* Categories table styling */
+.categories-table{width:100%;border-collapse:collapse;margin-top:6px;font-size:12px}
+.categories-table tbody td{padding:2px 6px;border-top:1px solid #eee}
+.categories-table td.label{font-weight:600;padding-right:8px}
+.categories-table td.num{font-family:monospace;text-align:right;white-space:nowrap}
+
+/* spacer between category and score tables */
+.table-spacer{height:8px}
+
+/* Skipped images modal tweaks */
+#skippedBody{max-height:50vh;overflow:auto}
+#skippedList{margin:0;padding-left:20px}
+#skippedList li{margin-bottom:4px;font-size:13px}
