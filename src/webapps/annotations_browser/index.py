@@ -273,40 +273,41 @@ class AnnotationsIndex:
             anns = self.annotations_by_image_id.get(img_id, [])
             img_score = None
             img_initial = None
+
+            def _get_num(d, keys):
+                # prefer direct keys, allow numeric conversion and comma decimal
+                for k in keys:
+                    if k in d:
+                        try:
+                            return float(d[k])
+                        except Exception:
+                            try:
+                                return float(str(d[k]).replace(',','.'))
+                            except Exception:
+                                return None
+                # case-insensitive keys
+                for kk, vv in d.items():
+                    if isinstance(kk, str) and kk.lower() in [k.lower() for k in keys]:
+                        try:
+                            return float(vv)
+                        except Exception:
+                            try:
+                                return float(str(vv).replace(',','.'))
+                            except Exception:
+                                return None
+                return None
+
             for a in anns:
                 try:
                     cat = a.get('category_id')
                 except Exception:
                     cat = None
                 if cat == 0:
-                    # check for score and initial_score in annotation (tolerant keys)
-                    # prefer numeric conversion
-                    def _get_num(d, keys):
-                        for k in keys:
-                            if k in d:
-                                try:
-                                    return float(d[k])
-                                except Exception:
-                                    try:
-                                        return float(str(d[k]).replace(',','.'))
-                                    except Exception:
-                                        return None
-                        # case-insensitive keys
-                        for kk, vv in d.items():
-                            if isinstance(kk, str) and kk.lower() in [k.lower() for k in keys]:
-                                try:
-                                    return float(vv)
-                                except Exception:
-                                    try:
-                                        return float(str(vv).replace(',','.'))
-                                    except Exception:
-                                        return None
-                        return None
-
                     if img_score is None:
                         img_score = _get_num(a, ['score', 'final_score', 'value'])
                     if img_initial is None:
                         img_initial = _get_num(a, ['initial_score', 'initial', 'initialValue', 'initial_value'])
+
                 # allow cancellation check during score computation
                 if progress_callback:
                     try:
@@ -316,7 +317,8 @@ class AnnotationsIndex:
                     except Exception:
                         # ignore other callback errors
                         pass
-            # attach to image meta
+
+            # attach to image meta if values found
             if img_score is not None:
                 self.images_by_id[img_id]['score'] = img_score
             if img_initial is not None:
@@ -326,6 +328,15 @@ class AnnotationsIndex:
                     self.images_by_id[img_id]['change'] = float(img_score) - float(img_initial)
                 except Exception:
                     self.images_by_id[img_id]['change'] = None
+
+        # Ensure that every image has the keys 'score', 'initial_score' and 'change' (may be None)
+        for img_id, img in self.images_by_id.items():
+            if 'score' not in img:
+                img['score'] = None
+            if 'initial_score' not in img:
+                img['initial_score'] = None
+            if 'change' not in img:
+                img['change'] = None
 
         return {
             "loaded_files": [str(p) for p in self.loaded_files],
@@ -426,6 +437,66 @@ class AnnotationsIndex:
                             final = a.get('score')
                 return final if final is not None else 0
             items_list.sort(key=_score_key, reverse=reverse)
+        elif sort == 'change':
+            # Sort by change (score - initial_score from category==0). Missing values should always
+            # be placed at the end regardless of asc/desc. To achieve that we return a tuple
+            # (missing_flag, adjusted_value) where missing_flag==1 for missing values so they
+            # sort after present values; adjusted_value is negated for descending order.
+            def _change_key(x):
+                # prefer precomputed image-level 'change'
+                val = None
+                try:
+                    img = self.images_by_id.get(x.get('id'))
+                    if img and ('change' in img) and (img.get('change') is not None):
+                        val = float(img.get('change'))
+                except Exception:
+                    val = None
+                # fallback: compute from annotations category==0
+                if val is None:
+                    img_id = x.get('id')
+                    anns = self.annotations_by_image_id.get(img_id, [])
+                    score = None
+                    initial = None
+                    for a in anns:
+                        try:
+                            if a.get('category_id') in (0, None):
+                                if score is None and 'score' in a:
+                                    try:
+                                        score = float(a.get('score'))
+                                    except Exception:
+                                        try:
+                                            score = float(str(a.get('score')).replace(',','.'))
+                                        except Exception:
+                                            score = None
+                                if initial is None:
+                                    for k in ('initial_score','initial','initialValue','initial_value'):
+                                        if k in a:
+                                            try:
+                                                initial = float(a.get(k))
+                                            except Exception:
+                                                try:
+                                                    initial = float(str(a.get(k)).replace(',','.'))
+                                                except Exception:
+                                                    initial = None
+                                            if initial is not None:
+                                                break
+                        except Exception:
+                            continue
+                    if score is not None and initial is not None:
+                        try:
+                            val = float(score) - float(initial)
+                        except Exception:
+                            val = None
+
+                missing = 1 if (val is None or (isinstance(val, float) and (val != val))) else 0
+                # adjusted value: negate when descending so we can sort with reverse=False and
+                # still keep missing values at the end
+                adjusted = val if not reverse else (-val if val is not None else 0.0)
+                return (missing, adjusted)
+
+            # Use reverse=False intentionally; we've encoded order into adjusted value so missing
+            # always sorts to the end (missing==1).
+            items_list.sort(key=_change_key)
         else:
             items_list.sort(key=lambda x: x.get('file_name', ''), reverse=reverse)
 
