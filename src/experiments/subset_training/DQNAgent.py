@@ -110,3 +110,53 @@ class DQNAgent:
         """Decay epsilon, to be called per environment step or episode."""
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
+
+    def save_checkpoint(self, filepath: str, **extra_info):
+        """
+        Save agent checkpoint including network weights and training state.
+
+        Args:
+            filepath: Path where to save the checkpoint
+            **extra_info: Additional information to save (e.g., epoch, global_step)
+        """
+        checkpoint = {
+            'policy_net_state_dict': self.policy_net.state_dict(),
+            'target_net_state_dict': self.target_net.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict(),
+            'epsilon': self.epsilon,
+            'action_space': self.action_space,
+            'state_shape': self.state_shape,
+            'gamma': self.gamma,
+            **extra_info
+        }
+        torch.save(checkpoint, filepath)
+
+    def load_checkpoint(self, filepath: str, load_optimizer: bool = True) -> dict:
+        """
+        Load agent checkpoint.
+
+        Args:
+            filepath: Path to the checkpoint file
+            load_optimizer: Whether to load optimizer state (set False for inference)
+
+        Returns:
+            Dictionary with extra info from checkpoint
+        """
+        checkpoint = torch.load(filepath, map_location=self.device)
+
+        self.policy_net.load_state_dict(checkpoint['policy_net_state_dict'])
+        self.target_net.load_state_dict(checkpoint['target_net_state_dict'])
+
+        if load_optimizer and 'optimizer_state_dict' in checkpoint:
+            self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
+        if 'epsilon' in checkpoint:
+            self.epsilon = checkpoint['epsilon']
+
+        # Return extra info
+        extra_info = {k: v for k, v in checkpoint.items()
+                     if k not in ['policy_net_state_dict', 'target_net_state_dict',
+                                  'optimizer_state_dict', 'epsilon', 'action_space',
+                                  'state_shape', 'gamma']}
+
+        return extra_info

@@ -27,7 +27,7 @@ from utils.Registries import TRANSFORMER_REGISTRY
 logger = logging.getLogger(__name__)
 
 class ImageDegradationExperiment(PhotographyExperiment):
-    def __init__(self, experiment_name: str, target_directory_root: str, target_dataset_id: str, transformer_name: str, run_name: str = None, source_dataset_id: str = "single_image", batch_size: int = 2):
+    def __init__(self, experiment_name: str, target_directory_root: str, target_dataset_id: str, transformer_name: str, run_name: str = None, source_dataset_id: str = "single_image", batch_size: int = 2, split_ratios: Tuple[float, float, float] = None, seed: int = 42):
         super().__init__(experiment_name)
         # Zeile nur um Import-Fehler zu vermeiden :-(
         abstract_transformer: AbstractTransformer = InvertColorChannelTransformerGR()
@@ -46,7 +46,10 @@ class ImageDegradationExperiment(PhotographyExperiment):
         self.batch_size = batch_size
         self.jurorClient = None
 
-        self.random_generator = random.Random(42)
+        # Split configuration for train/val/test
+        self.split_ratios = split_ratios  # e.g., (0.7, 0.15, 0.15) for train/val/test
+        self.seed = seed
+        self.random_generator = random.Random(seed)
 
 
     def configure(self, config: dict):
@@ -94,15 +97,19 @@ class ImageDegradationExperiment(PhotographyExperiment):
         # JurorClient initialisieren
         self.jurorClient = JurorClient(os.environ["JUROR_SERVICE_URL"])
 
-        self._transform_images(self.coco_builder, source_dataset, self.target_directory_root)
+        # Generate splits if configured
+        if self.split_ratios is not None:
+            self._generate_splits(source_dataset)
+        else:
+            self._transform_images(self.coco_builder, source_dataset, self.target_directory_root)
 
-        # Nachverarbeitung
-        self.log_metric("total_number_of_images", len(self.coco_builder.images))
+            # Nachverarbeitung
+            self.log_metric("total_number_of_images", len(self.coco_builder.images))
 
-        coco_file_path = self.target_directory_root / "annotations.json"
-        self.coco_builder.save(str(coco_file_path))
+            coco_file_path = self.target_directory_root / "annotations.json"
+            self.coco_builder.save(str(coco_file_path))
 
-        self.log_artifact(local_path=str(coco_file_path))
+            self.log_artifact(local_path=str(coco_file_path))
 
         # Ergebnisse loggen
         logger.debug(f"Image transformation complete for dataset %s", self.source_dataset_id)
@@ -111,14 +118,25 @@ class ImageDegradationExperiment(PhotographyExperiment):
         logger.info("Finished Image Transformation Experiment")
 
 
-    def _transform_images(self, coco_builder: CocoBuilder, source_dataset: COCODataset, target_directory_root: Path):
+    def _transform_images(self, coco_builder: CocoBuilder, source_dataset, target_directory_root: Path):
         """Transformiert die Bilder im Dataset und speichert sie im Zielverzeichnis ab."""
-        dataloader = DataLoader(cast(Dataset[ImageData], source_dataset), batch_size=self.batch_size, collate_fn=Utils.collate_keep_size, num_workers=4)
-        metrics_accumulator = BatchImageDegradationMetricAccumulator()
-        for batch_index, batch in enumerate(dataloader):
-            metrics_accumulator.reset()
-            self._process_image_batch(batch_index, batch, coco_builder, target_directory_root, metrics_accumulator)
-            self.log_batch_metrics(metrics_accumulator.compute_metrics(), batch_index)
+        # Handle both COCODataset and list of ImageData
+        if isinstance(source_dataset, list):
+            # For list, create batches manually
+            metrics_accumulator = BatchImageDegradationMetricAccumulator()
+            for batch_index in range(0, len(source_dataset), self.batch_size):
+                batch = source_dataset[batch_index:batch_index + self.batch_size]
+                metrics_accumulator.reset()
+                self._process_image_batch(batch_index, batch, coco_builder, target_directory_root, metrics_accumulator)
+                self.log_batch_metrics(metrics_accumulator.compute_metrics(), batch_index)
+        else:
+            # For COCODataset, use DataLoader
+            dataloader = DataLoader(cast(Dataset[ImageData], source_dataset), batch_size=self.batch_size, collate_fn=Utils.collate_keep_size, num_workers=4)
+            metrics_accumulator = BatchImageDegradationMetricAccumulator()
+            for batch_index, batch in enumerate(dataloader):
+                metrics_accumulator.reset()
+                self._process_image_batch(batch_index, batch, coco_builder, target_directory_root, metrics_accumulator)
+                self.log_batch_metrics(metrics_accumulator.compute_metrics(), batch_index)
 
     def _process_image_batch(self, batch_index: int, batch: Iterable[ImageData], coco_builder: CocoBuilder, target_directory_root: Path, metrics_accumulator: BatchImageDegradationMetricAccumulator):
         """Verarbeitet einen Batch von Bildern: wendet die Transformation an, speichert die Bilder und aktualisiert den COCO-Builder."""
@@ -147,3 +165,60 @@ class ImageDegradationExperiment(PhotographyExperiment):
             t = self.transformer
 
         return t.transform(image_data.get_image_data("BGR")), t.label
+
+    def _generate_splits(self, source_dataset: COCODataset):
+        """Generate train/val/test splits from the source dataset."""
+        train_ratio, val_ratio, test_ratio = self.split_ratios
+        total_images = len(source_dataset)
+
+        # Shuffle indices
+        indices = list(range(total_images))
+        self.random_generator.shuffle(indices)
+
+        # Calculate split sizes
+        train_size = int(total_images * train_ratio)
+        val_size = int(total_images * val_ratio)
+
+        train_indices = indices[:train_size]
+        val_indices = indices[train_size:train_size + val_size]
+        test_indices = indices[train_size + val_size:]
+
+        splits = [
+            ("train", train_indices),
+            ("val", val_indices),
+            ("test", test_indices)
+        ]
+
+        self.log_param("split_ratios", f"{train_ratio}/{val_ratio}/{test_ratio}")
+        self.log_param("train_size", len(train_indices))
+        self.log_param("val_size", len(val_indices))
+        self.log_param("test_size", len(test_indices))
+
+        for split_name, split_indices in splits:
+            logger.info(f"Generating {split_name} split with {len(split_indices)} images")
+
+            # Create split-specific directory and COCO builder
+            split_dir = self.target_directory_root / split_name
+            split_coco_builder = CocoBuilder(f"{self.source_dataset_id}_{split_name}")
+            split_coco_builder.set_description(
+                f"Coco file for {split_name} split of dataset {self.source_dataset_id} with transformer {self.transformer.label if not self.use_random_transformer else 'RANDOM'}"
+            )
+
+            # Create subset dataset
+            split_dataset = self._create_subset_dataset(source_dataset, split_indices)
+
+            # Transform images for this split
+            self._transform_images(split_coco_builder, split_dataset, split_dir)
+
+            # Save split annotations
+            split_coco_file = split_dir / "annotations.json"
+            split_coco_builder.save(str(split_coco_file))
+            self.log_artifact(local_path=str(split_coco_file))
+
+            self.log_metric(f"{split_name}_num_images", len(split_coco_builder.images))
+
+        logger.info("Finished generating all splits")
+
+    def _create_subset_dataset(self, source_dataset: COCODataset, indices: list) -> list:
+        """Create a subset of the dataset based on indices."""
+        return [source_dataset[i] for i in indices]

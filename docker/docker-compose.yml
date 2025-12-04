@@ -128,6 +128,8 @@ services:
       context: train
       dockerfile: Dockerfile
     container_name: train
+    stdin_open: true
+    tty: true
     environment:
       - ENV_NAME=docker
       - PYTHONPATH=/app/src
@@ -144,6 +146,8 @@ services:
       - mlruns:/mlruns
     depends_on:
       - mlflow
+      - juror-service
+      - image-acquisition-service
     networks:
       - ml-network
 

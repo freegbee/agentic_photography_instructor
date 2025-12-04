@@ -21,6 +21,43 @@ dev:
   temp_output_dir: temp_output
   cloned_image_dir: resources/cloned_images
 
+rl_training:
+  # Dataset generation
+  dataset_generation:
+    source_dataset: "flickr8k"
+    output_dir: "rl_training_data"
+    split_ratios: [0.7, 0.15, 0.15]  # train, val, test
+    use_random_transformer: true
+    seed: 42
+
+  # Training hyperparameters
+  training:
+    max_steps_per_episode: 5
+    batch_size: 32
+    replay_capacity: 10000
+    learning_rate: 0.001
+    gamma: 0.99
+    epsilon_start: 1.0
+    epsilon_end: 0.05
+    epsilon_decay: 0.995
+    target_update_frequency: 100
+    num_epochs: 10
+    dataloader_batch_size: 8
+    validation_frequency: 1
+
+  # Reward shaping
+  reward:
+    step_penalty: 0.01
+    terminal_bonus: 0.1
+
+  # Action space
+  action_space:
+    add_stop_action: true
+
+  # State representation
+  state:
+    shape: [3, 64, 64]  # (C, H, W)
+
 image_acquisition:
   places365_val_large:
     type: tar
