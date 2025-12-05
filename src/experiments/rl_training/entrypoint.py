@@ -94,6 +94,7 @@ def entrypoint():
         dataloader_batch_size=dataloader_batch_size,
         learning_rate=learning_rate,
         add_stop_action=add_stop,
+        step_penalty=0.07,
     )
 
     experiment.run()

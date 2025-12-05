@@ -13,6 +13,7 @@ from experiments.subset_training.TransformationActor import TransformationActor
 from transformer import REVERSIBLE_TRANSFORMERS
 from utils.ImageUtils import ImageUtils
 from utils.LoggingUtils import configure_logging
+from dataset.Utils import Utils as DatasetUtils
 
 configure_logging()
 logger = logging.getLogger(__name__)
@@ -75,7 +76,7 @@ class RLEvaluator:
         test_annotations = self.test_dataset_root / "test" / "annotations.json"
 
         test_dataset = RLDataset(test_images_root, test_annotations)
-        dataloader = DataLoader(test_dataset, batch_size=1, shuffle=False)
+        dataloader = DataLoader(test_dataset, batch_size=1, shuffle=False, collate_fn=DatasetUtils.collate_keep_size)
 
         logger.info(f"Evaluating on {len(test_dataset)} test samples")
 

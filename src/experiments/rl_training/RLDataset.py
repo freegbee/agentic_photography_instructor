@@ -64,13 +64,13 @@ class RLDataset(Dataset):
         anns = self.coco.loadAnns(ann_ids)
 
         degraded_score = 0.0
-        original_score = 0.0
+        initial_score = 0.0
         transformation = "unknown"
 
         for ann in anns:
             if ann['category_id'] == self.score_category_id:
                 degraded_score = ann.get("score", 0.0)
-                original_score = ann.get("original_score", degraded_score)
+                initial_score = ann.get("initial_score", 0.0)
             # Look for transformation annotation
             if 'transformation' in ann:
                 transformation = ann['transformation']
@@ -85,7 +85,7 @@ class RLDataset(Dataset):
             score=degraded_score
         )
 
-        return degraded_image_data, original_score, transformation
+        return degraded_image_data, initial_score, transformation
 
     @staticmethod
     def _load_image(image_path: Path) -> Tuple[ndarray, str]:

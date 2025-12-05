@@ -214,10 +214,10 @@ class RLTrainingExperiment(PhotographyExperiment):
         successful_episodes = 0  # Episodes that improved the score
 
         for batch_idx, batch in enumerate(dataloader):
-            for degraded_image_data, original_score, transformation in batch:
+            for degraded_image_data, target_score, transformation in batch:
                 # Run one episode
                 episode_reward, episode_steps, final_score, episode_loss = self._run_episode(
-                    degraded_image_data, original_score, global_step + total_steps
+                    degraded_image_data, target_score, global_step + total_steps
                 )
 
                 total_reward += episode_reward
