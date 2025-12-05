@@ -14,6 +14,7 @@ from experiments.subset_training.DQNAgent import DQNAgent
 from experiments.subset_training.ReplayBuffer import ReplayBuffer
 from experiments.subset_training.TransformationActor import TransformationActor
 from transformer import REVERSIBLE_TRANSFORMERS
+from dataset.Utils import Utils as DatasetUtils
 
 logger = logging.getLogger(__name__)
 
@@ -203,7 +204,7 @@ class RLTrainingExperiment(PhotographyExperiment):
 
     def _train_epoch(self, dataset: RLDataset, epoch: int, global_step: int) -> dict:
         """Train for one epoch."""
-        dataloader = DataLoader(dataset, batch_size=self.dataloader_batch_size, shuffle=True)
+        dataloader = DataLoader(dataset, batch_size=self.dataloader_batch_size, shuffle=True, collate_fn=DatasetUtils.collate_keep_size)
 
         total_reward = 0.0
         total_steps = 0
@@ -327,7 +328,7 @@ class RLTrainingExperiment(PhotographyExperiment):
         original_epsilon = self.agent.epsilon
         self.agent.epsilon = 0.0
 
-        dataloader = DataLoader(dataset, batch_size=self.dataloader_batch_size, shuffle=False)
+        dataloader = DataLoader(dataset, batch_size=self.dataloader_batch_size, shuffle=False, collate_fn=DatasetUtils.collate_keep_size)
 
         total_reward = 0.0
         total_improvement = 0.0
