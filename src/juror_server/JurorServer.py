@@ -67,10 +67,11 @@ def load_numpy_from_bytes(data: bytes) -> np.ndarray:
         return arr.astype(np.uint8)
     finally:
         # NpzFile braucht explicit close(), ndarray nicht
-        try:
-            loaded.close()
-        except Exception as e:
-            logger.debug("Failed to close npz archive", e)
+        if isinstance(loaded, np.lib.npyio.NpzFile):
+            try:
+                loaded.close()
+            except Exception as e:
+                logger.debug("Failed to close npz archive", e)
 
 
 @asynccontextmanager

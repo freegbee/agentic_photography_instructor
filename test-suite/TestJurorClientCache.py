@@ -47,9 +47,9 @@ def test_jurorclient_uses_caching_service_and_caches_ndarray_calls():
     arr = np.zeros((8, 8, 3), dtype=np.uint8)
 
     # First call should be a miss -> underlying HTTP post is invoked
-    resp1 = jc.score_ndarray(arr)
+    resp1 = jc.score_ndarray_rgb(arr)
     # Second call with identical content should hit the cache
-    resp2 = jc.score_ndarray(arr.copy())
+    resp2 = jc.score_ndarray_rgb(arr.copy())
 
     # Underlying fake http client's post should only have been called once
     assert fake_client.post_count == 1
