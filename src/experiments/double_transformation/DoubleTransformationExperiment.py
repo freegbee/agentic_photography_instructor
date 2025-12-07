@@ -423,7 +423,7 @@ class DoubleTransformationExperiment(PhotographyExperiment):
                     # defensive: if counter missing, set it
                     self._juror_call_count = getattr(self, '_juror_call_count', 0) + 1
 
-                resp = self.jurorClient.score_ndarray(arr, filename=str(image_data.image_relative_path.name))
+                resp = self.jurorClient.score_ndarray_bgr(arr, filename=str(image_data.image_relative_path.name))
                 # support different return types
                 score = None
                 if hasattr(resp, 'score'):
