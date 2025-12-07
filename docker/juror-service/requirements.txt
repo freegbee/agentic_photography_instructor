@@ -11,11 +11,11 @@ python-multipart~=0.0.20
 prometheus_client~=0.23.1
 
 # Torch and torchvision installation based on platform and CUDA version
-# for CUDA 12.9 torch on Windows
+# for CUDA 13.0 torch on Windows
 torch --index-url https://download.pytorch.org/whl/cu130; sys_platform == 'Windows'
 torchvision --index-url https://download.pytorch.org/whl/cu130; sys_platform == 'Windows'
 
-# Torch und torchvision für Linux mit CUDA 12.9
+# Torch und torchvision für Linux mit CUDA 13.0
 torch --index-url https://download.pytorch.org/whl/cu130; sys_platform == 'linux'
 torchvision --index-url https://download.pytorch.org/whl/cu130; sys_platform == 'linux'
 
