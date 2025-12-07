@@ -40,6 +40,7 @@ class JurorClient:
             client: Optional[object] = None,
             service: Optional[JurorService] = None,
             register_name: str = "default_juror_client",
+            use_local: bool = False,
             use_cache: bool = True,
             cache_maxsize: int = 1024,
             cache_ttl: Optional[float] = None,
@@ -72,16 +73,19 @@ class JurorClient:
                 base_url=base_url,
                 timeout=timeout,
                 client=cast(Optional[object], client),
+                use_local=use_local,
                 use_cache=use_cache,
                 cache_maxsize=cache_maxsize,
                 cache_ttl=cache_ttl,
             )
+            logger.info(f"Juror Client service from registry: {self._service}")
         except Exception:
             # Fallback: falls die Fabrik versagt, werfe eine aussagekräftige Exception
             logger.exception("Failed to obtain JurorService via get_juror_service; falling back to direct HTTP service")
             # create direct HTTP service as last resort (no caching)
             from juror_client.juror_service import JurorHttpService
             self._service = JurorHttpService(base_url=base_url, timeout=timeout, client=cast(Optional[object], client))
+        logger.info(f"JurorService obtained {self._service}")
 
     def score_image(self, image_path: str) -> Union[ScoringResponsePayloadV1, str]:
         """Delegiert an `JurorService.score_image`.

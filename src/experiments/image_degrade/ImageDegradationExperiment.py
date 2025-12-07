@@ -92,7 +92,7 @@ class ImageDegradationExperiment(PhotographyExperiment):
         source_dataset = COCODataset(source_images_root_path, self.dataset_config.calculate_annotations_file_path())
 
         # JurorClient initialisieren
-        self.jurorClient = JurorClient(os.environ["JUROR_SERVICE_URL"])
+        self.jurorClient = JurorClient(use_local=True)
 
         self._transform_images(self.coco_builder, source_dataset, self.target_directory_root)
 

@@ -3,7 +3,7 @@ import os
 import random
 import uuid
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple, List
 
 from pyinstrument import Profiler
 from torch.utils.data import DataLoader
@@ -41,7 +41,8 @@ class DoubleTransformationExperiment(PhotographyExperiment):
                  io_workers: Optional[int] = None,
                  max_queue_size: Optional[int] = None,
                  save_executor_type: str = "process",
-                 instrumentation: bool = False):
+                 instrumentation: bool = False,
+                 split_ratios: Optional[Tuple[float, float, float]] = None):
         super().__init__(experiment_name)
         self.run_name = run_name
         self.source_dataset_id = source_dataset_id
@@ -49,6 +50,10 @@ class DoubleTransformationExperiment(PhotographyExperiment):
         self.target_directory_root = Path(os.environ.get("IMAGE_VOLUME_PATH", ".")) / target_directory_root
         self.seed = seed
         self.random = random.Random(seed)
+        # Split-Konfiguration (train/val/test) optional
+        self.split_ratios: Optional[Tuple[float, float, float]] = split_ratios
+        # separater Zufallsgenerator für Split-Shuffling (stabil durch seed)
+        self.split_random = random.Random(seed)
         # Performance tuning: batch_size for DataLoader
         self.batch_size = int(batch_size)
         # Number of DataLoader workers
@@ -155,7 +160,7 @@ class DoubleTransformationExperiment(PhotographyExperiment):
 
         # JurorClient initialisieren
         try:
-            self.jurorClient = JurorClient(os.environ.get("JUROR_SERVICE_URL", "http://localhost:5010"))
+            self.jurorClient = JurorClient(use_local=True)
             logger.debug("Juror client ready to process images. Using service %s", self.jurorClient._service)
         except Exception:
             logger.exception("Unable to initialize JurorClient; proceeding without juror (scores will be None)")
@@ -216,6 +221,37 @@ class DoubleTransformationExperiment(PhotographyExperiment):
         # Accumulator für Batch-Metriken
         batch_accumulator = BatchImageMetricAccumulator()
 
+        # Wenn Splits konfiguriert sind, generiere und verarbeite sie separat
+        if self.split_ratios is not None:
+            logger.info("split_ratios configured, generating splits instead of processing full dataset in single run")
+            attempted_pairs, successful_pairs = self._generate_and_process_splits(source_dataset, pair_labels, transformer_cache, saver, attempted_pairs, successful_pairs)
+            # After split processing, perform final logging and exit run
+            try:
+                self.log_metric("total_number_of_images", float(len(self.coco_builder.images)))
+                self.log_metric("images_created_count", float(self._images_created_count))
+                self.log_metric("juror_call_count", float(self._juror_call_count))
+            except Exception:
+                logger.debug("Failed to log post-split metrics")
+
+            # Save top-level coco (may be empty or aggregate)
+            coco_file_path = self.target_directory_root / "annotations.json"
+            try:
+                self.coco_builder.save(str(coco_file_path))
+                self.log_artifact(local_path=str(coco_file_path))
+            except Exception:
+                logger.debug("Failed to save or log root annotations after split processing")
+
+            # Shutdown saver
+            try:
+                if saver is not None:
+                    saver.shutdown(wait=True)
+            except Exception:
+                logger.exception("Error shutting down AsyncImageSaver after split processing")
+
+            # Return after split processing
+            logger.info("Finished split processing in DoubleTransformationExperiment")
+            return
+
         if self.profiler is not None:
             self.profiler.start()
 
@@ -247,7 +283,7 @@ class DoubleTransformationExperiment(PhotographyExperiment):
                         # Process image with transformer instances (can be None -> identity)
                         # Pass in saver so write is executed asynchronously with backpressure
                         # process_image will update coco_builder and counters; it returns tuple of (initial, final)
-                        init_score, final_score = self.process_image(image_data, t1, t2, saver=saver)
+                        init_score, final_score = self.process_image(image_data, self.coco_builder, t1, t2, destination_root_dir=self.target_directory_root, saver=saver)
 
                         # add to batch accumulator
                         batch_accumulator.add_image(init_score, final_score)
@@ -365,7 +401,7 @@ class DoubleTransformationExperiment(PhotographyExperiment):
 
         logger.info("Finished processing images in DoubleTransformationExperiment")
 
-    def process_image(self, image_data, transformer1, transformer2, saver: Optional["AsyncImageSaver"] = None):
+    def process_image(self, image_data, coco_builder: CocoBuilder, transformer1, transformer2, destination_root_dir: Path, saver: Optional["AsyncImageSaver"] = None):
         """
         Process a single image with two transformers, save the resulting image and register it in the CocoBuilder.
         If `transformer1` or `transformer2` is None, treat them as identity transformers.
@@ -429,7 +465,7 @@ class DoubleTransformationExperiment(PhotographyExperiment):
         orig_name = image_data.image_relative_path.stem if image_data.image_relative_path is not None else "img"
         unique_suffix = uuid.uuid4().hex
         out_filename = f"{orig_name}__{t1_label}__{t2_label}__{unique_suffix}.png"
-        out_path = self.target_directory_root / "images" / out_filename
+        out_path = destination_root_dir / "images" / out_filename
 
         # Speichern: entweder asynchron enqueuen (saver) oder synchron schreiben
         saved_successfully = False
@@ -473,19 +509,19 @@ class DoubleTransformationExperiment(PhotographyExperiment):
             w = 0
 
         # Füge Bild ins COCO-Builder ein
-        image_id = self.coco_builder.add_image(out_filename, w, h)
+        image_id = coco_builder.add_image(out_filename, w, h)
 
         # Schreibe Annotationen für Transformation 1 (falls vorhanden)
         try:
             # Schreibe genau eine Annotation für Transformation 1: category (t1_label), sequence (vom Builder), score und initial_score
             if score_after_t1 is not None or initial_score is not None:
                 if score_after_t1 is not None:
-                    self.coco_builder.add_image_transformation_score_annotation(image_id, float(score_after_t1), float(
+                    coco_builder.add_image_transformation_score_annotation(image_id, float(score_after_t1), float(
                         initial_score) if initial_score is not None else None, transformer_name=t1_label)
                 else:
                     # Fallback: kein After-Score, nutze initial als score
                     if initial_score is not None:
-                        self.coco_builder.add_image_transformation_score_annotation(image_id, float(initial_score),
+                        coco_builder.add_image_transformation_score_annotation(image_id, float(initial_score),
                                                                                     float(initial_score),
                                                                                     transformer_name=t1_label)
         except Exception:
@@ -496,11 +532,11 @@ class DoubleTransformationExperiment(PhotographyExperiment):
             # Schreibe genau eine Annotation für Transformation 2: category (t2_label), sequence, score und initial_score = score_after_t1
             if score_after_t2 is not None or score_after_t1 is not None:
                 if score_after_t2 is not None:
-                    self.coco_builder.add_image_transformation_score_annotation(image_id, float(score_after_t2), float(
+                    coco_builder.add_image_transformation_score_annotation(image_id, float(score_after_t2), float(
                         score_after_t1) if score_after_t1 is not None else None, transformer_name=t2_label)
                 else:
                     if score_after_t1 is not None:
-                        self.coco_builder.add_image_transformation_score_annotation(image_id, float(score_after_t1),
+                        coco_builder.add_image_transformation_score_annotation(image_id, float(score_after_t1),
                                                                                     float(score_after_t1),
                                                                                     transformer_name=t2_label)
         except Exception:
@@ -514,14 +550,110 @@ class DoubleTransformationExperiment(PhotographyExperiment):
             if final_score is not None:
                 # CocoBuilder hat eine Helfermethode für image-level final score annotation
                 try:
-                    self.coco_builder.add_image_final_score_annotation(image_id, float(final_score), float(
+                    coco_builder.add_image_final_score_annotation(image_id, float(final_score), float(
                         initial_score) if initial_score is not None else None)
                 except Exception:
                     # fallback: use generic add_image_score_annotation
-                    self.coco_builder.add_image_score_annotation(image_id, float(final_score))
+                    coco_builder.add_image_score_annotation(image_id, float(final_score))
         except Exception:
             logger.exception("Failed to add final image-level score annotation for image_id %s", image_id)
 
         # return scores for batch aggregator
         return initial_score, (
             score_after_t2 if score_after_t2 is not None else (score_after_t1 if score_after_t1 is not None else None))
+
+    def _create_subset_dataset(self, source_dataset: COCODataset, indices: List[int]) -> list:
+        """Create a list-based subset of the COCODataset for given indices."""
+        return [source_dataset[i] for i in indices]
+
+    def _generate_and_process_splits(self, source_dataset: COCODataset, pair_labels, transformer_cache, saver, attempted_pairs_start=0, successful_pairs_start=0):
+        """Erzeuge Splits (train/val/test) und verarbeite jeden Split getrennt.
+        Gibt (attempted_pairs, successful_pairs) zurück (eingehende Startwerte addiert).
+        """
+        # compute sizes
+        train_ratio, val_ratio, test_ratio = self.split_ratios
+        total_images = len(source_dataset)
+
+        indices = list(range(total_images))
+        self.split_random.shuffle(indices)
+
+        train_size = int(total_images * train_ratio)
+        val_size = int(total_images * val_ratio)
+
+        train_indices = indices[:train_size]
+        val_indices = indices[train_size:train_size + val_size]
+        test_indices = indices[train_size + val_size:]
+
+        splits = [("train", train_indices), ("val", val_indices), ("test", test_indices)]
+
+        # log split info
+        try:
+            self.log_param("split_ratios", f"{train_ratio}/{val_ratio}/{test_ratio}")
+            self.log_param("train_size", len(train_indices))
+            self.log_param("val_size", len(val_indices))
+            self.log_param("test_size", len(test_indices))
+        except Exception:
+            logger.debug("Failed to log split params to MLflow")
+
+        attempted_pairs = attempted_pairs_start
+        successful_pairs = successful_pairs_start
+
+        for split_name, split_indices in splits:
+            logger.info("Generating %s split with %d images", split_name, len(split_indices))
+
+            split_dir = self.target_directory_root / split_name
+            try:
+                split_dir.mkdir(parents=True, exist_ok=True)
+                (split_dir / "images").mkdir(parents=True, exist_ok=True)
+            except Exception:
+                logger.exception("Failed to create split directories for %s", split_dir)
+
+            split_coco_builder = CocoBuilder(f"{self.source_dataset_id}_{split_name}")
+            split_coco_builder.set_description(f"Double transformation split {split_name} derived from {self.source_dataset_id}")
+
+            subset = self._create_subset_dataset(source_dataset, split_indices)
+
+            for batch_start in range(0, len(subset), self.batch_size):
+                batch = subset[batch_start:batch_start + self.batch_size]
+                for image_data in batch:
+                    for t1_label, t2_label in pair_labels:
+                        try:
+                            # ensure cached transformer instances
+                            if t1_label not in transformer_cache:
+                                try:
+                                    transformer_cache[t1_label] = TRANSFORMER_REGISTRY.get(t1_label)
+                                except Exception:
+                                    transformer_cache[t1_label] = None
+                            if t2_label not in transformer_cache:
+                                try:
+                                    transformer_cache[t2_label] = TRANSFORMER_REGISTRY.get(t2_label)
+                                except Exception:
+                                    transformer_cache[t2_label] = None
+
+                            t1 = transformer_cache.get(t1_label)
+                            t2 = transformer_cache.get(t2_label)
+
+                            # swap builders
+                            orig_builder = getattr(self, 'coco_builder', None)
+                            try:
+                                self.coco_builder = split_coco_builder
+                                init_score, final_score = self.process_image(image_data, split_coco_builder, t1, t2, destination_root_dir=split_dir, saver=saver)
+                            finally:
+                                self.coco_builder = orig_builder
+
+                            successful_pairs += 1
+                        except Exception as e:
+                            logger.exception("Error processing image %s in split %s with transformers %s,%s: %s",
+                                             getattr(image_data, 'image_path', None), split_name, t1_label, t2_label, e)
+
+            # Save split annotations
+            split_coco_file = split_dir / "annotations.json"
+            split_coco_builder.save(str(split_coco_file))
+            try:
+                self.log_artifact(local_path=str(split_coco_file))
+            except Exception:
+                logger.debug("Failed to log split coco artifact for %s", split_coco_file)
+
+            self.log_metric(f"{split_name}_num_images", float(len(split_coco_builder.images)))
+
+        return attempted_pairs, successful_pairs
