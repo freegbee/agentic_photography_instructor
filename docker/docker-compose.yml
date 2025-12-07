@@ -51,11 +51,14 @@ services:
       - IMAGE_VOLUME_PATH=/app/volumes/resources
       - IMAGE_ACQUISITION_SERVICE_URL=http://image-acquisition-service:${IMAGE_ACQUISITION_PORT}
       - JUROR_SERVICE_URL=http://juror-service:${JUROR_PORT}
+      - HF_HOME=/app/volumes/model_caches/huggingface
+      - TORCH_HOME=/app/volumes/model_caches/torch
     volumes:
       - ../src/:/app
       - resources:/app/volumes/resources
       - ../configs:/app/configs
       - mlruns:/mlruns
+      - model_caches:/app/volumes/model_caches
     depends_on:
       - prometheus
       - mlflow
@@ -136,12 +139,15 @@ services:
       - IMAGE_ACQUISITION_SERVICE_URL=http://image-acquisition-service:${IMAGE_ACQUISITION_PORT}
       - JUROR_SERVICE_URL=http://juror-service:${JUROR_PORT}
       - MLFLOW_ARTIFACT_ROOT=${MLFLOW_ARTIFACT_ROOT}
+      - HF_HOME=/app/volumes/model_caches/huggingface
+      - TORCH_HOME=/app/volumes/model_caches/torch
     volumes:
       - resources:/app/volumes/resources
       - ../src:/app/src
       - ../configs:/app/configs
       - ../test:/app/test
       - mlruns:/mlruns
+      - model_caches:/app/volumes/model_caches
     depends_on:
       - mlflow
     networks:

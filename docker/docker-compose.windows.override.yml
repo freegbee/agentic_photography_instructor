@@ -1,6 +1,22 @@
 version: '3.8'
 services:
+  experiment-service:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
   juror-service:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+  train:
     deploy:
       resources:
         reservations:
