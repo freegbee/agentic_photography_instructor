@@ -95,7 +95,7 @@ class ImageDegradationExperiment(PhotographyExperiment):
         source_dataset = COCODataset(source_images_root_path, self.dataset_config.calculate_annotations_file_path())
 
         # JurorClient initialisieren
-        self.jurorClient = JurorClient(os.environ["JUROR_SERVICE_URL"])
+        self.jurorClient = JurorClient(use_local=True)
 
         # Generate splits if configured
         if self.split_ratios is not None:

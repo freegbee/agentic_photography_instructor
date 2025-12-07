@@ -66,7 +66,7 @@ class ImageScoringPhotographyExperiment(PhotographyExperiment):
             f"Coco annotations file for dataset {self.dataset_id} for image scoring experiment")
 
         # JurorClient initialisieren
-        self.jurorClient = JurorClient(os.environ["JUROR_SERVICE_URL"])
+        self.jurorClient = JurorClient(use_local=True)
 
         # Images effektiv scoren
         self._score_images(self.coco_builder, images_root_path)

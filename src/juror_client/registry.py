@@ -28,6 +28,7 @@ import httpx
 
 from juror_client.juror_cache import JurorCachingService
 from juror_client.juror_service import JurorHttpService, JurorService
+from juror_client.local_juror_service import LocalJurorService
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +69,7 @@ def get_juror_service(
         base_url: str = "http://localhost:5010",
         timeout: float = 10.0,
         client: Optional[httpx.Client] = None,
+        use_local: bool = False,
         use_cache: bool = False,
         cache_maxsize: int = 1024,
         cache_ttl: Optional[float] = None,
@@ -94,6 +96,7 @@ def get_juror_service(
         base_url: Basis-URL für den HTTP-Service (falls dieser erzeugt wird).
         timeout: Timeout für HTTP-Client.
         client: Optionaler HTTP-Client, wird an `JurorHttpService` weitergereicht.
+        use_local: JurorService lokal (ohne HTTP) verwenden.
         use_cache: Ob ein `JurorCachingService` um die erzeugte Service-Instanz
                    gelegt werden soll.
         cache_maxsize: Max-Anzahl Einträge im LRU-Cache.
@@ -117,9 +120,15 @@ def get_juror_service(
             logger.debug("Returning registered JurorService for name=%s", name)
             return existing
 
-    # 3) Erzeuge eine neue Http-Service-Instanz
-    http_service = JurorHttpService(base_url=base_url, timeout=timeout, client=client)
-    final_service: JurorService = http_service
+    final_service: JurorService
+    if use_local:
+        # 3) Erzeuge eine neue Http-Service-Instanz
+        local_service = LocalJurorService()
+        final_service: JurorService = local_service
+    else:
+        # 3) Erzeuge eine neue Http-Service-Instanz
+        http_service = JurorHttpService(base_url=base_url, timeout=timeout, client=client)
+        final_service: JurorService = http_service
 
     # Optional: Caching-Wrapper
     if use_cache:
