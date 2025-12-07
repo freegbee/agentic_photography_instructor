@@ -27,7 +27,7 @@ class TransformationActor:
         return self._get_transformer(transformer_label).transform(image_data)
 
     def get_score(self, image_data: ndarray) -> float:
-        response: ScoringResponsePayloadV1 = self.juror.score_ndarray(image_data)
+        response: ScoringResponsePayloadV1 = self.juror.score_ndarray_bgr(image_data)
         logger.debug("Scored %s", response)
         return response.score
 

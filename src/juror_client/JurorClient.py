@@ -9,6 +9,7 @@ einfach in Tests gemockt oder ersetzt werden.
 import logging
 from typing import Optional, Union, cast, Dict
 
+import cv2
 import numpy as np
 
 from juror_shared.models_v1 import ScoringResponsePayloadV1
@@ -94,10 +95,18 @@ class JurorClient:
         """
         return self._service.score_image(image_path)
 
-    def score_ndarray(self, array: np.ndarray, filename: Optional[str] = None, encoding: str = "npy") -> Union[ScoringResponsePayloadV1, str]:
+    def score_ndarray_bgr(self, array: np.ndarray, filename: Optional[str] = None, encoding: str = "npy") -> Union[ScoringResponsePayloadV1, str]:
+        """Spezialfall von `score_ndarray`, bei dem das Array in BGR-Farbordnung vorliegt.
+
+        Diese Methode konvertiert das Array intern in RGB und ruft dann
+        `score_ndarray` auf.
+        """
+        return self.score_ndarray_rgb(array=cv2.cvtColor(array, cv2.COLOR_BGR2RGB), filename=filename, encoding=encoding)
+
+    def score_ndarray_rgb(self, array: np.ndarray, filename: Optional[str] = None, encoding: str = "npy") -> Union[ScoringResponsePayloadV1, str]:
         """Delegiert an `JurorService.score_ndarray`.
 
-        Das Array wird an den darunterliegenden Service weitergereicht. Die
+        Das Array (color order = RGB) wird an den darunterliegenden Service weitergereicht. Die
         Implementierung (HTTP, Mock, Cache, ...) entscheidet, wie das Array
         serialisiert und gesendet wird.
         """
