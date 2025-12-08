@@ -16,7 +16,7 @@ from experiments.shared.PhotographyExperiment import PhotographyExperiment
 from experiments.shared.Utils import Utils
 from juror_client import JurorClient
 from juror_shared.models_v1 import ScoringResponsePayloadV1
-from transformer import REVERSIBLE_TRANSFORMERS
+from transformer import REVERSIBLE_TRANSFORMERS, POC_ONE_WAY_TRANSFORMERS, POC_TWO_WAY_TRANSFORMERS
 from transformer.AbstractTransformer import AbstractTransformer
 from transformer.color_adjustment import InvertColorChannelTransformerGR
 from utils.CocoBuilder import CocoBuilder
@@ -36,9 +36,11 @@ class ImageDegradationExperiment(PhotographyExperiment):
         self.target_directory_root = Path(os.environ["IMAGE_VOLUME_PATH"]) / target_directory_root
         self.target_dataset_id = target_dataset_id
         self.use_random_transformer = transformer_name == "RANDOM"
-
+        logger.info(f"Using transformer {transformer_name}")
         if self.use_random_transformer:
             self.transformer_choice = REVERSIBLE_TRANSFORMERS
+            self.transformer_choice = POC_TWO_WAY_TRANSFORMERS
+            logger.info(f"Using random transformer choice {self.transformer_choice}")
         else:
             self.transformer: AbstractTransformer = TRANSFORMER_REGISTRY.get(transformer_name)
         self.run_name = run_name
@@ -87,6 +89,7 @@ class ImageDegradationExperiment(PhotographyExperiment):
         self.log_param("target_images_directory_root", self.target_directory_root)
         self.log_param("batch_size", self.batch_size)
         self.log_param("transformer", self.transformer.label if not self.use_random_transformer else "RANDOM")
+        self.log_param("transformer_choice", self.transformer_choice)
 
         # COCO-Builder initialisieren
         self.coco_builder = CocoBuilder(self.source_dataset_id)

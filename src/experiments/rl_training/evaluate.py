@@ -8,9 +8,9 @@ from torch.utils.data import DataLoader
 
 from data_types.AgenticImage import ImageData
 from experiments.rl_training.RLDataset import RLDataset
-from experiments.subset_training.DQNAgent import DQNAgent
+from experiments.subset_training.DQNAgent import DQNAgent, ResNetFeatureQNetwork
 from experiments.subset_training.TransformationActor import TransformationActor
-from transformer import REVERSIBLE_TRANSFORMERS
+from transformer import REVERSIBLE_TRANSFORMERS, POC_ONE_WAY_TRANSFORMERS, POC_TWO_WAY_TRANSFORMERS
 from utils.ImageUtils import ImageUtils
 from utils.LoggingUtils import configure_logging
 from dataset.Utils import Utils as DatasetUtils
@@ -32,7 +32,7 @@ class RLEvaluator:
         checkpoint_path: str,
         test_dataset_root: Path,
         max_steps_per_episode: int = 5,
-        state_shape: Tuple[int, int, int] = (3, 64, 64),
+        state_shape: Tuple[int, int, int] = (3, 384, 384),
         action_space: List[str] = None,
         add_stop_action: bool = True,
         save_examples: bool = True,
@@ -48,6 +48,8 @@ class RLEvaluator:
         # Action space
         if action_space is None:
             self.action_space = REVERSIBLE_TRANSFORMERS.copy()
+            self.action_space = POC_ONE_WAY_TRANSFORMERS.copy()
+            self.action_space = POC_TWO_WAY_TRANSFORMERS.copy()
         else:
             self.action_space = action_space
 
@@ -55,7 +57,9 @@ class RLEvaluator:
             self.action_space.append("STOP")
 
         # Load agent
-        self.agent = DQNAgent(self.action_space, self.state_shape)
+        network_constructor = ResNetFeatureQNetwork
+        network_kwargs = dict(backbone='resnet18', pretrained=True, freeze_backbone=True, use_imagenet_norm=False)
+        self.agent = DQNAgent(action_space=self.action_space, state_shape=self.state_shape, network_constructor=network_constructor, network_kwargs=network_kwargs)
         logger.info(f"Loading checkpoint from {checkpoint_path}")
         checkpoint_info = self.agent.load_checkpoint(checkpoint_path, load_optimizer=False)
         logger.info(f"Loaded checkpoint: {checkpoint_info}")
@@ -186,6 +190,7 @@ class RLEvaluator:
                 transformed_image, new_score = self.transformation_actor.transform_and_score(
                     current_image, action_str
                 )
+                logger.info(" Step %d: Image=%s, Action=%s, Score before=%.4f, Score after=%.4f", step, image_data.image_path, action_str, current_score, new_score)
                 current_image = transformed_image
                 current_score = new_score
             except Exception as e:

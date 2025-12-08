@@ -10,10 +10,10 @@ from torch.utils.data import DataLoader
 from data_types.AgenticImage import ImageData
 from experiments.rl_training.RLDataset import RLDataset
 from experiments.shared.PhotographyExperiment import PhotographyExperiment
-from experiments.subset_training.DQNAgent import DQNAgent
+from experiments.subset_training.DQNAgent import DQNAgent, ResNetFeatureQNetwork
 from experiments.subset_training.ReplayBuffer import ReplayBuffer
 from experiments.subset_training.TransformationActor import TransformationActor
-from transformer import REVERSIBLE_TRANSFORMERS
+from transformer import REVERSIBLE_TRANSFORMERS, POC_ONE_WAY_TRANSFORMERS, POC_TWO_WAY_TRANSFORMERS
 from dataset.Utils import Utils as DatasetUtils
 
 logger = logging.getLogger(__name__)
@@ -47,13 +47,13 @@ class RLTrainingExperiment(PhotographyExperiment):
         dataloader_batch_size: int = 8,
         validation_frequency: int = 1,
         # Reward shaping
-        step_penalty: float = 0.01,
-        terminal_bonus: float = 0.1,
+        step_penalty: float = 0.0,
+        terminal_bonus: float = 0.4,
         # Action space
         action_space: List[str] = None,
         add_stop_action: bool = True,
         # State configuration
-        state_shape: Tuple[int, int, int] = (3, 64, 64),
+        state_shape: Tuple[int, int, int] = (3, 384, 384),
     ):
         super().__init__(experiment_name)
         self.experiment_name = experiment_name
@@ -83,6 +83,8 @@ class RLTrainingExperiment(PhotographyExperiment):
         # Action space setup
         if action_space is None:
             self.action_space = REVERSIBLE_TRANSFORMERS.copy()
+            self.action_space = POC_ONE_WAY_TRANSFORMERS.copy()
+            self.action_space = POC_TWO_WAY_TRANSFORMERS.copy()
         else:
             self.action_space = action_space
 
@@ -95,9 +97,13 @@ class RLTrainingExperiment(PhotographyExperiment):
 
         # Initialize components
         self.replay_buffer = ReplayBuffer(capacity=self.replay_capacity)
+
+        network_kwargs = dict(backbone='resnet18', pretrained=True, freeze_backbone=True, use_imagenet_norm=False)
         self.agent = DQNAgent(
             self.action_space,
             self.state_shape,
+            network_constructor=ResNetFeatureQNetwork,
+            network_kwargs=network_kwargs,
             lr=self.learning_rate,
             gamma=self.gamma
         )
@@ -172,6 +178,7 @@ class RLTrainingExperiment(PhotographyExperiment):
         self.log_param("batch_size", self.batch_size)
         self.log_param("replay_capacity", self.replay_capacity)
         self.log_param("learning_rate", self.learning_rate)
+        self.log_param("agent_network_constructor", self.agent.network_constructor)
         self.log_param("gamma", self.gamma)
         self.log_param("epsilon_start", self.epsilon_start)
         self.log_param("epsilon_end", self.epsilon_end)
@@ -182,6 +189,7 @@ class RLTrainingExperiment(PhotographyExperiment):
         self.log_param("terminal_bonus", self.terminal_bonus)
         self.log_param("add_stop_action", self.add_stop_action)
         self.log_param("action_space_size", len(self.action_space))
+        self.log_param("action_space", self.action_space)
         self.log_param("state_shape", str(self.state_shape))
 
     def _load_datasets(self) -> Tuple[RLDataset, RLDataset]:
