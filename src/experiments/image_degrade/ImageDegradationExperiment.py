@@ -16,7 +16,7 @@ from experiments.shared.PhotographyExperiment import PhotographyExperiment
 from experiments.shared.Utils import Utils
 from juror_client import JurorClient
 from juror_shared.models_v1 import ScoringResponsePayloadV1
-from transformer import REVERSIBLE_TRANSFORMERS, POC_ONE_WAY_TRANSFORMERS, POC_TWO_WAY_TRANSFORMERS
+from transformer import POC_TWO_WAY_TRANSFORMERS
 from transformer.AbstractTransformer import AbstractTransformer
 from transformer.color_adjustment import InvertColorChannelTransformerGR
 from utils.CocoBuilder import CocoBuilder
@@ -26,19 +26,23 @@ from utils.Registries import TRANSFORMER_REGISTRY
 
 logger = logging.getLogger(__name__)
 
+
 class ImageDegradationExperiment(PhotographyExperiment):
-    def __init__(self, experiment_name: str, target_directory_root: str, target_dataset_id: str, transformer_name: str, run_name: str = None, source_dataset_id: str = "single_image", batch_size: int = 2, split_ratios: Tuple[float, float, float] = None, seed: int = 42):
+    def __init__(self, experiment_name: str, target_directory_root: str, target_dataset_id: str, transformer_name: str,
+                 run_name: str = None, source_dataset_id: str = "single_image", batch_size: int = 2,
+                 split_ratios: Tuple[float, float, float] = None, seed: int = 42):
         super().__init__(experiment_name)
         # Zeile nur um Import-Fehler zu vermeiden :-(
         abstract_transformer: AbstractTransformer = InvertColorChannelTransformerGR()
 
-        logger.info("Experiment name: %s with target_directory_root %s and source_dataset_id %s", experiment_name, target_directory_root, source_dataset_id)
+        logger.info("Experiment name: %s with target_directory_root %s and source_dataset_id %s", experiment_name,
+                    target_directory_root, source_dataset_id)
         self.target_directory_root = Path(os.environ["IMAGE_VOLUME_PATH"]) / target_directory_root
         self.target_dataset_id = target_dataset_id
         self.use_random_transformer = transformer_name == "RANDOM"
         logger.info(f"Using transformer {transformer_name}")
         if self.use_random_transformer:
-            self.transformer_choice = REVERSIBLE_TRANSFORMERS
+            # self.transformer_choice = REVERSIBLE_TRANSFORMERS
             self.transformer_choice = POC_TWO_WAY_TRANSFORMERS
             logger.info(f"Using random transformer choice {self.transformer_choice}")
         else:
@@ -52,7 +56,6 @@ class ImageDegradationExperiment(PhotographyExperiment):
         self.split_ratios = split_ratios  # e.g., (0.7, 0.15, 0.15) for train/val/test
         self.seed = seed
         self.random_generator = random.Random(seed)
-
 
     def configure(self, config: dict):
         pass
@@ -93,7 +96,8 @@ class ImageDegradationExperiment(PhotographyExperiment):
 
         # COCO-Builder initialisieren
         self.coco_builder = CocoBuilder(self.source_dataset_id)
-        self.coco_builder.set_description(f"Coco file for dataset {self.source_dataset_id} and transformer {self.transformer.label if not self.use_random_transformer else 'RANDOM'} for image degradation experiment")
+        self.coco_builder.set_description(
+            f"Coco file for dataset {self.source_dataset_id} and transformer {self.transformer.label if not self.use_random_transformer else 'RANDOM'} for image degradation experiment")
 
         source_dataset = COCODataset(source_images_root_path, self.dataset_config.calculate_annotations_file_path())
 
@@ -120,7 +124,6 @@ class ImageDegradationExperiment(PhotographyExperiment):
 
         logger.info("Finished Image Transformation Experiment")
 
-
     def _transform_images(self, coco_builder: CocoBuilder, source_dataset, target_directory_root: Path):
         """Transformiert die Bilder im Dataset und speichert sie im Zielverzeichnis ab."""
         # Handle both COCODataset and list of ImageData
@@ -134,14 +137,16 @@ class ImageDegradationExperiment(PhotographyExperiment):
                 self.log_batch_metrics(metrics_accumulator.compute_metrics(), batch_index)
         else:
             # For COCODataset, use DataLoader
-            dataloader = DataLoader(cast(Dataset[ImageData], source_dataset), batch_size=self.batch_size, collate_fn=Utils.collate_keep_size, num_workers=4)
+            dataloader = DataLoader(cast(Dataset[ImageData], source_dataset), batch_size=self.batch_size,
+                                    collate_fn=Utils.collate_keep_size, num_workers=4)
             metrics_accumulator = BatchImageDegradationMetricAccumulator()
             for batch_index, batch in enumerate(dataloader):
                 metrics_accumulator.reset()
                 self._process_image_batch(batch_index, batch, coco_builder, target_directory_root, metrics_accumulator)
                 self.log_batch_metrics(metrics_accumulator.compute_metrics(), batch_index)
 
-    def _process_image_batch(self, batch_index: int, batch: Iterable[ImageData], coco_builder: CocoBuilder, target_directory_root: Path, metrics_accumulator: BatchImageDegradationMetricAccumulator):
+    def _process_image_batch(self, batch_index: int, batch: Iterable[ImageData], coco_builder: CocoBuilder,
+                             target_directory_root: Path, metrics_accumulator: BatchImageDegradationMetricAccumulator):
         """Verarbeitet einen Batch von Bildern: wendet die Transformation an, speichert die Bilder und aktualisiert den COCO-Builder."""
         metrics_accumulator.start(batch_index)
         for image_data in batch:
@@ -153,7 +158,8 @@ class ImageDegradationExperiment(PhotographyExperiment):
             logger.info("Transformed image %s with transformer %s", image_data.image_path, transformer_label)
             scoring_response: ScoringResponsePayloadV1 = self.jurorClient.score_image(transformed_image_path)
             logger.info("scoring response %s", scoring_response)
-            coco_builder.add_image_transformation_score_annotation(image_id, scoring_response.score, image_data.score, transformer_name=transformer_label)
+            coco_builder.add_image_transformation_score_annotation(image_id, scoring_response.score, image_data.score,
+                                                                   transformer_name=transformer_label)
             coco_builder.add_image_final_score_annotation(image_id, scoring_response.score, image_data.score)
             metrics_accumulator.add_score(scoring_response.score, image_data.score)
 

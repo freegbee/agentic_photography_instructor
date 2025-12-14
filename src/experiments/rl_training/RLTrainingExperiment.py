@@ -82,8 +82,8 @@ class RLTrainingExperiment(PhotographyExperiment):
 
         # Action space setup
         if action_space is None:
-            self.action_space = REVERSIBLE_TRANSFORMERS.copy()
-            self.action_space = POC_ONE_WAY_TRANSFORMERS.copy()
+            #self.action_space = REVERSIBLE_TRANSFORMERS.copy()
+            #self.action_space = POC_ONE_WAY_TRANSFORMERS.copy()
             self.action_space = POC_TWO_WAY_TRANSFORMERS.copy()
         else:
             self.action_space = action_space

@@ -1,4 +1,4 @@
-from typing import TypedDict, Optional
+from typing import TypedDict
 
 from training.split_ratios import SplitRatios
 
@@ -6,6 +6,7 @@ from training.split_ratios import SplitRatios
 class GeneralPreprocessingParams(TypedDict):
     batch_size: int
     random_seed: int
+
 
 class ImagePreprocessingParams(TypedDict):
     batch_size: int
@@ -18,8 +19,10 @@ class TransformPreprocessingParams(TypedDict):
     use_random_transformer: bool
     split: SplitRatios
 
+
 class DataParams(TypedDict):
     dataset_id: str
+
 
 class TrainingExecutionParams(TypedDict, total=False):
     experiment_name: str

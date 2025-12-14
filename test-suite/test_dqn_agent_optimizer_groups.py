@@ -1,7 +1,5 @@
 import importlib.util
 from pathlib import Path
-import numpy as np
-import torch
 
 # load DQNAgent module from path
 p = Path(r"/experiments/subset_training/DQNAgent.py")
@@ -21,9 +19,11 @@ def test_optimizer_param_groups_resnet():
     head_lr = 1e-4
     weight_decay = 1e-3
 
-    agent = dqn.DQNAgent(action_space, (3, 64, 64), lr=1e-4, lr_backbone=backbone_lr, lr_head=head_lr, weight_decay=weight_decay,
+    agent = dqn.DQNAgent(action_space, (3, 64, 64), lr=1e-4, lr_backbone=backbone_lr, lr_head=head_lr,
+                         weight_decay=weight_decay,
                          network_constructor=dqn.ResNetFeatureQNetwork,
-                         network_kwargs={'backbone': 'resnet18', 'pretrained': False, 'freeze_backbone': False, 'use_imagenet_norm': False})
+                         network_kwargs={'backbone': 'resnet18', 'pretrained': False, 'freeze_backbone': False,
+                                         'use_imagenet_norm': False})
 
     opt = agent.optimizer
     # ensure we have at least two groups (backbone + head)
@@ -46,7 +46,8 @@ def test_optimizer_no_backbone_when_frozen():
 
     agent = dqn.DQNAgent(action_space, (3, 64, 64), lr=1e-4, lr_backbone=backbone_lr, lr_head=head_lr,
                          network_constructor=dqn.ResNetFeatureQNetwork,
-                         network_kwargs={'backbone': 'resnet18', 'pretrained': False, 'freeze_backbone': True, 'use_imagenet_norm': False})
+                         network_kwargs={'backbone': 'resnet18', 'pretrained': False, 'freeze_backbone': True,
+                                         'use_imagenet_norm': False})
 
     opt = agent.optimizer
     lrs = _get_group_lrs(opt)
@@ -67,4 +68,3 @@ def test_optimizer_fallback_single_group_when_no_special_modules():
     # ensure lr for at least one group equals the base lr
     lrs = _get_group_lrs(opt)
     assert any(abs(l - 2e-4) < 1e-12 for l in lrs)
-

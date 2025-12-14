@@ -34,6 +34,7 @@ class AcquisitionClient:
         self._api_version = "v1"
         self.base_url = base_url.rstrip("/") + f"/{self._api_version}/" # trailing slash preserves path as directory
         self.acquisition_root_endpoint = "acquisition"
+        self.copy_endpoint = "copy"
         self.acquisition_jobs_endpoint = f"{self.acquisition_root_endpoint}/jobs"
 
         self.timeout = float(timeout)
@@ -84,10 +85,10 @@ class AcquisitionClient:
 
     def start_async_image_copy(self, source_dataset_id: str, destination_directory: str) -> str:
         """Starte einen asynchronen Image-Copy-Job. Gibt die Job‑UUID zurück."""
-        logger.debug("Starte asynchronen image acquisition job für dataset %s bei %s", source_dataset_id,
-                     self.base_url + self.acquisition_root_endpoint)
-        payload = AsyncImageCopyRequestV1(**{"dataset_id": source_dataset_id, "destination_directory": destination_directory})
-        response = self._client.post(self.acquisition_root_endpoint, json=payload.model_dump())
+        logger.debug("Starte asynchronen image copy job für dataset %s bei %s", source_dataset_id,
+                     self.base_url + self.copy_endpoint)
+        payload = AsyncImageCopyRequestV1(**{"source_dataset_id": source_dataset_id, "destination_directory": destination_directory})
+        response = self._client.post(self.copy_endpoint, json=payload.model_dump())
 
         response.raise_for_status()
 

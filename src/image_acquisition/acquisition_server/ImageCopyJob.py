@@ -9,20 +9,20 @@ from image_acquisition.acquisition_shared.models_v1 import AsyncImageCopyJobResp
 
 class ImageCopyJob(AbstractImageJob[AsyncImageCopyJobResponseV1]):
 
-    def __init__(self, uuid: str, dataset_id: str, source_path: str, destination_path: str):
+    def __init__(self, uuid: str, source_dataset_id: str, source_directory: str, destination_directory: str):
         super().__init__(uuid)
-        self.dataset_id: Optional[str] = dataset_id
-        self.source_path: Optional[Path] = Path(source_path) if source_path is not None else None
-        if self.dataset_id is None and self.source_path is None:
+        self.source_dataset_id: Optional[str] = source_dataset_id
+        self.source_path: Optional[Path] = Path(source_directory) if source_directory is not None else None
+        if self.source_dataset_id is None and self.source_path is None:
             raise ValueError("Either dataset_id or source_path must be provided")
-        self.destination_path = Path(destination_path)
+        self.destination_path = Path(destination_directory)
         self.resulting_hash: Optional[str] = None
         self.effective_destination_path: Optional[Path] = None
 
     def start(self):
         effective_source_path = None
-        if self.dataset_id:
-            dataset_config = self.get_dataset_config(self.dataset_id)
+        if self.source_dataset_id:
+            dataset_config = self.get_dataset_config(self.source_dataset_id)
             effective_source_path = dataset_config.calculate_images_root_path()
         else:
             effective_source_path = Path(os.environ["IMAGE_VOLUME_PATH"]) / self.source_path / "images"
@@ -41,4 +41,4 @@ class ImageCopyJob(AbstractImageJob[AsyncImageCopyJobResponseV1]):
     def is_same_job(self, other_job: 'AbstractImageJob') -> bool:
         if not isinstance(other_job, ImageCopyJob):
             return False
-        return self.dataset_id == other_job.dataset_id and self.source_path == other_job.source_path and self.destination_path == other_job.destination_path
+        return self.source_dataset_id == other_job.source_dataset_id and self.source_path == other_job.source_path and self.destination_path == other_job.destination_path

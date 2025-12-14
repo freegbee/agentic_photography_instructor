@@ -6,6 +6,7 @@ from typing import Dict, Optional
 from data_types.ImageDatasetConfiguration import ImageDatasetConfiguration
 from image_acquisition.acquisition_client.AcquisitionClient import AcquisitionClient
 from image_acquisition.acquisition_shared.models_v1 import AsyncJobStatusV1
+from training import mlflow_helper
 from training.data_loading.abstract_load_data import AbstractLoadData, RESULT
 from utils.ConfigLoader import ConfigLoader
 
@@ -33,11 +34,8 @@ class DatasetLoadData(AbstractLoadData[DatasetLoadDataResult]):
             raise e
         # Dataset-Konfiguration laden und Bildpfad ermitteln
         self.dataset_config = ImageDatasetConfiguration.from_dict(self.dataset_id, config_dict)
-        start_ensure_images = time.perf_counter()
         self.image_dataset_hash = self._ensure_image_dataset(self.dataset_config.dataset_id)
-        duration = time.perf_counter() - start_ensure_images
-        # self.mlflow_helper.log_metric("ensure_image_dataset_duration_seconds", duration)
-        # self.mlflow_helper.log_param("dataset_hash", self.image_dataset_hash)
+        mlflow_helper.log_param("dataset_hash", self.image_dataset_hash)
 
     def get_result(self) -> RESULT:
         return DatasetLoadDataResult(self.image_dataset_hash)
