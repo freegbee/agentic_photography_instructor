@@ -1,0 +1,46 @@
+@startuml
+title Trainings-Modul — Aktivitätsdiagramm (konzeptionell)
+start
+:Konfiguration laden / Hyperparameter setzen;
+:Initialisiere AbstractTrainer (MLflow set_experiment);
+:Starte Run (MlflowHelper.start_run);
+
+partition "Daten" {
+  :Daten laden (DatasetLoadData.load_data);
+  if (Daten bereit?) then (ja)
+    :Setze dataset_hash;
+  else (nein)
+    :Fehler / Retry / Abbruch;
+    stop
+  endif
+}
+
+partition "Preprocessing" {
+  :Copy & Resize (CopyAndResizePreprocessor.preprocess);
+  :Erzeuge Annotationen (AnnotationFileCreator.preprocess);
+  :Scoring (ScorePreprocessor.preprocess);
+  :Degrade & Split (DegradeAndSplitPreprocessor.preprocess);
+}
+
+partition "TODO Training" {
+  :Trainingsschleife starten (Trainer.train);
+  repeat
+    :Samples holen / Batch vorbereiten;
+    :Forward / Loss berechnen;
+    :Backward / Optimizer.step;
+    if (Checkpoint nötig?) then (ja)
+      :Checkpoint speichern / Mlflow.log_artifact;
+    endif
+  repeat while (noch Epochen/Terming)
+}
+
+partition "TOSO Evaluation" {
+  :Evaluate (Trainer.evaluate);
+  :Metrics loggen (Mlflow.log_metric);
+  :Artefakte speichern (Plots, Modelle);
+}
+
+:Beende Run (MlflowHelper.end_run);
+stop
+@enduml
+

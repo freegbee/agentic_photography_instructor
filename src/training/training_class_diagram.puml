@@ -1,0 +1,89 @@
+@startuml
+title Trainings-Modul — Klassendiagramm
+left to right direction
+
+class AbstractTrainer {
+  - experiment_name: str
+  - source_dataset_id: str
+  - mlflow_client
+  - run_name: Optional[str]
+  - mlflow_helper: MlflowHelper
+  + __init__(experiment_name, source_dataset_id)
+  + run_training(run_name=None)
+  + load_data()
+  + preprocess()
+  + train()
+  + evaluate()
+  {abstract} + _load_data_impl()
+  {abstract} + _preprocess_impl()
+  {abstract} + _train_impl()
+  {abstract} + _evaluate_impl()
+}
+
+AbstractTrainer ..|> IAbstractTrainer
+
+class RlTrainer {
+  + __init__()
+  + _load_data_impl()
+  + _preprocess_impl()
+  + _train_impl()
+  + _evaluate_impl()
+}
+
+RlTrainer --|> AbstractTrainer
+
+class AbstractLoadData<RESULT> {
+  + load_data()
+  {abstract} + _load_data_impl()
+  {abstract} + get_result()
+}
+class DatasetLoadData<DatasetLoadDataResult> {
+  - dataset_id: str
+  + _load_data_impl()
+  + get_result()
+}
+
+AbstractLoadData <|-- DatasetLoadData
+
+class AbstractPreprocessor<T>
+class CopyAndResizePreprocessor {
+  + _preprocess_impl()
+  + get_preprocessing_result()
+}
+class AnnotationFileCreator {
+  + _preprocess_impl()
+  + get_preprocessing_result()
+}
+class ScorePreprocessor {
+  + _preprocess_impl()
+  + get_preprocessing_result()
+}
+AbstractPreprocessor <|-- CopyAndResizePreprocessor
+AbstractPreprocessor <|-- AnnotationFileCreator
+AbstractPreprocessor <|-- ScorePreprocessor
+
+class HyperparameterStore
+class HyperparameterRegistry {
+  + get_store(typedict_cls, initial=None)
+}
+HyperparameterRegistry "1" -- "*" HyperparameterStore : manages
+
+class MlflowHelper <<singleton>> {
+  + start_run(experiment, run_name, tags_builder)
+  + end_run()
+  + log_metric(key, value, step=None)
+  + log_param(key, value)
+  + log_artifact(local_path, artifact_path=None)
+}
+
+AbstractTrainer o-- "1" MlflowHelper : uses
+AbstractTrainer "1" *-- "1" DatasetLoadData : data_loader
+AbstractTrainer "1" *-- "*" AbstractPreprocessor : preprocessors
+
+note left of AbstractTrainer
+  - orchestriert Training (load, preprocess, train, evaluate)
+  - integriert MLflow-Logging
+end note
+
+@enduml
+
