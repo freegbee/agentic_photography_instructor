@@ -1,12 +1,14 @@
 import logging
 from pathlib import Path
-from typing import List, cast
+from typing import List, cast, Dict
 
 from torch.utils.data import DataLoader, Dataset
 
 from data_types.AgenticImage import ImageData
+from data_types.ImageDatasetConfiguration import ImageDatasetConfiguration
 from dataset.COCODataset import COCODataset
 from dataset.TopKSampler import TopKSampler
+from utils.ConfigLoader import ConfigLoader
 
 logger = logging.getLogger(__name__)
 
@@ -64,3 +66,9 @@ class Utils:
     def collate_keep_size(batch):
         # Returns a batch without stacking the images, so that they can keep their original size
         return batch
+
+    @staticmethod
+    def get_dataset_config(dataset_id: str) -> ImageDatasetConfiguration:
+        # Load configuration
+        config_dict: Dict = ConfigLoader.load_dataset_config(dataset_id)
+        return ImageDatasetConfiguration.from_dict(dataset_id, config_dict)

@@ -1,55 +1,46 @@
 import logging
 import time
-from typing import Dict
 
 from prometheus_client import CollectorRegistry
 
+from image_acquisition.acquisition_server.abstract_image_job import AbstractImageJob, ServiceResponse
 from image_acquisition.acquisition_server.handlers.HandlerFactory import HandlerFactory
 from image_acquisition.acquisition_server.prometheus import prometheus_metrics
 from image_acquisition.acquisition_server.prometheus.Metrics import init_metrics
-from data_types.ImageDatasetConfiguration import ImageDatasetConfiguration
-from image_acquisition.acquisition_shared.models_v1 import AsyncJobStatusV1
-from utils.ConfigLoader import ConfigLoader
+from image_acquisition.acquisition_shared.models_v1 import AsyncJobStatusV1, AsyncImageAcquisitionJobResponseV1
 
 logger = logging.getLogger(__name__)
 
 
-class ImageAcquisitionJob:
+class ImageAcquisitionJob(AbstractImageJob[AsyncImageAcquisitionJobResponseV1]):
     uuid: str
     dataset_id: str
     status: AsyncJobStatusV1
 
     def __init__(self, uuid: str, dataset_id: str):
         logger.info("Initializing ImageAcquisitionJob with uuid=%s for dataset_id=%s", uuid, dataset_id)
-        self.uuid = uuid
+        super().__init__(uuid)
         self.dataset_id = dataset_id
-        self.status = AsyncJobStatusV1.NEW
         self.resulting_hash = None
 
         # Load configuration
-        try:
-            config_dict: Dict = ConfigLoader.load_dataset_config(self.dataset_id)
-        except Exception as e:
-            self.status = AsyncJobStatusV1.FAILED
-            logger.exception("Exception loading config for dataset %s: %s", self.dataset_id, e)
-            raise e
-
-        dataset_config = ImageDatasetConfiguration.from_dict(self.dataset_id, config_dict)
+        dataset_config = self.get_dataset_config(self.dataset_id)
         self.handler = HandlerFactory.create(dataset_config)
         prometheus_registry = CollectorRegistry()
         self.prometheus_metrics = init_metrics(registry=prometheus_registry)
 
     def start(self):
         start = time.perf_counter()
-        self.status = AsyncJobStatusV1.RUNNING
+        self.set_status_running()
         try:
             self.resulting_hash = self.handler.process()
-            self.status = AsyncJobStatusV1.COMPLETED
+            self.set_status_completed()
         except Exception as e:
-            self.status = AsyncJobStatusV1.FAILED
+            self.set_status_failed()
         finally:
             elapsed = time.perf_counter() - start
-            logger.info("ImageAcquisitionJob with %s for %s status is %s after %f seconds with resulting hash %s", self.uuid, self.dataset_id,
+            logger.info("ImageAcquisitionJob with %s for %s status is %s after %f seconds with resulting hash %s",
+                        self.uuid, self.dataset_id,
                         self.status, elapsed, self.resulting_hash)
             try:
                 prometheus_metrics.metrics().IMAGE_ACQUISITION_JOB_DURATION.labels(dataset_id=self.dataset_id,
@@ -57,8 +48,11 @@ class ImageAcquisitionJob:
             except Exception as e:
                 logger.error(f"Error recording job duration metric: {e}")
 
-    def is_running(self):
-        return self.status == AsyncJobStatusV1.RUNNING
+    def create_service_response(self) -> ServiceResponse:
+        return AsyncImageAcquisitionJobResponseV1(
+            **{"job_uuid": self.uuid, "status": self.status, "resulting_hash": self.resulting_hash})
 
-    def is_finished(self):
-        return self.status in {AsyncJobStatusV1.COMPLETED, AsyncJobStatusV1.FAILED}
+    def is_same_job(self, other_job: 'AbstractImageJob') -> bool:
+        if not isinstance(other_job, ImageAcquisitionJob):
+            return False
+        return self.dataset_id == other_job.dataset_id

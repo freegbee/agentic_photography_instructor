@@ -1,6 +1,7 @@
 import json
 import os
 from datetime import datetime
+from pathlib import Path
 from typing import List, Dict, Optional, Union
 
 from dataset import Utils
@@ -13,9 +14,9 @@ class CocoBuilder:
     - save: schreibt JSON
     """
 
-    def __init__(self, dataset_id):
+    def __init__(self, dataset_id: Optional[str] = None, source_path: Optional[Path] = None):
         self.info = {
-            "description": f"Coco for Dataset {dataset_id}",
+            "description": f"Coco for Dataset {dataset_id}" if dataset_id else f"Coco Dataset for source path {str(source_path)}",
             "version": "1.0",
             "year": datetime.now().year,
             "date_created": datetime.now().isoformat()
@@ -34,27 +35,31 @@ class CocoBuilder:
     def set_description(self, description: str):
         self.info["description"] = description
 
-    def add_image(self, file_name: str, width: int, height: int) -> int:
+    def add_image(self, file_name: str, width: int, height: int, score: Optional[float] = None, initial_score: Optional[float] = None) -> int:
         if file_name in self._image_id_map:
             return self._image_id_map[file_name]
         image_id = self._next_image_id
         self._next_image_id += 1
-        image_info = {
+        image_info: Dict[str, Union[int, str, float]] = {
             "id": image_id,
             "file_name": file_name,
             "width": width,
             "height": height
         }
+        if score is not None:
+            image_info["score"] = score
+        if initial_score is not None:
+            image_info["initial_score"] = initial_score
         self.images.append(image_info)
         self._image_id_map[file_name] = image_id
         return image_id
 
-    def add_image_score_annotation(self, image_id: int, score: float) -> int:
+    def add_image_score_annotation(self, image_id: int, score: float, initial_score: Optional[float] = None) -> int:
         """
         Fügt eine Annotation mit einem Score für das gegebene Bild hinzu.
         - Für image-level scores werden bbox/segmentation leer gelassen und area=0 gesetzt.
         """
-        return self._add_image_score_annotation(image_id=image_id, score=score)
+        return self._add_image_score_annotation(image_id=image_id, score=score, initial_score=initial_score)
 
     def add_image_transformation_score_annotation(self, image_id: int, score: float, initial_score: float, transformer_name: Optional[str] = None) -> int:
         """

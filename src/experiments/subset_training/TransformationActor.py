@@ -18,7 +18,7 @@ class TransformationActor:
         if juror_service_url is None:
             raise RuntimeError(
                 "Environment variable JUROR_SERVICE_URL is not set. Please set it to the Juror service endpoint URL.")
-        self.juror = JurorClient(juror_service_url)
+        self.juror = JurorClient(base_url=juror_service_url, use_local=True, use_cache=True, cache_maxsize=10000)
 
     def _get_transformer(self, transformer_label: str) -> AbstractTransformer:
         return self.transformer_registry.get(transformer_label)

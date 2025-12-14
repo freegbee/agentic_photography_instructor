@@ -31,4 +31,13 @@ REVERSIBLE_TRANSFORMERS = [SwapColorChannelTransformerGB.label,
                            ShiftColorPlaneDownAll.label,
                            ]
 
-__all__ = ["generate_transformer_pairs", "REVERSIBLE_TRANSFORMERS"]
+POC_ONE_WAY_TRANSFORMERS = [
+    ShiftColorPlaneDownAll.label
+]
+
+POC_TWO_WAY_TRANSFORMERS = [
+    ShiftColorPlaneDownAll.label,
+    InvertColorChannelTransformerR.label
+]
+
+__all__ = ["generate_transformer_pairs", "REVERSIBLE_TRANSFORMERS", "POC_ONE_WAY_TRANSFORMERS", "POC_TWO_WAY_TRANSFORMERS"]
