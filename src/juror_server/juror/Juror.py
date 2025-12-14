@@ -13,7 +13,7 @@ class Juror:
             self.model = self.model.to(torch.bfloat16).cuda()
 
         if torch.mps.is_available():
-            self.model = self.model.to(torch.bfloat16).mps()
+            self.model = self.model.to('mps').to(torch.bfloat16)
 
     def inference(self, image_rgb: np.ndarray) -> float:
         """
@@ -34,7 +34,7 @@ class Juror:
             pixel_values = pixel_values.to(torch.bfloat16).cuda()
 
         if torch.mps.is_available():
-            pixel_values = pixel_values.to(torch.bfloat16).mps()
+            pixel_values = pixel_values.to('mps').to(torch.bfloat16)
 
         # predict aesthetic score
         with torch.inference_mode():

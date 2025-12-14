@@ -15,7 +15,7 @@ pyinstrument~=5.1.1
 xxhash
 
 # Only for mlflow
-mlflow~=3.5.1
+#mlflow~=3.5.1
 
 # Only for FastAPI server, Juror Service
 fastapi~=0.120.0
@@ -39,3 +39,11 @@ fiftyone~=1.8.0
 # HTTP client used by juror_client
 requests
 httpx~=0.24.1
+
+
+#image accquisition
+uvicorn[standard]~=0.22.0
+prometheus_client~=0.23.1
+
+# experiment
+pycocotools~=2.0.10
