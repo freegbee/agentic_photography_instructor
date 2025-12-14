@@ -4,7 +4,7 @@ from typing import Dict
 
 from torch.utils.data import DataLoader, Dataset, RandomSampler, SequentialSampler, Subset
 
-from image_aquisition.BasicTestDataset import BasicTestDataset
+from image_acquisition.BasicTestDataset import BasicTestDataset
 from utils.ConfigLoader import ConfigLoader
 from utils.Registries import AGENT_FACTORY_REGISTRY, init_registries
 from transformation_agent import StaticTransformationAgentFactory

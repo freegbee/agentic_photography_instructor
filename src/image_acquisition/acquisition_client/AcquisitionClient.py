@@ -5,7 +5,7 @@ from typing import Optional, Union
 import httpx
 
 from image_acquisition.acquisition_shared.models_v1 import StartAsyncImageAcquisitionRequestV1, \
-    AsyncImageAcquisitionJobResponseV1
+    AsyncImageAcquisitionJobResponseV1, AsyncImageCopyRequestV1, AsyncImageCopyJobResponseV1
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +77,42 @@ class AcquisitionClient:
 
         try:
             response_object = AsyncImageAcquisitionJobResponseV1(**response.json())
+            return response_object
+        except json.JSONDecodeError:
+            logger.error("Fehler beim Parsen der Antwort des Acquisition-Servers: %s", response.text)
+            return None
+
+    def start_async_image_copy(self, source_dataset_id: str, destination_directory: str) -> str:
+        """Starte einen asynchronen Image-Copy-Job. Gibt die Job‑UUID zurück."""
+        logger.debug("Starte asynchronen image acquisition job für dataset %s bei %s", source_dataset_id,
+                     self.base_url + self.acquisition_root_endpoint)
+        payload = AsyncImageCopyRequestV1(**{"dataset_id": source_dataset_id, "destination_directory": destination_directory})
+        response = self._client.post(self.acquisition_root_endpoint, json=payload.model_dump())
+
+        response.raise_for_status()
+
+        try:
+            resp_json = response.json()
+            response_object = AsyncImageCopyJobResponseV1(**resp_json)
+            return response_object.job_uuid
+        except json.JSONDecodeError:
+            logger.error("Antwort des Acquisition-Servers ist kein JSON: %s", response.text)
+            return response.text
+
+    def query_async_image_copy_job(self, job_uuid: str) -> Optional[AsyncImageCopyJobResponseV1]:
+        """Frage den Status eines asynchronen Image Copy Jobs ab."""
+        endpoint = f"{self.acquisition_jobs_endpoint}/{job_uuid}"
+        logger.debug("Frage status des asynchronen image acquisition jobs %s bei url %s", job_uuid, self.base_url + endpoint)
+
+        response = self._client.get(endpoint, timeout=self.timeout)
+
+        if response.status_code == 404:
+            return None
+
+        response.raise_for_status()
+
+        try:
+            response_object = AsyncImageCopyJobResponseV1(**response.json())
             return response_object
         except json.JSONDecodeError:
             logger.error("Fehler beim Parsen der Antwort des Acquisition-Servers: %s", response.text)

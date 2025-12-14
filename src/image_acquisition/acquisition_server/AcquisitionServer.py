@@ -4,6 +4,7 @@ import time
 import uuid
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
+from typing import Union
 
 from fastapi import FastAPI, HTTPException, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,12 +12,14 @@ from fastapi.routing import APIRouter
 
 from prometheus_client import CollectorRegistry, CONTENT_TYPE_LATEST, gc_collector, platform_collector, process_collector
 
+from image_acquisition.acquisition_server.ImageCopyJob import ImageCopyJob
 from image_acquisition.acquisition_server.JobManager import JobManager
 from image_acquisition.acquisition_server.ImageAcquisitionJob import ImageAcquisitionJob
+from image_acquisition.acquisition_server.abstract_image_job import AbstractImageJob
 from utils.LoggingUtils import configure_logging
 from image_acquisition.acquisition_server.prometheus import prometheus_metrics
 from image_acquisition.acquisition_shared.models_v1 import StartAsyncImageAcquisitionRequestV1, \
-    AsyncImageAcquisitionJobResponseV1
+    AsyncImageAcquisitionJobResponseV1, AsyncImageCopyRequestV1, AsyncImageCopyJobResponseV1
 
 logger = logging.getLogger(__name__)
 
@@ -124,7 +127,32 @@ async def start_acquisition(request: StartAsyncImageAcquisitionRequestV1):
     logger.info("Started async job with UUID %s for image acquisition of dataset %s.", new_job.uuid, new_job.dataset_id)
     return response
 
-@v1.get("/acquisition/jobs/{job_uuid}", response_model=AsyncImageAcquisitionJobResponseV1)
+@v1.post("/copy", response_model=AsyncImageCopyJobResponseV1)
+async def start_copy(request: AsyncImageCopyRequestV1) -> AsyncImageCopyJobResponseV1:
+    logger.info("Request für image copy task...")
+    job_uuid = str(uuid.uuid4())
+    if request.dataset_id is None and request.source_path is None:
+        raise HTTPException(status_code=404, detail=f"Dataset id {request.source_dataset_id} or source directory {request.source_directory} must be available.")
+    if request.destination_directory is None:
+        raise HTTPException(status_code=404, detail=f"Destination directory must be available.")
+    try:
+        new_job = ImageCopyJob(job_uuid, request.source_dataset_id, request.source_directory, request.destination_directory)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=f"Unable to create image copy job.")
+
+    try:
+        job_manager.add_job(new_job)
+    except KeyError as ke:
+        raise HTTPException(status_code=409, detail=f"Job with UUID {new_job.uuid} already exists.")
+    except ValueError as ve:
+        raise HTTPException(status_code=409, detail=str(ve))
+
+    asyncio.create_task(_run_image_acquisition_job(new_job))
+    response = AsyncImageCopyJobResponseV1(**{"job_uuid": new_job.uuid, "status": new_job.status})
+    return response
+
+
+@v1.get("/acquisition/jobs/{job_uuid}", response_model=Union[AsyncImageAcquisitionJobResponseV1|AsyncImageCopyJobResponseV1])
 async def get_acquisition_job(job_uuid: str):
     """Gibt den Status eines asynchronen Image Acquisition Jobs zurück."""
 
@@ -132,11 +160,11 @@ async def get_acquisition_job(job_uuid: str):
         job = job_manager.get_job(job_uuid)
     except KeyError as ke:
         raise HTTPException(status_code=404, detail=f"Job with UUID {job_uuid} not found.")
-    return AsyncImageAcquisitionJobResponseV1(**{"job_uuid": job.uuid, "status": job.status, "resulting_hash": job.resulting_hash})
+    return job.create_service_response()
 
 app.include_router(v1)
 
-async def _run_image_acquisition_job(job: ImageAcquisitionJob):
+async def _run_image_acquisition_job(job: AbstractImageJob):
     logger.info("Running image acquisition job %s...", job.uuid)
     try:
         # job.start() ist synchron -> in Thread auslagern, damit Event-Loop nicht blockiert

@@ -302,6 +302,39 @@ class ImageAcquisitionUtils:
                 print(f"Fehler beim Löschen der Datei {file_path}: {e}")
 
     @staticmethod
+    def copy_files(source_path: Path, destination_path: Path) -> None:
+        """Kopiert Dateien von source_path nach destination_path.
+        - Wenn source_path ein Verzeichnis ist, wird der gesamte Inhalt rekursiv kopiert.
+        - Wenn source_path eine Datei ist, wird nur diese Datei kopiert.
+        - Zielverzeichnis wird erstellt, falls nicht existent.
+
+        Args:
+            source_path: Pfad zur Quelldatei oder -verzeichnis.
+            destination_path: Pfad zum Zielverzeichnis.
+        """
+        if not os.path.exists(source_path):
+            logger.warning("Source path %s does not exist. Skipping copy.", source_path)
+            return
+
+        os.makedirs(destination_path, exist_ok=True)
+
+        if os.path.isdir(source_path):
+            # Rekursives Kopieren des Verzeichnisinhalts
+            for item in os.listdir(source_path):
+                s_item = os.path.join(source_path, item)
+                d_item = os.path.join(destination_path, item)
+                if os.path.isdir(s_item):
+                    shutil.copytree(s_item, d_item, dirs_exist_ok=True)
+                else:
+                    shutil.copy2(s_item, d_item)
+            logger.info("Copied directory %s to %s", source_path, destination_path)
+        else:
+            # Einzelne Datei kopieren
+            dest_file = os.path.join(destination_path, os.path.basename(source_path))
+            shutil.copy2(source_path, dest_file)
+            logger.info("Copied file %s to %s", source_path, dest_file)
+
+    @staticmethod
     def compute_dir_hash(dir_path: Path, algorithm: str = "sha256", chunk_size: int = 8192,
                          include_hidden: bool = False) -> str | None:
         """Berechnet einen deterministischen Hash eines Verzeichnisses.
