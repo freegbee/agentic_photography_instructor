@@ -19,6 +19,7 @@ async def main():
 async def start_job():
     with AcquisitionClient(base_url=os.environ["IMAGE_ACQUISITION_SERVICE_URL"]) as acquisition_client:
         job_uuid = acquisition_client.start_async_image_acquisition("single_image")
+        #Mögliche alternative Werte für Tests:
         #job_uuid = acquisition_client.start_async_image_acquisition("places_365_split_two_actions")
         #job_uuid = acquisition_client.start_async_image_acquisition("places365_val_large")
         logger.info(f"Started async image acquisition job with UUID: {job_uuid}")

@@ -60,7 +60,9 @@ class ScorePreprocessor(AbstractPreprocessor[ScorePreprocessorResult]):
         mlflow_helper.log_metric("total_number_of_images_scored", len(self.coco_builder.images))
 
         self.coco_builder.save(str(self.annotations_file_path))
-        mlflow_helper.log_artifact(local_path=str(self.annotations_file_path), step=self.step_arg, artifact_path="scored_annotation")
+        mlflow_helper.log_artifact(local_path=str(self.annotations_file_path),
+                                   step=self.step_arg,
+                                   artifact_path="scored_annotation")
 
     def _score_images(self):
         logger.info("Start scoring for image in path %s based on cocofile %s", self.image_path,
@@ -83,9 +85,9 @@ class ScorePreprocessor(AbstractPreprocessor[ScorePreprocessorResult]):
         for image_data in batch:
             scoring_response: ScoringResponsePayloadV1 = self.juror_client.score_ndarray_bgr(
                 image_data.get_image_data('BGR'))
-            # image_id = self.coco_builder.add_image(str(image_data.image_path), image_data.width, image_data.height)
-            coco.add_scoring_annotation(image_id=image_data.id, score=scoring_response.score, initial_score=scoring_response.score)
-            # self.coco_builder.add_image_score_annotation(image_id, scoring_response.score)
+            coco.add_scoring_annotation(image_id=image_data.id,
+                                        score=scoring_response.score,
+                                        initial_score=scoring_response.score)
             metrics_accumulator.add_score(scoring_response.score)
         metrics_accumulator.stop()
 

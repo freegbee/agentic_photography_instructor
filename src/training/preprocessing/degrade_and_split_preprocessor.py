@@ -35,6 +35,15 @@ class DegradeAndSplitPreprocessorResult:
 
 
 class DegradeAndSplitPreprocessor(AbstractPreprocessor[DegradeAndSplitPreprocessorResult]):
+    """Preprocessor-Klasse, die Bilder degradiert und das Dataset in Splits aufteilt.
+
+    Diese Klasse übernimmt:
+    - Anwenden einer `AbstractImageDegradingFunction` auf Bilder des Quell-Datasets.
+    - Erzeugen von Splits (z. B. train/val/test) entsprechend `SplitRatios`.
+    - Speichern der degradierten Bilder in jeweils eigenen Verzeichnissen.
+    - Erzeugen und Speichern von COCO-Annotationen via `CocoBuilder`.
+    - Bewerten der degradierten Bilder durch den `JurorClient` und Hinzufügen von Score-Annotationen.
+    """
 
     def __init__(self, preprocessing_step: Optional[int], juror_client: Optional[JurorClient] = None):
         super().__init__(preprocessing_step)
@@ -104,7 +113,7 @@ class DegradeAndSplitPreprocessor(AbstractPreprocessor[DegradeAndSplitPreprocess
 
     def _transform_images(self, coco_builder: CocoBuilder, source_dataset: COCODataset, sampler: Sampler,
                           target_directory_root: Path):
-        """Transformiert die Bilder im Dataset und speichert sie im Zielverzeichnis ab."""
+        """Transforms the images in the source dataset using the degradation function, updates the COCO builder and stores the images."""
         dataloader = DataLoader(source_dataset, batch_size=self.batch_size, sampler=sampler,
                                 collate_fn=Utils.collate_keep_size)
 
@@ -114,7 +123,7 @@ class DegradeAndSplitPreprocessor(AbstractPreprocessor[DegradeAndSplitPreprocess
 
     def _process_image_batch(self, batch: Iterable[CocoImageData], coco_builder: CocoBuilder,
                              split_images_dir: Path):
-        """Verarbeitet einen Batch von Bildern: wendet die Transformation an, speichert die Bilder und aktualisiert den COCO-Builder."""
+        """Processes single batch of images: Apply transformations, update COCO builder, store images"""
         for image_data in batch:
             degraded_image, transformer_labels = self.degradation_function.degrade(image_data.get_image_data("BGR"))
             transformed_image_path = str(split_images_dir / image_data.image_relative_path)

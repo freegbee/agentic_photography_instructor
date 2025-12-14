@@ -13,6 +13,7 @@ def main():
     training_params.set({"experiment_name": "Dynamic_RL_Agent_Training", "use_local_juror": True, "random_seed": 42})
 
     data_params = HyperparameterRegistry.get_store(DataParams)
+    # Mögliche alternative Datensätze:
     # data_params.set({"dataset_id": "twenty_images"})
     # data_params.set({"dataset_id": "flickr8k"})
     data_params.set({"dataset_id": "places365_val_large"})

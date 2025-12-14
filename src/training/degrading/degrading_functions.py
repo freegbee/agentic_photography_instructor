@@ -92,7 +92,7 @@ class DegradingFunctionFactory:
         if use_random:
             return RandomTransformationDegradingFunction(transformer_labels)
         elif len(transformer_labels) == 1:
-            return SingleTransformationDegradingFunction(transformer_labels)
+            return SingleTransformationDegradingFunction(transformer_labels[0])
         else:
             return SequentialTransformationDegradingFunction(transformer_labels)
 

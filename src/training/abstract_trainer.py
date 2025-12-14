@@ -12,9 +12,7 @@ from training.mlflow_helper import MlflowHelper
 from training.mlflow_utils import MLflowParamBuilder, MLflowUtils, MLflowTagsBuilder, mlflow_logging
 
 logger = logging.getLogger(__name__)
-logging.getLogger("mlflow").setLevel(logging.DEBUG)
-logging.getLogger("urllib3").setLevel(logging.DEBUG)
-logging.getLogger("requests").setLevel(logging.DEBUG)
+
 
 class AbstractTrainer(ABC):
 
@@ -29,10 +27,9 @@ class AbstractTrainer(ABC):
         self._init_mlflow()
         logger.info(f"Initialized experiment {self.experiment_name}")
 
-
     def _init_mlflow(self):
         self.ml_flow_param_builder = MLflowParamBuilder()
-        self._add_mlflow_param("source_dataset_id", self.source_dataset_id)
+        self.ml_flow_param_builder.add_param("source_dataset_id", self.source_dataset_id)
         self.ml_flow_tags_builder = MLflowTagsBuilder()
         self.mlflow_client = MLflowUtils.get_tracking_client()
         self.experiment = mlflow.set_experiment(self.experiment_name)
@@ -40,7 +37,8 @@ class AbstractTrainer(ABC):
 
     def run_training(self, run_name: Optional[str] = None):
         self.run_name = run_name
-        self._active_run = self.mlflow_helper.start_run(run_name=self.run_name, experiment=self.experiment, tags_builder=self.ml_flow_tags_builder)
+        self._active_run = self.mlflow_helper.start_run(run_name=self.run_name, experiment=self.experiment,
+                                                        tags_builder=self.ml_flow_tags_builder)
 
         MLflowUtils.log_params(self.mlflow_client, self._active_run.info.run_id, self.ml_flow_param_builder)
         MLflowUtils.log_tags(self.mlflow_client, self._active_run.info.run_id, self.ml_flow_tags_builder)
@@ -49,7 +47,8 @@ class AbstractTrainer(ABC):
         try:
             self._run_training_pipeline()
         finally:
-            logger.info("End run %s for experiment %s with duration  %.4f", self.run_name, self.experiment_name, time.perf_counter() - start_time)
+            logger.info("End run %s for experiment %s with duration  %.4f", self.run_name, self.experiment_name,
+                        time.perf_counter() - start_time)
             self.mlflow_helper.end_run()
             self._active_run = None
 
@@ -77,9 +76,6 @@ class AbstractTrainer(ABC):
     def evaluate(self):
         self._evaluate_impl()
 
-    def _add_mlflow_param(self, key, value):
-        self.ml_flow_param_builder.add_param(key, value)
-
     def log_metric(self, key: str, value, step: Optional[int] = None):
         if step is None:
             self.mlflow_helper.log_metric(key, value)
@@ -94,7 +90,8 @@ class AbstractTrainer(ABC):
 
     def log_artifact(self, local_path: str, artifact_path: Optional[str] = None):
         try:
-            logger.info("Uploading artifact %s to run %s (artifact_path=%s)", local_path, self._active_run.info.run_id, artifact_path)
+            logger.info("Uploading artifact %s to run %s (artifact_path=%s)", local_path, self._active_run.info.run_id,
+                        artifact_path)
             # bevorzugt: mlflow API (client-side upload -> server handles)
             self.mlflow_helper.log_artifact(local_path, artifact_path)
             logger.info("Artifact uploaded via mlflow.log_artifact")

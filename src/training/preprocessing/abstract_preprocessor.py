@@ -12,6 +12,14 @@ RESULT = TypeVar('RESULT')
 
 
 class AbstractPreprocessor(Generic[RESULT], ABC):
+    """Basisklasse für Preprocessing-Schritte.
+
+        Generic[RESULT] definiert den Rückgabetyp von `get_preprocessing_result`.
+        Subklassen müssen `_preprocess_impl` implementieren, das die eigentliche
+        Vorverarbeitung ausführt, sowie `get_preprocessing_result`, das das Ergebnis
+        zurückliefert. Die Methode `preprocess` ist mit dem `mlflow_logging`
+        Dekorator versehen, um die Dauer des Preprocessing-Schritts zu messen.
+    """
 
     def __init__(self, preprocessing_step: Optional[int]) -> None:
         self.step_arg = preprocessing_step

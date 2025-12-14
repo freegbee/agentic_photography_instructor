@@ -2,7 +2,16 @@ from typing import Generic, Type, Dict, Any, TypedDict, TypeVar, get_origin, Uni
 
 T = TypeVar("T")
 
+
 class HyperparameterStore(Generic[T]):
+    """Speichert und validiert Hyperparameter für eine `TypedDict`-Klasse.
+
+        Der generische Typ `T` entspricht der übergebenen `typedict_cls`.
+        Beim `set`/`update` werden Schlüssel und (einfache) Typen gegen die Annotationen von
+        `typedict_cls` geprüft. Ist `typedict_cls.__total__ == True`, sind alle annotierten
+        Felder erforderlich. Methoden: `set`, `update`, `get`, `as_dict`, `__repr__`.
+    """
+
     def __init__(self, typedict_cls: Type[T], initial: Dict[str, Any] | None = None):
         self._typedict_cls = typedict_cls
         self._annotations = getattr(typedict_cls, "__annotations__", {})
@@ -28,17 +37,17 @@ class HyperparameterStore(Generic[T]):
         # keys gültig?
         unknown = set(d) - set(self._annotations)
         if unknown:
-            raise KeyError(f"Unbekannte Hyperparameter: {unknown}")
+            raise KeyError(f"Unknow hyperparameter: {unknown}")
         # required keys prüfen (bei total=True sind alle annotierten Schlüssel erforderlich)
         if self._total:
             missing = set(self._annotations) - set(d)
             if missing:
-                raise KeyError(f"Fehlende required Hyperparameter: {missing}")
+                raise KeyError(f"Missing required hyperparameter: {missing}")
         # Typprüfung (einfach)
         for k, v in d.items():
             expected = self._annotations.get(k)
             if expected is not None and not self._is_instance_of_expected(v, expected):
-                raise TypeError(f"Falscher Typ für '{k}': erwartet {expected}, erhalten {type(v)}")
+                raise TypeError(f"Wrong type for '{k}': expected {expected}, provided {type(v)}")
 
     def set(self, d: Dict[str, Any]) -> None:
         self._validate_dict(d)
@@ -61,6 +70,7 @@ class HyperparameterStore(Generic[T]):
 
 
 S = TypeVar("S")
+
 
 class HyperparameterRegistry:
     _registry: Dict[Type[TypedDict], HyperparameterStore] = {}

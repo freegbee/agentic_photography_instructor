@@ -14,7 +14,7 @@ class ImageCopyJob(AbstractImageJob[AsyncImageCopyJobResponseV1]):
         self.source_dataset_id: Optional[str] = source_dataset_id
         self.source_path: Optional[Path] = Path(source_directory) if source_directory is not None else None
         if self.source_dataset_id is None and self.source_path is None:
-            raise ValueError("Either dataset_id or source_path must be provided")
+            raise ValueError("At least one of source_dataset_id or source_directory must be provided")
         self.destination_path = Path(destination_directory)
         self.resulting_hash: Optional[str] = None
         self.effective_destination_path: Optional[Path] = None

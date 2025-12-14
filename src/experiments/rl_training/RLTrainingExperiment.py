@@ -1,5 +1,4 @@
 import logging
-import os
 from pathlib import Path
 from typing import List, Tuple, Optional
 
@@ -8,13 +7,13 @@ from mlflow.entities import Experiment, Run as MlflowRun
 from torch.utils.data import DataLoader
 
 from data_types.AgenticImage import ImageData
+from dataset.Utils import Utils as DatasetUtils
 from experiments.rl_training.RLDataset import RLDataset
 from experiments.shared.PhotographyExperiment import PhotographyExperiment
 from experiments.subset_training.DQNAgent import DQNAgent, ResNetFeatureQNetwork
 from experiments.subset_training.ReplayBuffer import ReplayBuffer
 from experiments.subset_training.TransformationActor import TransformationActor
-from transformer import REVERSIBLE_TRANSFORMERS, POC_ONE_WAY_TRANSFORMERS, POC_TWO_WAY_TRANSFORMERS
-from dataset.Utils import Utils as DatasetUtils
+from transformer import POC_TWO_WAY_TRANSFORMERS
 
 logger = logging.getLogger(__name__)
 
@@ -28,32 +27,32 @@ class RLTrainingExperiment(PhotographyExperiment):
     """
 
     def __init__(
-        self,
-        experiment_name: str,
-        run_name: Optional[str],
-        dataset_root: Path,
-        # RL hyperparameters
-        max_steps_per_episode: int = 5,
-        batch_size: int = 32,
-        replay_capacity: int = 10000,
-        learning_rate: float = 1e-3,
-        gamma: float = 0.99,
-        epsilon_start: float = 1.0,
-        epsilon_end: float = 0.05,
-        epsilon_decay: float = 0.995,
-        target_update_frequency: int = 100,
-        # Training parameters
-        num_epochs: int = 10,
-        dataloader_batch_size: int = 8,
-        validation_frequency: int = 1,
-        # Reward shaping
-        step_penalty: float = 0.0,
-        terminal_bonus: float = 0.4,
-        # Action space
-        action_space: List[str] = None,
-        add_stop_action: bool = True,
-        # State configuration
-        state_shape: Tuple[int, int, int] = (3, 384, 384),
+            self,
+            experiment_name: str,
+            run_name: Optional[str],
+            dataset_root: Path,
+            # RL hyperparameters
+            max_steps_per_episode: int = 5,
+            batch_size: int = 32,
+            replay_capacity: int = 10000,
+            learning_rate: float = 1e-3,
+            gamma: float = 0.99,
+            epsilon_start: float = 1.0,
+            epsilon_end: float = 0.05,
+            epsilon_decay: float = 0.995,
+            target_update_frequency: int = 100,
+            # Training parameters
+            num_epochs: int = 10,
+            dataloader_batch_size: int = 8,
+            validation_frequency: int = 1,
+            # Reward shaping
+            step_penalty: float = 0.0,
+            terminal_bonus: float = 0.4,
+            # Action space
+            action_space: List[str] = None,
+            add_stop_action: bool = True,
+            # State configuration
+            state_shape: Tuple[int, int, int] = (3, 384, 384),
     ):
         super().__init__(experiment_name)
         self.experiment_name = experiment_name
@@ -82,8 +81,8 @@ class RLTrainingExperiment(PhotographyExperiment):
 
         # Action space setup
         if action_space is None:
-            #self.action_space = REVERSIBLE_TRANSFORMERS.copy()
-            #self.action_space = POC_ONE_WAY_TRANSFORMERS.copy()
+            # self.action_space = REVERSIBLE_TRANSFORMERS.copy()
+            # self.action_space = POC_ONE_WAY_TRANSFORMERS.copy()
             self.action_space = POC_TWO_WAY_TRANSFORMERS.copy()
         else:
             self.action_space = action_space
@@ -212,7 +211,8 @@ class RLTrainingExperiment(PhotographyExperiment):
 
     def _train_epoch(self, dataset: RLDataset, epoch: int, global_step: int) -> dict:
         """Train for one epoch."""
-        dataloader = DataLoader(dataset, batch_size=self.dataloader_batch_size, shuffle=True, collate_fn=DatasetUtils.collate_keep_size)
+        dataloader = DataLoader(dataset, batch_size=self.dataloader_batch_size, shuffle=True,
+                                collate_fn=DatasetUtils.collate_keep_size)
 
         total_reward = 0.0
         total_steps = 0
@@ -263,7 +263,8 @@ class RLTrainingExperiment(PhotographyExperiment):
             "steps": total_steps,
         }
 
-    def _run_episode(self, image_data: ImageData, target_score: float, global_step: int) -> Tuple[float, int, float, float]:
+    def _run_episode(self, image_data: ImageData, target_score: float, global_step: int) -> Tuple[
+        float, int, float, float]:
         """
         Run one episode (multi-step transformation sequence).
 
@@ -336,7 +337,8 @@ class RLTrainingExperiment(PhotographyExperiment):
         original_epsilon = self.agent.epsilon
         self.agent.epsilon = 0.0
 
-        dataloader = DataLoader(dataset, batch_size=self.dataloader_batch_size, shuffle=False, collate_fn=DatasetUtils.collate_keep_size)
+        dataloader = DataLoader(dataset, batch_size=self.dataloader_batch_size, shuffle=False,
+                                collate_fn=DatasetUtils.collate_keep_size)
 
         total_reward = 0.0
         total_improvement = 0.0
@@ -375,7 +377,8 @@ class RLTrainingExperiment(PhotographyExperiment):
             "success_rate": success_rate,
         }
 
-    def _compute_reward(self, prev_score: float, new_score: float, target_score: float, terminal: bool = False) -> float:
+    def _compute_reward(self, prev_score: float, new_score: float, target_score: float,
+                        terminal: bool = False) -> float:
         """
         Compute shaped reward for a transition.
 

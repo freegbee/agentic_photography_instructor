@@ -31,11 +31,11 @@ class SplitRatios:
         items = list(self.ratios_dict.items())
         for i, (split_name, ratio) in enumerate(items):
             if i == len(items) - 1:
-                # letzter Eintrag: alle übrigen Indices verwenden
+                # Last entry, take all remaining
                 result[split_name] = indices[current_position:]
                 current_position = total_size
             else:
-                # berechne Länge und kappe sie, damit wir nicht über das Ende hinausgehen
+                # calculate length and cap it to not overrun
                 ratio_length = int(total_size * ratio)
                 remaining = total_size - current_position
                 take = min(ratio_length, remaining)
@@ -45,7 +45,7 @@ class SplitRatios:
 
     @staticmethod
     def create_default_split_ratios() -> 'SplitRatios':
-        return SplitRatios.create_with_ratios(0.7, 0.15, 0.15)
+        return SplitRatios.create_with_ratios(0.6, 0.2, 0.2)
 
     @staticmethod
     def create_with_ratios(train_ratio: float, val_ratio: float, test_ratio: float) -> 'SplitRatios':
