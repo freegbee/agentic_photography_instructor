@@ -11,7 +11,7 @@ LOGGING_CONFIG = {
     "disable_existing_loggers": False,
     "formatters": {
         "standard": {
-            "format": "%(asctime)s %(levelname)s %(name)s %(process)d %(threadName)s %(message)s",
+            "format": "%(asctime)s %(levelname)-7s %(process)5d %(threadName)s %(name)-40s %(message)s",
             "datefmt": "%Y-%m-%dT%H:%M:%S%z",
         },
         "json": {
@@ -30,7 +30,6 @@ LOGGING_CONFIG = {
             "class": "logging.handlers.QueueHandler",
             "queue": "ext://utils.LoggingUtils.LOG_QUEUE",
             "level": "DEBUG",
-            "formatter": "standard",
         },
     },
     "root": {

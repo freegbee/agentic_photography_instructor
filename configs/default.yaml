@@ -64,40 +64,53 @@ image_acquisition:
     source_url: "https://data.csail.mit.edu/places/places365/val_large.tar"
     destination_dir: places365_val_large
     archive_root: val_large
+    extraction_path: images
     target_hash: 208bb312f56932484faeea60e6456e25081231b4919f1a060324df2ff62b71cd
   div2k_valid_hr:
     type: zip
     source_url: "https://data.vision.ee.ethz.ch/cvl/DIV2K/DIV2K_valid_HR.zip"
     destination_dir: div2k_valid_hr
     archive_root: DIV2K_valid_HR
+    extraction_path: images
     target_hash: d2da9669de21398c490ce58fe0541016607df45eeb64f5e2a9ae4b28166c676b
   div2k_train_hr:
     type: zip
     source_url: "https://data.vision.ee.ethz.ch/cvl/DIV2K/DIV2K_train_HR.zip"
     destination_dir: div2k_train_hr
     archive_root: DIV2K_train_HR
+    extraction_path: images
     target_hash: 58de0874bec269e5d035046fc9d9757507c4eefeb132fc8bbe64866810c9f5a2
   flickr8k:
     type: zip
     source_url: "https://release-assets.githubusercontent.com/github-production-release-asset/124585957/47f52b80-3501-11e9-8f49-4515a2a3339b?sp=r&sv=2018-11-09&sr=b&spr=https&se=2025-11-16T16%3A15%3A11Z&rscd=attachment%3B+filename%3DFlickr8k_Dataset.zip&rsct=application%2Foctet-stream&skoid=96c2d410-5711-43a1-aedd-ab1947aa7ab0&sktid=398a6654-997b-47e9-b12b-9515b896b4de&skt=2025-11-16T15%3A15%3A00Z&ske=2025-11-16T16%3A15%3A11Z&sks=b&skv=2018-11-09&sig=7ynFkAL33vWnZxqNpUb9YqZADLxGZ5A4yJw2meo%2FrSI%3D&jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmVsZWFzZS1hc3NldHMuZ2l0aHVidXNlcmNvbnRlbnQuY29tIiwia2V5Ijoia2V5MSIsImV4cCI6MTc2MzMxMDgwNSwibmJmIjoxNzYzMzA3MjA1LCJwYXRoIjoicmVsZWFzZWFzc2V0cHJvZHVjdGlvbi5ibG9iLmNvcmUud2luZG93cy5uZXQifQ.Wf-kvx-6-Dn-8TrBSjcOtqYmJBwWquYARxEnalPxHMs&response-content-disposition=attachment%3B%20filename%3DFlickr8k_Dataset.zip&response-content-type=application%2Foctet-stream"
     destination_dir: flickr8k
     archive_root: Flicker8k_Dataset
+    extraction_path: images
     target_hash: edf9608720a8308c122a26caf9cfaa66cdf7d5c4545af946fe7fa7a758061251
   single_image:
     type: local_resource
     resource_file_path: div2k_single_image.tar
     destination_dir: div2k_single_image
     archive_root: single_image
+    extraction_path: images
     target_hash: 111e272f0140d570d6e3d7a13771e64b50c35db1e008292d3fb09584d270682a
   five_images:
     type: local_resource
     resource_file_path: div2k_five_images.tar
     destination_dir: div2k_five_images
     archive_root: five_images
+    extraction_path: images
     target_hash: 50c458bbccc4a057a95c090b1ced55b3ba97e750b2bb4c5a501b67cd0e13af27
   twenty_images:
     type: local_resource
     resource_file_path: div2k_twenty_images.tar
     destination_dir: div2k_twenty_images
     archive_root: twenty_images
+    extraction_path: images
     target_hash: 3cbf4624375fc104268276d272d72c2dc7a18e077a7b0822ba3061254d706aa6
+  places_365_split_two_actions:
+    type: zip
+    source_url: "https://casml4se-artifacts.fra1.digitaloceanspaces.com/manual/places365_two_actions_split.zip"
+    destination_dir: places_365_split_two_actions
+    archive_root: .
+    target_hash: adfccf9482dc17cdc3d3b2451e20120cd595ad6eca01eeba351e85852e408741
