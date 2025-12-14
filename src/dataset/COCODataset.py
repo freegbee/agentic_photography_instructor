@@ -1,13 +1,17 @@
+import logging
 from pathlib import Path
 
 from numpy import ndarray
-from pycocotools.coco import COCO
 from torch.utils.data import Dataset
 
 from data_types.AgenticImage import ImageData
+from dataset.agentic_coco_image import CocoImageData
+from dataset.enhanced_coco import EnhancedCOCO
+
+logger = logging.getLogger(__name__)
 
 
-class COCODataset(Dataset[ImageData]):
+class COCODataset(Dataset[CocoImageData]):
     """
     Custom Dataset for COCO formatted data.
     Implementierung gemäss https://www.codegenes.net/blog/load-coco-data-pytorch/
@@ -19,7 +23,7 @@ class COCODataset(Dataset[ImageData]):
 
     def __init__(self, images_root_path: Path, annotation_file: Path, score_category_id: int = 0):
         self.images_root_path: Path = images_root_path
-        self.coco = COCO(annotation_file)
+        self.coco: EnhancedCOCO = EnhancedCOCO(annotation_file)
         self.image_ids = list(self.coco.imgs.keys())
         self.score_category_id = score_category_id
         self.scores = []
@@ -37,17 +41,23 @@ class COCODataset(Dataset[ImageData]):
         anns = self.coco.loadAnns(ann_ids)
 
         score = 0.0
+        initial_score = 0.0
         for ann in anns:
             if ann['category_id'] == self.score_category_id:
                 score = ann.get("score", 0.0)
+                initial_score = ann.get("initial_score", 0.0)
                 break
 
-        result = ImageData(id=image_id,
-                           image_path=image_path,
-                           image_relative_path=Path(img_info['file_name']),
-                           image_data=image_data,
-                           image_color_order=image_color_order,
-                           score=score)
+        result = CocoImageData(id=image_id,
+                               image_path=image_path,
+                               image_relative_path=Path(img_info['file_name']),
+                               width=img_info['width'],
+                               height=img_info['height'],
+                               image_data=image_data,
+                               image_color_order=image_color_order,
+                               score=score,
+                               annotations=self.coco.imgToAnns[image_id],
+                               initial_score=initial_score)
 
         return result
 
