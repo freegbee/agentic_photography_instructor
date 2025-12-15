@@ -47,3 +47,5 @@ prometheus_client~=0.23.1
 
 # experiment
 pycocotools~=2.0.10
+
+kaggle

@@ -218,6 +218,8 @@ class ImageAcquisitionUtils:
         if member_root:
             normalized_member_root = member_root.as_posix().lstrip("./").lstrip("/").rstrip("/")
 
+        logger.info(f"Extracting {zip_file} to {abs_dest} (member_root: {normalized_member_root})")
+
         try:
             with zipfile.ZipFile(zip_file, 'r') as zip_ref:
                 for info in zip_ref.infolist():
@@ -270,6 +272,7 @@ class ImageAcquisitionUtils:
                     # Extract file content safely
                     try:
                         with zip_ref.open(info, "r") as src, open(dest_path, "wb") as out_f:
+                            logger.info(f"Extracting {member} to {dest_path}")
                             shutil.copyfileobj(src, out_f)
                     except RuntimeError as e:
                         logger.warning("Could not extract member (runtime error): %s -> %s: %s", member, dest_path, e)
@@ -284,6 +287,8 @@ class ImageAcquisitionUtils:
                         logger.debug("Could not set mode for %s", dest_path)
 
                     logger.debug("Extracted member %s from %s into %s", member, zip_file, abs_dest)
+
+            logger.info(f"Successfully extracted zip file {zip_file} into {abs_dest}")
 
         except zipfile.BadZipFile as e:
             raise RuntimeError(f"Unable to read zip file {zip_file}: {e}") from e

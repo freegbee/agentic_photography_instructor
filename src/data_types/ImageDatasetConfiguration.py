@@ -11,7 +11,9 @@ class ImageDatasetConfiguration:
                  destination_dir: str,
                  archive_root: str,
                  target_hash: str = None,
-                 extraction_path: Optional[str] = None):
+                 extraction_path: Optional[str] = None,
+                 kaggle_dataset: str = None,
+                 category: str = None):
         self.image_volume_path = os.environ["IMAGE_VOLUME_PATH"]
 
         self.dataset_id = dataset_id
@@ -22,6 +24,8 @@ class ImageDatasetConfiguration:
         self.archive_root = archive_root
         self.target_hash = target_hash
         self.extraction_path = extraction_path
+        self.kaggle_dataset = kaggle_dataset
+        self.category = category
 
     @staticmethod
     def from_dict(dataset_id: str, config_dict: dict):
@@ -33,7 +37,9 @@ class ImageDatasetConfiguration:
             destination_dir=config_dict.get("destination_dir"),
             archive_root=config_dict.get("archive_root"),
             target_hash=config_dict.get("target_hash"),
-            extraction_path=config_dict.get("image_path_suffix", None)
+            extraction_path=config_dict.get("image_path_suffix", None),
+            kaggle_dataset=config_dict.get("kaggle_dataset"),
+            category=config_dict.get("category"),
         )
 
     def calculate_destination_path(self) -> Path:

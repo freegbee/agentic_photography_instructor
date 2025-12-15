@@ -78,6 +78,8 @@ services:
       - ENV_NAME=docker
       - PYTHONPATH=/app
       - IMAGE_VOLUME_PATH=${IMAGE_VOLUME_PATH}
+      - KAGGLE_USERNAME=${KAGGLE_USERNAME}
+      - KAGGLE_KEY=${KAGGLE_KEY}
     command: >
       python -m uvicorn image_acquisition.acquisition_server.AcquisitionServer:app
       --host 0.0.0.0

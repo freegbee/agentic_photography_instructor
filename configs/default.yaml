@@ -114,3 +114,16 @@ image_acquisition:
     destination_dir: places_365_split_two_actions
     archive_root: .
     target_hash: adfccf9482dc17cdc3d3b2451e20120cd595ad6eca01eeba351e85852e408741
+  lhq_landscapes:
+    type: kaggle
+    kaggle_dataset: "arnaud58/landscape-pictures"
+    destination_dir: lhq_landscapes
+    archive_root: null
+    target_hash: ""  # Set after first download
+  lhq_mountains:
+    type: lhq_mountains
+    kaggle_dataset: "arnaud58/landscape-pictures"
+    destination_dir: lhq_mountains
+    archive_root: null
+    target_hash: ""  # Set after first download
+    category: mountain
