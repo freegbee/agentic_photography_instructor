@@ -77,46 +77,19 @@ class KaggleDownloader(AbstractHandler):
         logger.info(f"Downloaded zip file: {zip_files[0]}")
         return zip_files[0]
 
-    def _log_zip_structure(self, zip_file: Path):
-        """Log the structure of the zip file for debugging."""
-        import zipfile
-
-        try:
-            with zipfile.ZipFile(zip_file, 'r') as zip_ref:
-                all_files = zip_ref.namelist()
-                logger.info(f"Zip file contains {len(all_files)} entries")
-
-                # Log first 10 entries to understand structure
-                sample_files = all_files[:10]
-                logger.info(f"Sample entries from zip: {sample_files}")
-
-                # Identify top-level directories
-                top_level_dirs = set()
-                for f in all_files:
-                    parts = f.split('/')
-                    if len(parts) > 1:
-                        top_level_dirs.add(parts[0])
-
-                logger.info(f"Top-level directories in zip: {sorted(top_level_dirs)}")
-        except Exception as e:
-            logger.warning(f"Could not inspect zip structure: {e}")
-
     def _process_impl(self):
         """Main processing logic: download from Kaggle and extract."""
         try:
             # Download from Kaggle
             zip_file = self._download_from_kaggle()
 
-            # Log zip structure for debugging
-            self._log_zip_structure(zip_file)
-
             # Extract using the standard zip extraction utility
             logger.info(f"Extracting {zip_file} to {self.destination_path} with archive_root={self.archive_root}")
             ImageAcquisitionUtils.extract_zip(zip_file, self.destination_path, self.archive_root)
 
             # Cleanup downloaded zip
-            # logger.info(f"Cleaning up temporary file: {zip_file}")
-            # ImageAcquisitionUtils.cleanup_temp_file(zip_file)
+            logger.info(f"Cleaning up temporary file: {zip_file}")
+            ImageAcquisitionUtils.cleanup_temp_file(zip_file)
 
             # Remove temp directory if empty
             try:

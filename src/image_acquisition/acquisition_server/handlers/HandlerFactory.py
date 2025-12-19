@@ -41,7 +41,9 @@ class HandlerFactory:
             kmd = KaggleLhqDownloader(dataset_config.dataset_id,
                                       dataset_config.kaggle_dataset,
                                       dataset_config.calculate_images_root_path(),
+                                      dataset_config.archive_root,
                                       dataset_config.category,
+                                      dataset_config.category_map,
                                       dataset_config.target_hash)
             return kmd
         else:

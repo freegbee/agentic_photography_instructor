@@ -26,7 +26,7 @@ rl_training:
   dataset_generation:
     source_dataset: "flickr8k"
     output_dir: "rl_training_data"
-    split_ratios: [0.7, 0.15, 0.15]  # train, val, test
+    split_ratios: [ 0.7, 0.15, 0.15 ]  # train, val, test
     use_random_transformer: true
     seed: 42
 
@@ -56,7 +56,7 @@ rl_training:
 
   # State representation
   state:
-    shape: [3, 64, 64]  # (C, H, W)
+    shape: [ 3, 64, 64 ]  # (C, H, W)
 
 image_acquisition:
   places365_val_large:
@@ -120,12 +120,22 @@ image_acquisition:
     destination_dir: lhq_landscapes
     archive_root: null
     extraction_path: images
-    target_hash: ""  # Set after first download
+    target_hash: "280c4f226f1988ca2939562cd1616ae685ce9c2b12cd7c140bde423e0154f1ce"
   lhq_mountains:
     type: lhq_mountains
     kaggle_dataset: "arnaud58/landscape-pictures"
     destination_dir: lhq_mountains
     archive_root: null
     extraction_path: images
-    target_hash: ""  # Set after first download
-    category: mountain
+    target_hash: "3391408a40e6a7c4875f01ef1a69c0e9c127934a33e99d01edb99a5474a50022"
+    category: "mountain"
+    category_map:
+      landscape: null  # Files without suffix (00000000.jpg)
+      sea: "2"         # Files with _(2) suffix
+      mountain: "3"    # Files with _(3) suffix
+      desert: "4"      # Files with _(4) suffix
+      grass: "5"       # Files with _(5) suffix
+      canyon: "6"      # Files with _(6) suffix
+      forest: "7"      # Files with _(7) suffix
+      countryside: "8" # Files with _(8) suffix
+      sunset: "9"      # Files with _(9) suffix
