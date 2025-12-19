@@ -53,9 +53,17 @@ services:
       - JUROR_SERVICE_URL=http://juror-service:${JUROR_PORT}
       - HF_HOME=/app/volumes/model_caches/huggingface
       - TORCH_HOME=/app/volumes/model_caches/torch
+      - MLFLOW_S3_ENDPOINT_URL=${MLFLOW_S3_ENDPOINT_URL}
+      - MLFLOW_AWS_ACCESS_KEY_ID=${MLFLOW_AWS_ACCESS_KEY_ID}
+      - MLFLOW_AWS_SECRET_ACCESS_KEY=${MLFLOW_AWS_SECRET_ACCESS_KEY}
+      - AWS_ACCESS_KEY_ID=${MLFLOW_AWS_ACCESS_KEY_ID}
+      - AWS_REGION=${MLFLOW_AWS_REGION}
+      - AWS_SECRET_ACCESS_KEY=${MLFLOW_AWS_SECRET_ACCESS_KEY}
     volumes:
       - ../src/:/app
-      - resources:${IMAGE_VOLUME_PATH}
+      - type: volume
+        source: resources
+        target: ${IMAGE_VOLUME_PATH}
       - ../configs:/app/configs
       - mlruns:/mlruns
       - model_caches:/app/volumes/model_caches
@@ -146,7 +154,10 @@ services:
       - IMAGE_VOLUME_PATH=${IMAGE_VOLUME_PATH}
       - IMAGE_ACQUISITION_SERVICE_URL=http://image-acquisition-service:${IMAGE_ACQUISITION_PORT}
       - JUROR_SERVICE_URL=http://juror-service:${JUROR_PORT}
-      - MLFLOW_ARTIFACT_ROOT=${MLFLOW_ARTIFACT_ROOT}
+      # - MLFLOW_ARTIFACT_ROOT=${MLFLOW_ARTIFACT_ROOT}
+      - MLFLOW_ARTIFACT_ROOT=${MLFLOW_S3_ENDPOINT_URL}
+      - AWS_ACCESS_KEY_ID=${MLFLOW_AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${MLFLOW_AWS_SECRET_ACCESS_KEY}
       - HF_HOME=/app/volumes/model_caches/huggingface
       - TORCH_HOME=/app/volumes/model_caches/torch
     volumes:
@@ -175,6 +186,13 @@ services:
       - mlruns:/mlruns
       # Backend-DB persistent speichern
       - mlflow:/mlflow
+    environment:
+      - MLFLOW_S3_ENDPOINT_URL=${MLFLOW_S3_ENDPOINT_URL}
+      - MLFLOW_AWS_ACCESS_KEY_ID=${MLFLOW_AWS_ACCESS_KEY_ID}
+      - MLFLOW_AWS_SECRET_ACCESS_KEY=${MLFLOW_AWS_SECRET_ACCESS_KEY}
+      - AWS_ACCESS_KEY_ID=${MLFLOW_AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${MLFLOW_AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${MLFLOW_AWS_REGION}
     command: >
       mlflow server
       --host 0.0.0.0
@@ -273,7 +291,9 @@ services:
       --log-level info
     volumes:
       - ../src/:/app
-      - resources:${IMAGE_VOLUME_PATH}
+      - type: volume
+        source: resources
+        target: ${IMAGE_VOLUME_PATH}
       - ../configs:/app/configs
     depends_on:
       - image-acquisition-service

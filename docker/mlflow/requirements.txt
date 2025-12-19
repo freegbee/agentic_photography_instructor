@@ -1,0 +1,4 @@
+mlflow
+pymysql
+psycopg2-binary
+boto3
