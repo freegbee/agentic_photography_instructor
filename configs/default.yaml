@@ -119,11 +119,13 @@ image_acquisition:
     kaggle_dataset: "arnaud58/landscape-pictures"
     destination_dir: lhq_landscapes
     archive_root: null
+    extraction_path: images
     target_hash: ""  # Set after first download
   lhq_mountains:
     type: lhq_mountains
     kaggle_dataset: "arnaud58/landscape-pictures"
     destination_dir: lhq_mountains
     archive_root: null
+    extraction_path: images
     target_hash: ""  # Set after first download
     category: mountain
