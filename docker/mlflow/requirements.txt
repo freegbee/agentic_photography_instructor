@@ -1,4 +1,4 @@
-mlflow
-pymysql
-psycopg2-binary
-boto3
+mlflow~=3.5.1
+pymysql==1.1.2
+psycopg2-binary==2.9.11
+boto3==1.42.13

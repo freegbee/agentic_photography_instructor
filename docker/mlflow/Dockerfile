@@ -24,7 +24,7 @@ RUN apt-get update && \
 WORKDIR /mlflow
 
 COPY requirements.txt /mlflow/requirements.txt
-COPY digital-ocean-postgres-ca-certificate.crt /usr/local/share/ca-certificates/certificate.crt
+COPY postgres-ca-certificate.crt /usr/local/share/ca-certificates/certificate.crt
 
 RUN update-ca-certificates
 
