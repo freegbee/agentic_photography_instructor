@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   experiment-service:
     deploy:
@@ -9,6 +8,7 @@ services:
               count: 1
               capabilities: [ gpu ]
   juror-service:
+    platform: linux/amd64
     deploy:
       resources:
         reservations:
