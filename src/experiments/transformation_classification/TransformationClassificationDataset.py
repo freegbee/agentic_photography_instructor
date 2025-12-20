@@ -24,6 +24,8 @@ class TransformationClassificationDataset(Dataset):
         images_root_path: Directory containing source images
         transformer_keys: List of transformer keys (labels) to use
         image_size: Target size for images (width, height)
+        num_transformations_per_image: Number of randomly selected transformations to apply per image.
+                                       If None, applies all transformations to each image (Cartesian product).
         seed: Random seed for reproducibility
     """
 
@@ -31,11 +33,17 @@ class TransformationClassificationDataset(Dataset):
                  images_root_path: Path,
                  transformer_keys: List[str],
                  image_size: Tuple[int, int] = (224, 224),
+                 num_transformations_per_image: int = 1,
                  seed: int = 42):
         self.images_root_path = Path(images_root_path)
         self.transformer_keys = transformer_keys
         self.image_size = image_size
+        self.num_transformations_per_image = num_transformations_per_image
         self.seed = seed
+
+        # Set random seed for reproducibility
+        random.seed(seed)
+        np.random.seed(seed)
 
         # Load transformers from registry
         self.transformers: List[AbstractTransformer] = []
@@ -55,13 +63,18 @@ class TransformationClassificationDataset(Dataset):
         if len(self.image_paths) == 0:
             raise ValueError(f"No images found in {images_root_path}")
 
-        # Create samples: each image gets each transformation
+        # Create samples: apply random transformations to each image
         self.samples = []
-        for img_path in self.image_paths:
-            for transformer_idx, transformer_key in enumerate(transformer_keys):
-                self.samples.append((img_path, transformer_idx, transformer_key))
 
-        logger.info(f"Created {len(self.samples)} samples ({len(self.image_paths)} images × {len(transformer_keys)} transformations)")
+        # Apply N randomly selected transformations per image
+        num_transformations_per_image = min(num_transformations_per_image, len(transformer_keys))
+        for img_path in self.image_paths:
+             # Randomly select N transformations for this image
+            selected_indices = random.sample(range(len(transformer_keys)), num_transformations_per_image)
+            for transformer_idx in selected_indices:
+                transformer_key = transformer_keys[transformer_idx]
+                self.samples.append((img_path, transformer_idx, transformer_key))
+        logger.info(f"Created {len(self.samples)} samples ({len(self.image_paths)} images × {num_transformations_per_image} random transformations per image)")
 
         # PyTorch transforms for normalization (ImageNet stats)
         self.normalize = transforms.Compose([

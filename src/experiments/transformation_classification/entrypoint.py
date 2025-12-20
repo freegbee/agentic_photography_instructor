@@ -87,6 +87,13 @@ def entrypoint():
     selected_transformers = select_transformers(available_transformers, min_count=2)
     logger.info(f"Selected transformers: {selected_transformers}")
 
+    # Select number of transformations per image
+    try:
+        num_transformations_per_image_input = input("\nNumber of transformations per image (default: 1): ").strip()
+        num_transformations_per_image = int(num_transformations_per_image_input) if num_transformations_per_image_input else 1
+    except (EOFError, ValueError):
+        num_transformations_per_image = 1
+
     # Training parameters
     try:
         batch_input = input("\nBatch size (default: 32): ").strip()
@@ -112,6 +119,7 @@ def entrypoint():
     print(f"  Run: {run_name or 'auto-generated'}")
     print(f"  Dataset: {dataset_id}")
     print(f"  Transformers: {', '.join(selected_transformers)}")
+    print(f"  Transformations per image: {num_transformations_per_image}")
     print(f"  Batch size: {batch_size}")
     print(f"  Epochs: {num_epochs}")
     print(f"  Learning rate: {learning_rate}")
@@ -132,6 +140,7 @@ def entrypoint():
     logger.info(f"  run_name={run_name}")
     logger.info(f"  dataset_id={dataset_id}")
     logger.info(f"  transformer_keys={selected_transformers}")
+    logger.info(f"  num_transformations_per_image={num_transformations_per_image}")
     logger.info(f"  batch_size={batch_size}")
     logger.info(f"  num_epochs={num_epochs}")
     logger.info(f"  learning_rate={learning_rate}")
@@ -144,6 +153,7 @@ def entrypoint():
         run_name=run_name,
         dataset_id=dataset_id,
         transformer_keys=selected_transformers,
+        num_transformations_per_image=num_transformations_per_image,
         batch_size=batch_size,
         num_epochs=num_epochs,
         learning_rate=learning_rate

@@ -45,6 +45,7 @@ class TransformationClassificationExperiment(PhotographyExperiment):
                  split_ratios: List[float] = None,
                  image_size: tuple = (224, 224),
                  num_workers: int = 4,
+                 num_transformations_per_image: int = 1,
                  device: str = None):
         """
         Args:
@@ -58,6 +59,8 @@ class TransformationClassificationExperiment(PhotographyExperiment):
             split_ratios: [train, val, test] ratios (default: [0.7, 0.15, 0.15])
             image_size: Target image size (width, height)
             num_workers: DataLoader workers
+            num_transformations_per_image: Number of random transformations to apply per image (default: 1).
+                                           Set to None to apply all transformations to each image.
             device: Device to use (cuda/cpu/mps). If None, auto-detect.
         """
         super().__init__(experiment_name)
@@ -70,6 +73,7 @@ class TransformationClassificationExperiment(PhotographyExperiment):
         self.split_ratios = split_ratios or [0.7, 0.15, 0.15]
         self.image_size = image_size
         self.num_workers = num_workers
+        self.num_transformations_per_image = num_transformations_per_image
 
         # Initialize transformer registry
         init_registries()
@@ -119,6 +123,7 @@ class TransformationClassificationExperiment(PhotographyExperiment):
         self.log_param("learning_rate", self.learning_rate)
         self.log_param("split_ratios", self.split_ratios)
         self.log_param("image_size", self.image_size)
+        self.log_param("num_transformations_per_image", self.num_transformations_per_image)
         self.log_param("device", str(self.device))
 
         # 1. Ensure dataset is downloaded
@@ -138,7 +143,8 @@ class TransformationClassificationExperiment(PhotographyExperiment):
         full_dataset = TransformationClassificationDataset(
             images_root_path=Path(images_root_path),
             transformer_keys=self.transformer_keys,
-            image_size=self.image_size
+            image_size=self.image_size,
+            num_transformations_per_image=self.num_transformations_per_image
         )
         self.log_metric("dataset_creation_duration_seconds", time.perf_counter() - start_time)
         self.log_param("total_samples", len(full_dataset))
@@ -259,19 +265,56 @@ class TransformationClassificationExperiment(PhotographyExperiment):
         logger.info("Transformation Classification Experiment completed successfully!")
 
     def _create_resnet_model(self, num_classes: int) -> nn.Module:
-        """Create ResNet18 model with custom classifier."""
-        model = models.resnet18(pretrained=True)
-
-        # Freeze early layers (optional - can be disabled for full fine-tuning)
-        # for param in model.parameters():
-        #     param.requires_grad = False
-
-        # Replace final layer
-        num_features = model.fc.in_features
-        model.fc = nn.Linear(num_features, num_classes)
-
-        logger.info(f"Created ResNet18 model with {num_classes} output classes")
-        return model
+        """
+        Create ResNet18 model with frozen backbone and custom classification head.
+        
+        This architecture mirrors the DQNAgent's ResNetFeatureQNetwork:
+        - Frozen pretrained ResNet18 backbone (feature extractor)
+        - Custom head: Linear(512) -> ReLU -> Linear(num_classes)
+        
+        This proves the backbone used in the DQN agent can solve simple classification tasks.
+        """
+        # Load pretrained ResNet18
+        try:
+            weights = models.ResNet18_Weights.DEFAULT
+            model = models.resnet18(weights=weights)
+        except Exception:
+            model = models.resnet18(pretrained=True)
+        
+        # Get feature dimension and replace fc with identity
+        feature_dim = int(model.fc.in_features)  # 512 for ResNet18
+        model.fc = nn.Identity()
+        
+        # Freeze all backbone parameters
+        for param in model.parameters():
+            param.requires_grad = False
+        
+        # Create a wrapper that combines backbone + classification head
+        class FrozenBackboneClassifier(nn.Module):
+            def __init__(self, backbone, feature_dim, num_classes):
+                super(FrozenBackboneClassifier, self).__init__()
+                self.backbone = backbone
+                # Simple classification head matching DQNAgent architecture
+                self.head = nn.Sequential(
+                    nn.Linear(feature_dim, 128),
+                    nn.ReLU(),
+                    nn.Linear(128, num_classes)
+                )
+            
+            def forward(self, x):
+                # Backbone is frozen, so no gradients computed here
+                with torch.no_grad():
+                    features = self.backbone(x)
+                # Only head is trainable
+                return self.head(features)
+        
+        classifier = FrozenBackboneClassifier(model, feature_dim, num_classes)
+        
+        logger.info(f"Created ResNet18 with frozen backbone and trainable head")
+        logger.info(f"Feature dim: {feature_dim}, Output classes: {num_classes}")
+        logger.info(f"Head architecture: Linear({feature_dim}, 128) -> ReLU -> Linear(128, {num_classes})")
+        
+        return classifier
 
     def _train_epoch(self, dataloader, criterion, optimizer, epoch) -> tuple:
         """Train for one epoch."""
