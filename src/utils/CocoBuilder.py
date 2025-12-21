@@ -277,6 +277,7 @@ class CocoScoreAnnotationBuilder:
             "area": 0,
             "iscrowd": 0,
             "segmentation": [],
+            "is_scoring_annotation": False
         }
         if self.sequence is not None:
             ann["sequence"] = self.sequence
@@ -284,6 +285,7 @@ class CocoScoreAnnotationBuilder:
             ann["score"] = self.score
         if self.initial_score is not None:
             ann["initial_score"] = self.initial_score
+            ann["is_scoring_annotation"] = True
         if getattr(self, 'transformation', None) is not None:
             ann["transformation"] = self.transformation
         return ann
