@@ -1,5 +1,6 @@
 import logging
 import os
+from pathlib import Path
 from typing import Dict, Optional
 
 from data_types.ImageDatasetConfiguration import ImageDatasetConfiguration
@@ -13,7 +14,8 @@ logger = logging.getLogger(__name__)
 
 
 class DatasetLoadDataResult:
-    def __init__(self, image_dataset_hash: str):
+    def __init__(self, destination_dir: Path, image_dataset_hash: str):
+        self.destination_dir = destination_dir
         self.image_dataset_hash = image_dataset_hash
 
 
@@ -33,11 +35,12 @@ class DatasetLoadData(AbstractLoadData[DatasetLoadDataResult]):
             raise e
         # Dataset-Konfiguration laden und Bildpfad ermitteln
         self.dataset_config = ImageDatasetConfiguration.from_dict(self.dataset_id, config_dict)
+        self.calculated_destination_path = self.dataset_config.calculate_destination_path()
         self.image_dataset_hash = self._ensure_image_dataset(self.dataset_config.dataset_id)
         mlflow_helper.log_param("dataset_hash", self.image_dataset_hash)
 
     def get_result(self) -> RESULT:
-        return DatasetLoadDataResult(self.image_dataset_hash)
+        return DatasetLoadDataResult(self.calculated_destination_path, self.image_dataset_hash)
 
     def _ensure_image_dataset(self, dataset_id: str) -> str:
         """Stellt sicher, dass der Bild-Datensatz geladen ist (Platzhalter)."""

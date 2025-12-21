@@ -20,5 +20,6 @@ class AbstractLoadData(Generic[RESULT], ABC):
         pass
 
     @mlflow_logging("load_data_duration_seconds")
-    def load_data(self):
+    def load_data(self) -> RESULT:
         self._load_data_impl()
+        return self.get_result()
