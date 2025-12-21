@@ -296,24 +296,24 @@ class TransformationClassificationExperiment(PhotographyExperiment):
                 self.backbone = backbone
 
                 # Simple classification head matching DQNAgent architecture
-                # self.head = nn.Sequential(
-                #     nn.Linear(feature_dim, 128),
-                #     nn.ReLU(),
-                #     nn.Linear(128, num_classes)
-                # )
-
-                # Improved classification head with dropout and batch norm
                 self.head = nn.Sequential(
-                    nn.Linear(feature_dim, 256),
-                    nn.BatchNorm1d(256),
+                    nn.Linear(feature_dim, 128),
                     nn.ReLU(),
-                    nn.Dropout(0.4),
-                    nn.Linear(256, 128),
-                    nn.BatchNorm1d(128),
-                    nn.ReLU(),
-                    nn.Dropout(0.3),
                     nn.Linear(128, num_classes)
                 )
+
+                # Improved classification head with dropout and batch norm
+                # self.head = nn.Sequential(
+                #     nn.Linear(feature_dim, 256),
+                #     nn.BatchNorm1d(256),
+                #     nn.ReLU(),
+                #     nn.Dropout(0.4),
+                #     nn.Linear(256, 128),
+                #     nn.BatchNorm1d(128),
+                #     nn.ReLU(),
+                #     nn.Dropout(0.3),
+                #     nn.Linear(128, num_classes)
+                # )
             
             def forward(self, x):
                 # Backbone is frozen, so no gradients computed here

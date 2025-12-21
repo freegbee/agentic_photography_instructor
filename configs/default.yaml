@@ -120,14 +120,14 @@ image_acquisition:
     destination_dir: lhq_landscapes
     archive_root: null
     extraction_path: images
-    target_hash: "280c4f226f1988ca2939562cd1616ae685ce9c2b12cd7c140bde423e0154f1ce"
+    target_hash: cfd5928db1b90a30d8f0c996b145b9f91ffbd049bf83382322ba92788becf46a
   lhq_mountains:
     type: lhq_mountains
     kaggle_dataset: "arnaud58/landscape-pictures"
     destination_dir: lhq_mountains
     archive_root: null
     extraction_path: images
-    target_hash: "3391408a40e6a7c4875f01ef1a69c0e9c127934a33e99d01edb99a5474a50022"
+    target_hash: 3391408a40e6a7c4875f01ef1a69c0e9c127934a33e99d01edb99a5474a50022
     category: "mountain"
     category_map:
       landscape: null  # Files without suffix (00000000.jpg)
