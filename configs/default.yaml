@@ -114,6 +114,12 @@ image_acquisition:
     destination_dir: places_365_split_two_actions
     archive_root: .
     target_hash: adfccf9482dc17cdc3d3b2451e20120cd595ad6eca01eeba351e85852e408741
+  twenty_two_actions:
+    type: zip
+    source_url: "https://casml4se-artifacts.fra1.digitaloceanspaces.com/manual/twenty_two_actions.zip"
+    destination_dir: twenty_two_actions
+    archive_root: twenty_two_actions
+    target_hash: 0172fae63d92f2514a867bfa91751dab98f67b55bff5f7258d60c3736f46be99
   lhq_landscapes:
     type: kaggle
     kaggle_dataset: "arnaud58/landscape-pictures"
