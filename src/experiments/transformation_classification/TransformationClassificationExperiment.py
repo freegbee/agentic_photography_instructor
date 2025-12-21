@@ -294,10 +294,24 @@ class TransformationClassificationExperiment(PhotographyExperiment):
             def __init__(self, backbone, feature_dim, num_classes):
                 super(FrozenBackboneClassifier, self).__init__()
                 self.backbone = backbone
+
                 # Simple classification head matching DQNAgent architecture
+                # self.head = nn.Sequential(
+                #     nn.Linear(feature_dim, 128),
+                #     nn.ReLU(),
+                #     nn.Linear(128, num_classes)
+                # )
+
+                # Improved classification head with dropout and batch norm
                 self.head = nn.Sequential(
-                    nn.Linear(feature_dim, 128),
+                    nn.Linear(feature_dim, 256),
+                    nn.BatchNorm1d(256),
                     nn.ReLU(),
+                    nn.Dropout(0.4),
+                    nn.Linear(256, 128),
+                    nn.BatchNorm1d(128),
+                    nn.ReLU(),
+                    nn.Dropout(0.3),
                     nn.Linear(128, num_classes)
                 )
             
