@@ -11,8 +11,12 @@ class TrainingParams(TypedDict):
     use_local_juror: bool
     random_seed: int
     num_vector_envs: int
+    mini_batch_size: int
+    n_steps: int
+    n_epochs: int
     max_transformations: int
     total_training_steps: int
+
 
 class GeneralParams(TypedDict):
     success_bonus: float

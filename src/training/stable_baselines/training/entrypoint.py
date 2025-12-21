@@ -25,9 +25,12 @@ def main():
         "run_name": run_name,
         "use_local_juror": True,
         "random_seed": 42,
-        "num_vector_envs": 1,
+        "num_vector_envs": 128,
+        "n_steps": 4,             #
+        "mini_batch_size": 128,    # (n_steps * num_vector_env) % mini_batch_size == 0, also
+        "n_epochs": 4,
         "max_transformations": 5,
-        "total_training_steps": 2
+        "total_training_steps": 20_000
     })
 
     data_params = HyperparameterRegistry.get_store(DataParams)

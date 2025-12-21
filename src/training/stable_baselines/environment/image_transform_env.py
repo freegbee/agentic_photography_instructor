@@ -50,7 +50,7 @@ class ImageTransformEnv(gym.Env):
 
         # Observation: normalisierte Float32-Bilder
         h, w = image_max_size
-        # Observation space: 3 x H x W RGB Bild mit Werten in [0,1] fpr die einzelnen Pixel
+        # Observation space: 3 x h x w RGB Bild mit Werten in [0,1] fpr die einzelnen Pixel
         self.observation_space = spaces.Box(0.0, 1.0, shape=(3, h, w), dtype=np.float32)
 
         # Action space: Auswahl eines Transformers + ein Parameterwert im Bereich [-1, 1]
@@ -97,7 +97,7 @@ class ImageTransformEnv(gym.Env):
         # image_data = self.dataloader.generator[random_index]
         image_data = self.coco_dataset[random_index]
         img = image_data.image_data
-        logger.info("Resetting environment with image id %d at index %d. Initial score=%.4f, score=%.4f" % (image_data.id, random_index, image_data.initial_score, image_data.score))
+        logger.debug("Resetting environment with image id %d at index %d. Initial score=%.4f, score=%.4f" % (image_data.id, random_index, image_data.initial_score, image_data.score))
         # Die Pixelwerte des Bildes (Farben 0-255) werden in den Bereich [0,1] normalisiert
         # Beim Scoren wird dann wieder zurückgerechnet
         img = self._preprocess(img)
@@ -171,9 +171,10 @@ class ImageTransformEnv(gym.Env):
             # "param_penalty": param_penalty,
             "steps": self.step_count,
             "success": bool(success),
+            "initial_score": self.initial_score
         }
 
-        logger.info("Step: %d: Applied action %d (transformer %s) to image %d. Score %.4f -> %.4f" % (self.step_count, action, transformer.label, self.current_image_id, temp_previous_score, self.current_score))
+        logger.debug("Step: %d: Applied action %d (transformer %s) to image %d. Score %.4f -> %.4f" % (self.step_count, action, transformer.label, self.current_image_id, temp_previous_score, self.current_score))
 
         return self._transpose_hwc_to_chw(self.current_image), reward, done, truncated, info
 

@@ -11,7 +11,9 @@ from training import mlflow_helper
 from training.abstract_trainer import AbstractTrainer
 from training.data_loading.dataset_load_data import DatasetLoadData
 from training.hyperparameter_registry import HyperparameterRegistry
+from training.stable_baselines.callbacks.rollout_success_callback import RolloutSuccessCallback
 from training.stable_baselines.environment.image_transform_env import ImageTransformEnv
+from training.stable_baselines.environment.success_counting_wrapper import SuccessCountingWrapper
 from training.stable_baselines.models.models import create_ppo_with_resnet_model
 from training.stable_baselines.training.hyper_params import TrainingParams, DataParams, GeneralParams
 from training.stable_baselines.utils.utils import get_consistent_transformers
@@ -50,11 +52,12 @@ class StableBaselineTrainer(AbstractTrainer):
     def _load_data_impl(self):
         result = self.data_loader.load_data()
         self.training_source_path = result.destination_dir
-        logger.info(f"Data loaded to {self.training_source_path} (is type {type(self.training_source_path)}, preparing dataset info.")
+        logger.info(
+            f"Data loaded to {self.training_source_path} (is type {type(self.training_source_path)}, preparing dataset info.")
         train_ann = AnnotationFileAndImagePath(self.training_source_path / "train" / "annotations.json",
-                                   self.training_source_path / "train" / "images")
+                                               self.training_source_path / "train" / "images")
         test_ann = AnnotationFileAndImagePath(self.training_source_path / "test" / "annotations.json",
-                                               self.training_source_path / "test" / "images")
+                                              self.training_source_path / "test" / "images")
         valid_ann = AnnotationFileAndImagePath(self.training_source_path / "validation" / "annotations.json",
                                                self.training_source_path / "validation" / "images")
         self.dataset_info = {
@@ -73,18 +76,36 @@ class StableBaselineTrainer(AbstractTrainer):
         coco_dataset = COCODataset(ann.images_path, ann.annotation_file)
         mlflow_helper.log_param("training_annotation_file", str(ann.annotation_file))
         mlflow_helper.log_param("training_annotation_images", str(ann.images_path))
-        env_fn = lambda: ImageTransformEnv(transformers=self.transformers,
-                                           coco_dataset=coco_dataset,
-                                           juror_client=self.juror_client,
-                                           success_bonus=self.success_bonus,
-                                           image_max_size=self.image_max_size,
-                                           seed=self.training_seed)
+        env_fn = lambda: SuccessCountingWrapper(
+            ImageTransformEnv(
+                transformers=self.transformers,
+                coco_dataset=coco_dataset,
+                juror_client=self.juror_client,
+                success_bonus=self.success_bonus,
+                image_max_size=self.image_max_size,
+                max_transformations=self.training_params["max_transformations"],
+                seed=self.training_seed),
+            stats_key="episode_stats"
+        )
+
         vec_env = make_vec_env(env_fn,
                                n_envs=self.training_params["num_vector_envs"],
                                seed=self.training_seed)
-        model = create_ppo_with_resnet_model(vec_env, 512)
-        model.learn(total_timesteps=self.training_params["total_training_steps"])
-        model.save("ppo_image_transform")
+        model = create_ppo_with_resnet_model(vec_env=vec_env,
+                                             n_steps=self.training_params["n_steps"],
+                                             batch_size=self.training_params["mini_batch_size"],
+                                             n_epochs=self.training_params["n_epochs"],
+                                             feature_dim=512)
+
+        rollout_callback = RolloutSuccessCallback(stats_key="episode_success", episode_stats_key="episode_stats")
+
+        logger.info(f"total_training_steps param: {self.training_params['total_training_steps']}")
+        logger.info(
+            f"ppo n_steps: {model.n_steps}, num_envs: {vec_env.num_envs}, rollout_size: {model.n_steps * vec_env.num_envs}")
+
+        model.learn(total_timesteps=self.training_params["total_training_steps"],
+                    callback=rollout_callback)
+        # TODO: Modell speichern/serialisieren, z.B.model.save("ppo_image_transform")
         logger.info(f"Training ended for {self.experiment_name}")
 
     def _evaluate_impl(self):
