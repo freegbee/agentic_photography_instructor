@@ -33,11 +33,36 @@ LOGGING_CONFIG = {
         },
     },
     "root": {
-        "level": "DEBUG",
+        "level": "INFO",
         "handlers": ["queue"],
     },
 }
 
+# ANSI-Farben für Levels
+_COLOR_MAP = {
+    logging.DEBUG: "\x1b[37m",     # dunkelgrau
+    logging.INFO: "\x1b[67m",      # mittelgrau
+    logging.WARNING: "\x1b[33m",   # gelb
+    logging.ERROR: "\x1b[31m",     # rot
+    logging.CRITICAL: "\x1b[35m",  # magenta
+}
+_RESET = "\x1b[0m"
+
+class ColoredFormatter(logging.Formatter):
+    """
+    Ein Formatter, der ganze formatierte Zeilen basierend auf dem Log-Level einfärbt.
+    Färbung wird nur aktiviert, wenn Stream ein TTY ist (oder wenn colorama ANSI unterstützt).
+    """
+    def __init__(self, fmt, datefmt=None, use_colors=True):
+        super().__init__(fmt, datefmt=datefmt)
+        self.use_colors = use_colors and sys.stdout.isatty()
+
+    def format(self, record: logging.LogRecord) -> str:
+        formatted = super().format(record)
+        if self.use_colors:
+            color = _COLOR_MAP.get(record.levelno, "")
+            return f"{color}{formatted}{_RESET}"
+        return formatted
 
 def configure_logging() -> QueueListener:
     """
@@ -57,7 +82,8 @@ def configure_logging() -> QueueListener:
 
     # Erstelle die eigentliche Console-Handler-Instanz (wird vom Listener verwendet)
     fmt_cfg = LOGGING_CONFIG["formatters"]["standard"]
-    formatter = logging.Formatter(fmt_cfg["format"], datefmt=fmt_cfg.get("datefmt"))
+    # formatter = logging.Formatter(fmt_cfg["format"], datefmt=fmt_cfg.get("datefmt"))
+    formatter = ColoredFormatter(fmt_cfg["format"], datefmt=fmt_cfg.get("datefmt"))
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setFormatter(formatter)
     console_handler.setLevel(logging.INFO)
