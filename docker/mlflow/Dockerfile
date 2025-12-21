@@ -13,6 +13,7 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       build-essential \
       openssh-client \
+      ca-certificates \
       libglib2.0-0 \
       libgl1 \
       libgomp1 \
@@ -22,9 +23,14 @@ RUN apt-get update && \
 # Arbeitsverzeichnis
 WORKDIR /mlflow
 
+COPY requirements.txt /mlflow/requirements.txt
+COPY postgres-ca-certificate.crt /usr/local/share/ca-certificates/certificate.crt
+
+RUN update-ca-certificates
+
 RUN --mount=type=cache,target=/root/.cache/pip \
     python -m pip install --upgrade pip && \
-    pip install mlflow
+    pip install -r requirements.txt
 
 # MLflow-Port
 EXPOSE $MLFLOW_PORT
