@@ -4,7 +4,7 @@ from typing import TypedDict, Optional
 from pycocotools.coco import COCO
 
 
-class _EnhancedAnnotation(TypedDict):
+class _EnhancedAnnotation(TypedDict, total=False):
     """Enhanced Annotation class with additional fields."""
     id: int
     image_id: int
@@ -13,9 +13,9 @@ class _EnhancedAnnotation(TypedDict):
     area: float
     bbox: list[float]
     iscrowd: int
-    is_scoring_annotation: bool
-    score: float
-    initial_score: float
+    is_scoring_annotation: Optional[bool]
+    score: Optional[float]
+    initial_score: Optional[float]
 
 
 class EnhancedCOCO(COCO):
