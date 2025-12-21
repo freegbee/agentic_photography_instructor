@@ -1,0 +1,234 @@
+import logging
+from typing import SupportsFloat, Any, List, Tuple
+
+import gymnasium as gym
+import numpy as np
+from gymnasium import spaces
+from gymnasium.core import ObsType
+from numpy import ndarray
+from torch.utils.data import DataLoader
+
+from dataset.COCODataset import COCODataset
+from dataset.Utils import Utils
+from juror_client import JurorClient
+from transformer.AbstractTransformer import AbstractTransformer
+
+logger = logging.getLogger(__name__)
+
+
+class ImageTransformEnv(gym.Env):
+    metadata = {"render_modes": ["human"]}
+
+    def __init__(self,
+                 transformers: List[AbstractTransformer],
+                 coco_dataset: COCODataset,
+                 juror_client: JurorClient,
+                 success_bonus: float,
+                 image_max_size: Tuple[int, int],
+                 max_transformations: int = 5,
+                 max_action_param_dim: int = 1,
+                 seed: int = 42
+                 ):
+        """
+        Initialize the Image Transformation Environment.
+        - Define action and observation spaces
+        - manage access to transformers and images
+        - setup any necessary variables or states
+        - define/initialize hyperparameters
+        - manage mlflow logging if needed
+        """
+        super(ImageTransformEnv, self).__init__()
+        self.transformers = transformers
+        self.coco_dataset = coco_dataset
+        self.juror_client = juror_client
+        self.success_bonus = success_bonus
+        self.image_max_size = image_max_size
+        self.max_transformations = max_transformations
+        self.max_action_param_dim = max_action_param_dim
+
+        self.dataloader = DataLoader(self.coco_dataset, shuffle=True, collate_fn=Utils.collate_keep_size)
+
+        # Observation: normalisierte Float32-Bilder
+        h, w = image_max_size
+        # Observation space: 3 x H x W RGB Bild mit Werten in [0,1] fpr die einzelnen Pixel
+        self.observation_space = spaces.Box(0.0, 1.0, shape=(3, h, w), dtype=np.float32)
+
+        # Action space: Auswahl eines Transformers + ein Parameterwert im Bereich [-1, 1]
+        # transformer_index: Diskrete Auswahl eines Transformers
+        # params: n (n=max_action_param_dim) mögliche Parameterwerte im Bereich [-1, 1] (kann je nach Transformer interpretiert werden)
+        # Beispiel: action = {"transformer_index": 0, "params": [0.5]}
+        # self.action_space = spaces.Dict({
+        #     "transformer_index": spaces.Discrete(len(self.transformers)),
+        #     "params": spaces.Box(-1.0, 1.0, shape=(self.max_action_param_dim,), dtype=np.float32),
+        # })
+        self.action_space = spaces.Discrete(len(self.transformers))
+
+        # State variables
+        self.current_image = None
+        self.initial_score = None
+        self.current_score = None
+        self.current_image_id = None
+        self.step_count = 0
+        self._rng = np.random.RandomState(seed)
+
+    def reset(self, *, seed=None, options=None) -> tuple[ObsType, dict[str, Any]]:
+        """
+        Reset the environment to an initial state and return the initial observation.
+        - Initialize or reset the image to be transformed
+        - Calculate the initial
+
+        Implement:
+        - Select random image or use a predefined one
+        - preprocess image
+          - resize
+          - normalize
+        - Return the initial observation and additional info
+        """
+        if seed is not None:
+            self._rng.seed(seed)
+        # Informiere gymnasium über das Seed
+        super().reset(seed=seed)
+
+        # Wähle ein zufälliges Bild aus dem COCO-Dataset
+        random_index = self._rng.randint(0, len(self.coco_dataset))
+
+        # TODO: Prüfen, welche Datenstruktur coco_dataset ist und ob ich per index zugreifen kann
+        #       Wenig effizient, da immer alles geladen wird, aber für den Anfang ok
+        # image_data = self.dataloader.generator[random_index]
+        image_data = self.coco_dataset[random_index]
+        img = image_data.image_data
+        logger.info("Resetting environment with image id %d at index %d. Initial score=%.4f, score=%.4f" % (image_data.id, random_index, image_data.initial_score, image_data.score))
+        # Die Pixelwerte des Bildes (Farben 0-255) werden in den Bereich [0,1] normalisiert
+        # Beim Scoren wird dann wieder zurückgerechnet
+        img = self._preprocess(img)
+        self.current_image = img
+        self.initial_score = image_data.initial_score
+        self.current_score = image_data.score
+        self.step_count = 0
+        self.current_image_id = image_data.id
+        return self._transpose_hwc_to_chw(self.current_image), {}
+
+    def step(self, action) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
+        """
+        Execute one time step within the environment.
+        - Apply the action to the environment (i.e. the image)
+        - Calculate the reward based on the action taken
+        - Determine if the episode has ended
+        - Return the new observation, reward, terminated flag, truncated flag and additional info
+          - observation: the transformed image after applying the action
+          - reward: a float value representing the reward obtained from the action
+          - terminated: a boolean flag indicating if the episode has ended
+          - truncated: a boolean flag indicating if the episode was truncated
+          - info: a dictionary containing any additional information
+        """
+
+        temp_previous_score = self.current_score
+
+        if isinstance(action, dict):
+            # Falls die Action parametriert ist
+            transformer_index = action["transformer_index"]
+            params = np.asarray(action["params"], dtype=np.float32)
+        else:
+            # Parameterfreie Actions
+            transformer_index = int(action)
+            params = np.array([], dtype=np.float32)
+        transformer = self.transformers[transformer_index]
+
+        # Wende den Transformer auf das aktuelle Bild an
+        # mit _to_uint8 wird das Bild zurück in den Bereich 0-255 skaliert
+        # Parameter haben wir noch keine vorgesehen
+        transformed_img = transformer.transform(self._to_uint8(self.current_image))
+
+        # Berechne die neue Punktzahl mit dem Juror-Client
+        scoring_response = self.juror_client.score_ndarray_bgr(transformed_img)
+        new_score = scoring_response.score
+
+        # Berechne die Belohnung als Differenz der Punktzahlen
+        reward = new_score - self.current_score
+
+        # optional: Penalty für große params oder jeden Schritt
+        # param_penalty = 0.01 * float(np.linalg.norm(params))
+        # step_penalty = -0.001
+        # reward = reward - param_penalty + step_penalty
+
+        # Erfolg prüfen und Bonus vergeben
+        success = (new_score >= self.initial_score) if (self.initial_score is not None) else False
+        if success:
+            reward += self.success_bonus
+
+        # Aktualisiere den Zustand (bild ist wieder normalisiert im Bereich [0,1])
+        self.current_image = self._preprocess(transformed_img)
+        self.current_score = new_score
+        self.step_count += 1
+        # TODO: Auch prüfen, ob das Bild schon "gut genug" ist (also der Score nahe dem initialen score ist)
+        done = success or (self.step_count >= self.max_transformations)
+
+        # TODO: Prüfen, ob es eine "truncated" Bedingung gibt und diese implementieren
+        truncated = False
+
+        info = {
+            "score": new_score,
+            # "param_penalty": param_penalty,
+            "steps": self.step_count,
+            "success": bool(success),
+        }
+
+        logger.info("Step: %d: Applied action %d (transformer %s) to image %d. Score %.4f -> %.4f" % (self.step_count, action, transformer.label, self.current_image_id, temp_previous_score, self.current_score))
+
+        return self._transpose_hwc_to_chw(self.current_image), reward, done, truncated, info
+
+    def render(self):
+        """
+        Optional rendering or saving of for visualisation or debugging.
+
+        Could be saving images to disk, plotting graphs, or displaying real-time visualizations.
+        """
+        pass
+
+    def close(self):
+        """
+        Clean up resources, e.g. file handles, connections, plots, etc.
+
+        Implement this method to release any resources held by the environment after training and testing are complete.
+        Terminate mlflow experiment
+        """
+        pass
+
+    def _preprocess(self, img: ndarray):
+        """
+        Macht ein preprocessing eines cv2 Bildes (als ndarray mit HWC und BGR Farbkanal Reihenfolge):
+        Es werden die Farben (0-255) in den Bereich [0,1] normalisiert und das Bild auf die gewünschte Größe skaliert.
+
+        Die Farben können mit _to_uint8 wieder in den Bereich 0-255 zurückgerechnet werden.
+
+        returns: np.ndarray HWC float32 im Bereich [0,1]
+        """
+        # Erwartet np.ndarray HWC uint8 oder float
+        # Resize / convert / normalize to float32 [0,1]
+        from cv2 import resize
+        if img.dtype == np.uint8:
+            img_proc = img.astype(np.float32) / 255.0
+        else:
+            img_proc = img.astype(np.float32)
+            if img_proc.max() > 1.5:
+                img_proc = img_proc / 255.0
+        # Resize
+        img_resized = resize(img_proc, self.image_max_size[::-1], interpolation=1)
+        if img_resized.shape[2] == 4:
+            img_resized = img_resized[:, :, :3]
+        np.clip(img_resized, 0.0, 1.0).astype(np.float32)
+        return np.clip(img_resized, 0.0, 1.0).astype(np.float32)
+
+    def _transpose_hwc_to_chw(self, img: ndarray):
+        """
+        Wechselt von einem Bild als ndarray in HWC (Height, Width, Channels) Format
+        in das CHW (Channels, Height, Width) Format.
+        """
+        return np.transpose(img, (2, 0, 1))
+
+    def _to_uint8(self, img: ndarray):
+        """
+        Rechnet ein normalisiertes Float32 Bild im Bereich [0,1] zurück in den Bereich 0-255 und
+        wandelt es in uint8 um.
+        """
+        return (np.clip(img, 0.0, 1.0) * 255).astype(np.uint8)
