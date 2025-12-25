@@ -13,6 +13,7 @@ from training.abstract_trainer import AbstractTrainer
 from training.data_loading.dataset_load_data import DatasetLoadData
 from training.hyperparameter_registry import HyperparameterRegistry
 from training.stable_baselines.callbacks.rollout_success_callback import RolloutSuccessCallback
+from training.stable_baselines.environment.image_observation_wrapper import ImageObservationWrapper
 from training.stable_baselines.environment.image_render_wrapper import ImageRenderWrapper
 from training.stable_baselines.environment.image_transform_env import ImageTransformEnv
 from training.stable_baselines.environment.success_counting_wrapper import SuccessCountingWrapper
@@ -83,14 +84,17 @@ class StableBaselineTrainer(AbstractTrainer):
         mlflow_helper.log_param("training_annotation_images", str(ann.images_path))
         env_fn = lambda: SuccessCountingWrapper(
             ImageRenderWrapper(
-                ImageTransformEnv(
-                    transformers=self.transformers,
-                    coco_dataset=coco_dataset,
-                    juror_client=self.juror_client,
-                    success_bonus=self.success_bonus,
-                    image_max_size=self.image_max_size,
-                    max_transformations=self.training_params["max_transformations"],
-                    seed=self.training_seed
+                ImageObservationWrapper(
+                    ImageTransformEnv(
+                        transformers=self.transformers,
+                        coco_dataset=coco_dataset,
+                        juror_client=self.juror_client,
+                        success_bonus=self.success_bonus,
+                        image_max_size=self.image_max_size,
+                        max_transformations=self.training_params["max_transformations"],
+                        seed=self.training_seed
+                    ),
+                    image_max_size=self.image_max_size
                 ),
                 render_mode=self.render_mode,
                 render_save_dir=self.render_save_dir,

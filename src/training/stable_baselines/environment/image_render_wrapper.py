@@ -40,10 +40,11 @@ class ImageRenderWrapper(gymnasium.Wrapper):
     def _capture_current_image(self, obs, info, on_reset: bool):
         # Aktuelles Bild aus dem (gewrappten) env holen und intern speichern
         # Das bild könnte theoretisch auch in info oder obs sein. Hier wird angenommen, dass das env ein Attribut current_image hat
-        img = getattr(self.env, "current_image", None)
-        current_image_id = getattr(self.env, "current_image_id", None)
-        logger.info(
-            f"_capture_current_image: current_image_id: {current_image_id}, img is None: {img is None}, on_reset: {on_reset}")
+        img = getattr(self.env.unwrapped, "current_image", None)
+        current_image_id = getattr(self.env.unwrapped, "current_image_id", None)
+        logger.debug("_capture_current_image: current_image_id: %d, img is None: %s, on_reset: %s" % (current_image_id,
+                                                                                                      img is None,
+                                                                                                      on_reset))
         if on_reset:
             self._initial_image_to_render = np.array(img, copy=True) if img is not None else None
             self._current_image_id = current_image_id
@@ -59,7 +60,10 @@ class ImageRenderWrapper(gymnasium.Wrapper):
 
     def render(self, mode: str = None, step: int = None):
         mode = self._render_mode
-        logger.info(f"render mode: {mode}, step: {step}, self._render_save_dir: {self._render_save_dir}")
+        logger.debug("render mode: %s, step: %s, self._render_save_dir: %s" % (mode, step, self._render_save_dir))
+        if mode == "skip":
+            return None
+
         if self._initial_image_to_render is None or self._terminated_image_to_render is None:
             return None
 
@@ -81,10 +85,6 @@ class ImageRenderWrapper(gymnasium.Wrapper):
             # als PNG speichern
             if not self._render_save_dir:
                 return None
-            # filename_initial = self._image_filename(True)
-            # filename_terminated = self._image_filename(False)
-            # os.makedirs(self.render_save_dir / str(self.reset_idx), exist_ok=True)
-            # destination_path = self._render_save_dir / filename_terminated
             plt.imsave(self._render_save_dir / self._image_filename(True), img_initial_rgb)
             plt.imsave(self._render_save_dir / self._image_filename(False), img_terminated_rgb)
         else:

@@ -26,13 +26,13 @@ def main():
         "use_local_juror": True,
         "random_seed": 42,
         # "num_vector_envs": 20,
-        "num_vector_envs": 1,
+        "num_vector_envs": 20,
         "n_steps": 200,            #
         "mini_batch_size": 20,    # (n_steps * num_vector_env) % mini_batch_size == 0, also
         "n_epochs": 4,
         "max_transformations": 5,
         "total_training_steps": 100_000,
-        "render_mode": "save",
+        "render_mode": "skip", # "save",
         "render_save_dir": "./renders/"
     })
 

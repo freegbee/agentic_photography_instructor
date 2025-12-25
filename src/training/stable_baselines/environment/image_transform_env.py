@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from gymnasium import spaces
 from gymnasium.core import ObsType
-from numpy import ndarray
 from torch.utils.data import DataLoader
 
 from dataset.COCODataset import COCODataset
@@ -53,9 +52,9 @@ class ImageTransformEnv(gym.Env):
         self.dataloader = DataLoader(self.coco_dataset, shuffle=True, collate_fn=Utils.collate_keep_size)
 
         # Observation: normalisierte Float32-Bilder
-        h, w = image_max_size
+        # h, w = image_max_size
         # Observation space: 3 x h x w RGB Bild mit Werten in [0,1] fpr die einzelnen Pixel
-        self.observation_space = spaces.Box(0.0, 1.0, shape=(3, h, w), dtype=np.float32)
+        # self.observation_space = spaces.Box(0.0, 1.0, shape=(3, h, w), dtype=np.float32)
 
         # Action space: Auswahl eines Transformers + ein Parameterwert im Bereich [-1, 1]
         # transformer_index: Diskrete Auswahl eines Transformers
@@ -119,7 +118,7 @@ class ImageTransformEnv(gym.Env):
         self.current_score = image_data.score
         self.step_count = 0
         self.current_image_id = image_data.id
-        return self._transpose_hwc_to_chw(self._preprocess(self.current_image)), {}
+        return self.current_image, {}
 
     def step(self, action) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
         """
@@ -193,7 +192,7 @@ class ImageTransformEnv(gym.Env):
                                                                                               temp_previous_score,
                                                                                               self.current_score))
 
-        return self._transpose_hwc_to_chw(self._preprocess(self.current_image)), reward, done, truncated, info
+        return self.current_image, reward, done, truncated, info
 
     def close(self):
         """
@@ -206,43 +205,3 @@ class ImageTransformEnv(gym.Env):
             plt.close("all")
         except Exception:
             pass
-
-    def _preprocess(self, img: ndarray):
-        """
-        Macht ein preprocessing eines cv2 Bildes (als ndarray mit HWC und BGR Farbkanal Reihenfolge):
-        Es werden die Farben (0-255) in den Bereich [0,1] normalisiert und das Bild auf die gewünschte Grösse skaliert.
-        Das Bild wird dabei auch quadratisch gemacht durch die Skalierung
-
-        Die Farben können mit _to_uint8 wieder in den Bereich 0-255 zurückgerechnet werden.
-
-        returns: np.ndarray HWC float32 im Bereich [0,1]
-        """
-        # Erwartet np.ndarray HWC uint8 oder float
-        # Resize / convert / normalize to float32 [0,1]
-        from cv2 import resize
-        if img.dtype == np.uint8:
-            img_proc = img.astype(np.float32) / 255.0
-        else:
-            img_proc = img.astype(np.float32)
-            if img_proc.max() > 1.5:
-                img_proc = img_proc / 255.0
-        # Resize
-        img_resized = resize(img_proc, self.image_max_size[::-1], interpolation=1)
-        if img_resized.shape[2] == 4:
-            img_resized = img_resized[:, :, :3]
-        np.clip(img_resized, 0.0, 1.0).astype(np.float32)
-        return np.clip(img_resized, 0.0, 1.0).astype(np.float32)
-
-    def _transpose_hwc_to_chw(self, img: ndarray):
-        """
-        Wechselt von einem Bild als ndarray in HWC (Height, Width, Channels) Format
-        in das CHW (Channels, Height, Width) Format.
-        """
-        return np.transpose(img, (2, 0, 1))
-
-    def _to_uint8(self, img: ndarray):
-        """
-        Rechnet ein normalisiertes Float32 Bild im Bereich [0,1] zurück in den Bereich 0-255 und
-        wandelt es in uint8 um.
-        """
-        return (np.clip(img, 0.0, 1.0) * 255).astype(np.uint8)
