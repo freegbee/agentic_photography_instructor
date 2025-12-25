@@ -21,19 +21,23 @@ def main():
 
     training_params = HyperparameterRegistry.get_store(TrainingParams)
     training_params.set({
-        "experiment_name": "Stable_Baselines_RL_Agent_Training PoC 0.01",
+        "experiment_name": "Stable_Baselines_RL_Agent_Training PoC 0.03",
         "run_name": run_name,
         "use_local_juror": True,
         "random_seed": 42,
-        "num_vector_envs": 128,
-        "n_steps": 4,             #
-        "mini_batch_size": 128,    # (n_steps * num_vector_env) % mini_batch_size == 0, also
+        # "num_vector_envs": 20,
+        "num_vector_envs": 1,
+        "n_steps": 200,            #
+        "mini_batch_size": 20,    # (n_steps * num_vector_env) % mini_batch_size == 0, also
         "n_epochs": 4,
         "max_transformations": 5,
-        "total_training_steps": 20_000
+        "total_training_steps": 100_000,
+        "render_mode": "save",
+        "render_save_dir": "./renders/"
     })
 
     data_params = HyperparameterRegistry.get_store(DataParams)
+    # data_params.set({"dataset_id": "lhq_landscapes_two_actions"})
     data_params.set({"dataset_id": "twenty_two_actions"})
 
     trainer = StableBaselineTrainer()

@@ -16,6 +16,8 @@ class TrainingParams(TypedDict):
     n_epochs: int
     max_transformations: int
     total_training_steps: int
+    render_mode: str
+    render_save_dir: str
 
 
 class GeneralParams(TypedDict):

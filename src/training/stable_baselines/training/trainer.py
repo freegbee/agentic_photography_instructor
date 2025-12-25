@@ -1,4 +1,5 @@
 import logging
+import os
 from pathlib import Path
 from typing import Optional, Dict
 
@@ -12,6 +13,7 @@ from training.abstract_trainer import AbstractTrainer
 from training.data_loading.dataset_load_data import DatasetLoadData
 from training.hyperparameter_registry import HyperparameterRegistry
 from training.stable_baselines.callbacks.rollout_success_callback import RolloutSuccessCallback
+from training.stable_baselines.environment.image_render_wrapper import ImageRenderWrapper
 from training.stable_baselines.environment.image_transform_env import ImageTransformEnv
 from training.stable_baselines.environment.success_counting_wrapper import SuccessCountingWrapper
 from training.stable_baselines.models.models import create_ppo_with_resnet_model
@@ -37,6 +39,9 @@ class StableBaselineTrainer(AbstractTrainer):
         self.training_source_path: Optional[Path] = None
         self.dataset_info: Dict[str, AnnotationFileAndImagePath] = {}
         self.juror_client = JurorClient(use_local=self.training_params["use_local_juror"])
+
+        self.render_mode = self.training_params["render_mode"]
+        self.render_save_dir = Path(os.environ["IMAGE_VOLUME_PATH"]) / self.training_params["render_save_dir"]
 
         self._register_mlflow_params()
 
@@ -68,7 +73,7 @@ class StableBaselineTrainer(AbstractTrainer):
         logger.info(f"Loaded data to destination {self.training_source_path}")
 
     def _preprocess_impl(self):
-        pass
+        os.makedirs(str(self.render_save_dir), exist_ok=True)
 
     def _train_impl(self):
         logger.info(f"Training started for {self.experiment_name} with images at: {self.training_source_path}")
@@ -77,14 +82,19 @@ class StableBaselineTrainer(AbstractTrainer):
         mlflow_helper.log_param("training_annotation_file", str(ann.annotation_file))
         mlflow_helper.log_param("training_annotation_images", str(ann.images_path))
         env_fn = lambda: SuccessCountingWrapper(
-            ImageTransformEnv(
-                transformers=self.transformers,
-                coco_dataset=coco_dataset,
-                juror_client=self.juror_client,
-                success_bonus=self.success_bonus,
-                image_max_size=self.image_max_size,
-                max_transformations=self.training_params["max_transformations"],
-                seed=self.training_seed),
+            ImageRenderWrapper(
+                ImageTransformEnv(
+                    transformers=self.transformers,
+                    coco_dataset=coco_dataset,
+                    juror_client=self.juror_client,
+                    success_bonus=self.success_bonus,
+                    image_max_size=self.image_max_size,
+                    max_transformations=self.training_params["max_transformations"],
+                    seed=self.training_seed
+                ),
+                render_mode=self.render_mode,
+                render_save_dir=self.render_save_dir,
+            ),
             stats_key="episode_stats"
         )
 

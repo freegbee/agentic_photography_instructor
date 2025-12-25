@@ -1,7 +1,9 @@
 import logging
+from pathlib import Path
 from typing import SupportsFloat, Any, List, Tuple
 
 import gymnasium as gym
+import matplotlib.pyplot as plt
 import numpy as np
 from gymnasium import spaces
 from gymnasium.core import ObsType
@@ -17,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 class ImageTransformEnv(gym.Env):
-    metadata = {"render_modes": ["human"]}
+    metadata = {"render_modes": ["human", "rgb_array", "save"]}
 
     def __init__(self,
                  transformers: List[AbstractTransformer],
@@ -27,7 +29,9 @@ class ImageTransformEnv(gym.Env):
                  image_max_size: Tuple[int, int],
                  max_transformations: int = 5,
                  max_action_param_dim: int = 1,
-                 seed: int = 42
+                 seed: int = 42,
+                 render_mode: str = "imshow",  # | "save"
+                 render_save_dir: Path = None,
                  ):
         """
         Initialize the Image Transformation Environment.
@@ -71,6 +75,11 @@ class ImageTransformEnv(gym.Env):
         self.step_count = 0
         self._rng = np.random.RandomState(seed)
 
+        # Rendering parameters
+        self.render_mode = render_mode
+        self.render_save_dir = render_save_dir
+        self.reset_idx = 0
+
     def reset(self, *, seed=None, options=None) -> tuple[ObsType, dict[str, Any]]:
         """
         Reset the environment to an initial state and return the initial observation.
@@ -84,6 +93,8 @@ class ImageTransformEnv(gym.Env):
           - normalize
         - Return the initial observation and additional info
         """
+        self.reset_idx += 1
+
         if seed is not None:
             self._rng.seed(seed)
         # Informiere gymnasium über das Seed
@@ -97,7 +108,11 @@ class ImageTransformEnv(gym.Env):
         # image_data = self.dataloader.generator[random_index]
         image_data = self.coco_dataset[random_index]
         img = image_data.image_data
-        logger.debug("Resetting environment with image id %d at index %d. Initial score=%.4f, score=%.4f" % (image_data.id, random_index, image_data.initial_score, image_data.score))
+        logger.debug(
+            "Resetting environment with image id %d at index %d. Initial score=%.4f, score=%.4f" % (image_data.id,
+                                                                                                    random_index,
+                                                                                                    image_data.initial_score,
+                                                                                                    image_data.score))
         # Die Pixelwerte des Bildes (Farben 0-255) werden in den Bereich [0,1] normalisiert
         # Beim Scoren wird dann wieder zurückgerechnet
         img = self._preprocess(img)
@@ -160,11 +175,11 @@ class ImageTransformEnv(gym.Env):
         self.current_image = self._preprocess(transformed_img)
         self.current_score = new_score
         self.step_count += 1
-        # TODO: Auch prüfen, ob das Bild schon "gut genug" ist (also der Score nahe dem initialen score ist)
-        done = success or (self.step_count >= self.max_transformations)
 
         # TODO: Prüfen, ob es eine "truncated" Bedingung gibt und diese implementieren
-        truncated = False
+        truncated = (self.step_count >= self.max_transformations)
+
+        done = success or truncated
 
         info = {
             "score": new_score,
@@ -174,17 +189,14 @@ class ImageTransformEnv(gym.Env):
             "initial_score": self.initial_score
         }
 
-        logger.debug("Step: %d: Applied action %d (transformer %s) to image %d. Score %.4f -> %.4f" % (self.step_count, action, transformer.label, self.current_image_id, temp_previous_score, self.current_score))
+        logger.debug(
+            "Step: %d: Applied action %d (transformer %s) to image %d. Score %.4f -> %.4f" % (self.step_count, action,
+                                                                                              transformer.label,
+                                                                                              self.current_image_id,
+                                                                                              temp_previous_score,
+                                                                                              self.current_score))
 
         return self._transpose_hwc_to_chw(self.current_image), reward, done, truncated, info
-
-    def render(self):
-        """
-        Optional rendering or saving of for visualisation or debugging.
-
-        Could be saving images to disk, plotting graphs, or displaying real-time visualizations.
-        """
-        pass
 
     def close(self):
         """
@@ -193,7 +205,10 @@ class ImageTransformEnv(gym.Env):
         Implement this method to release any resources held by the environment after training and testing are complete.
         Terminate mlflow experiment
         """
-        pass
+        try:
+            plt.close("all")
+        except Exception:
+            pass
 
     def _preprocess(self, img: ndarray):
         """
