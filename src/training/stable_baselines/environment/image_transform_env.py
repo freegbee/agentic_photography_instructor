@@ -105,7 +105,6 @@ class ImageTransformEnv(gym.Env):
 
         # TODO: Prüfen, welche Datenstruktur coco_dataset ist und ob ich per index zugreifen kann
         #       Wenig effizient, da immer alles geladen wird, aber für den Anfang ok
-        # image_data = self.dataloader.generator[random_index]
         image_data = self.coco_dataset[random_index]
         img = image_data.image_data
         logger.debug(
