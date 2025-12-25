@@ -2,6 +2,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
+import cv2
 import gymnasium
 import matplotlib.pyplot as plt
 import numpy as np
@@ -92,12 +93,12 @@ class ImageRenderWrapper(gymnasium.Wrapper):
         return None
 
     def _preprocess_image_for_render(self, image_data: ndarray) -> ndarray:
-        img_hwc = np.asarray(image_data)
+        # img_hwc = np.asarray(image_data)
         # BGR -> RGB
-        img_rgb = img_hwc[..., ::-1]
+        # img_rgb = img_hwc[..., ::-1]
         # RGB HWC float [0,1]
-        img_rgb = np.clip(img_rgb, 0.0, 1.0)
-        return img_rgb
+        # img_rgb = np.clip(img_rgb, 0.0, 1.0)
+        return cv2.cvtColor(image_data, cv2.COLOR_BGR2RGB)
 
     def _image_filename(self, on_reset: bool):
         return f"img_{self._current_image_id}_{"0" if on_reset else "1"}.png"

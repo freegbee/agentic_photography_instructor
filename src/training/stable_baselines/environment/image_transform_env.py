@@ -115,13 +115,12 @@ class ImageTransformEnv(gym.Env):
                                                                                                     image_data.score))
         # Die Pixelwerte des Bildes (Farben 0-255) werden in den Bereich [0,1] normalisiert
         # Beim Scoren wird dann wieder zurückgerechnet
-        img = self._preprocess(img)
         self.current_image = img
         self.initial_score = image_data.initial_score
         self.current_score = image_data.score
         self.step_count = 0
         self.current_image_id = image_data.id
-        return self._transpose_hwc_to_chw(self.current_image), {}
+        return self._transpose_hwc_to_chw(self._preprocess(self.current_image)), {}
 
     def step(self, action) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
         """
@@ -150,9 +149,7 @@ class ImageTransformEnv(gym.Env):
         transformer = self.transformers[transformer_index]
 
         # Wende den Transformer auf das aktuelle Bild an
-        # mit _to_uint8 wird das Bild zurück in den Bereich 0-255 skaliert
-        # Parameter haben wir noch keine vorgesehen
-        transformed_img = transformer.transform(self._to_uint8(self.current_image))
+        transformed_img = transformer.transform(self.current_image)
 
         # Berechne die neue Punktzahl mit dem Juror-Client
         scoring_response = self.juror_client.score_ndarray_bgr(transformed_img)
@@ -172,7 +169,8 @@ class ImageTransformEnv(gym.Env):
             reward += self.success_bonus
 
         # Aktualisiere den Zustand (bild ist wieder normalisiert im Bereich [0,1])
-        self.current_image = self._preprocess(transformed_img)
+        # self.current_image = self._preprocess(transformed_img)
+        self.current_image = transformed_img
         self.current_score = new_score
         self.step_count += 1
 
@@ -196,7 +194,7 @@ class ImageTransformEnv(gym.Env):
                                                                                               temp_previous_score,
                                                                                               self.current_score))
 
-        return self._transpose_hwc_to_chw(self.current_image), reward, done, truncated, info
+        return self._transpose_hwc_to_chw(self._preprocess(self.current_image)), reward, done, truncated, info
 
     def close(self):
         """
@@ -213,7 +211,8 @@ class ImageTransformEnv(gym.Env):
     def _preprocess(self, img: ndarray):
         """
         Macht ein preprocessing eines cv2 Bildes (als ndarray mit HWC und BGR Farbkanal Reihenfolge):
-        Es werden die Farben (0-255) in den Bereich [0,1] normalisiert und das Bild auf die gewünschte Größe skaliert.
+        Es werden die Farben (0-255) in den Bereich [0,1] normalisiert und das Bild auf die gewünschte Grösse skaliert.
+        Das Bild wird dabei auch quadratisch gemacht durch die Skalierung
 
         Die Farben können mit _to_uint8 wieder in den Bereich 0-255 zurückgerechnet werden.
 
