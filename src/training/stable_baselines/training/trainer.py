@@ -1,7 +1,7 @@
 import logging
 import os
 from pathlib import Path
-from typing import Optional, Dict
+from typing import Optional, Dict, Callable
 
 from stable_baselines3.common.env_util import make_vec_env
 
@@ -12,10 +12,13 @@ from training import mlflow_helper
 from training.abstract_trainer import AbstractTrainer
 from training.data_loading.dataset_load_data import DatasetLoadData
 from training.hyperparameter_registry import HyperparameterRegistry
+from training.stable_baselines.callbacks.evaluation_callback import EvaluationCallback
 from training.stable_baselines.callbacks.rollout_success_callback import RolloutSuccessCallback
 from training.stable_baselines.environment.image_observation_wrapper import ImageObservationWrapper
 from training.stable_baselines.environment.image_render_wrapper import ImageRenderWrapper
 from training.stable_baselines.environment.image_transform_env import ImageTransformEnv
+from training.stable_baselines.environment.samplers import SequentialCocoDatasetSampler, RandomCocoDatasetSampler, \
+    CocoDatasetSampler
 from training.stable_baselines.environment.success_counting_wrapper import SuccessCountingWrapper
 from training.stable_baselines.models.models import create_ppo_with_resnet_model
 from training.stable_baselines.training.hyper_params import TrainingParams, DataParams, GeneralParams
@@ -43,6 +46,18 @@ class StableBaselineTrainer(AbstractTrainer):
 
         self.render_mode = self.training_params["render_mode"]
         self.render_save_dir = Path(os.environ["IMAGE_VOLUME_PATH"]) / self.training_params["render_save_dir"]
+
+        # Evaluation parameters
+        self.evaluation_seed = self.training_params["evaluation_seed"]
+        self.evaluation_interval = self.training_params["evaluation_interval"]
+        self.evaluation_n_episodes = self.training_params["evaluation_n_episodes"]
+        self.evaluation_deterministic = self.training_params["evaluation_deterministic"]
+        self.evaluation_render_mode = self.training_params["evaluation_render_mode"]
+        self.evaluation_render_save_dir = Path(os.environ["IMAGE_VOLUME_PATH"]) / self.training_params[
+            "evaluation_render_save_dir"]
+        self.evaluation_model_save_dir = Path(os.environ["IMAGE_VOLUME_PATH"]) / self.training_params[
+            "evaluation_model_save_dir"]
+        self.evaluation_log_path = Path(os.environ["IMAGE_VOLUME_PATH"]) / self.training_params["evaluation_log_path"]
 
         self._register_mlflow_params()
 
@@ -75,52 +90,96 @@ class StableBaselineTrainer(AbstractTrainer):
 
     def _preprocess_impl(self):
         os.makedirs(str(self.render_save_dir), exist_ok=True)
+        os.makedirs(str(self.evaluation_render_save_dir), exist_ok=True)
 
     def _train_impl(self):
         logger.info(f"Training started for {self.experiment_name} with images at: {self.training_source_path}")
-        ann = self.dataset_info["train"]
-        coco_dataset = COCODataset(ann.images_path, ann.annotation_file)
-        mlflow_helper.log_param("training_annotation_file", str(ann.annotation_file))
-        mlflow_helper.log_param("training_annotation_images", str(ann.images_path))
-        env_fn = lambda: SuccessCountingWrapper(
-            ImageRenderWrapper(
-                ImageObservationWrapper(
-                    ImageTransformEnv(
-                        transformers=self.transformers,
-                        coco_dataset=coco_dataset,
-                        juror_client=self.juror_client,
-                        success_bonus=self.success_bonus,
-                        image_max_size=self.image_max_size,
-                        max_transformations=self.training_params["max_transformations"],
-                        seed=self.training_seed
-                    ),
-                    image_max_size=self.image_max_size
-                ),
-                render_mode=self.render_mode,
-                render_save_dir=self.render_save_dir,
-            ),
-            stats_key="episode_stats"
-        )
 
-        vec_env = make_vec_env(env_fn,
-                               n_envs=self.training_params["num_vector_envs"],
-                               seed=self.training_seed)
-        model = create_ppo_with_resnet_model(vec_env=vec_env,
+        # Create training environment
+        training_annotations = self.dataset_info["train"]
+        training_coco_dataset = COCODataset(images_root_path=training_annotations.images_path,
+                                            annotation_file=training_annotations.annotation_file)
+        training_sampler_factory = lambda: RandomCocoDatasetSampler(training_coco_dataset, self.training_seed)
+        training_env_fn = self._create_environment(
+            coco_dataset_sampler_factory=training_sampler_factory,
+            seed=self.training_seed,
+            render_mode=self.render_mode,
+            render_save_dir=self.render_save_dir)
+        training_vec_env = make_vec_env(training_env_fn,
+                                        n_envs=self.training_params["num_vector_envs"],
+                                        seed=self.training_seed)
+        model = create_ppo_with_resnet_model(vec_env=training_vec_env,
                                              n_steps=self.training_params["n_steps"],
                                              batch_size=self.training_params["mini_batch_size"],
                                              n_epochs=self.training_params["n_epochs"],
                                              feature_dim=512)
-
         rollout_callback = RolloutSuccessCallback(stats_key="episode_success", episode_stats_key="episode_stats")
 
-        logger.info(f"total_training_steps param: {self.training_params['total_training_steps']}")
-        logger.info(
-            f"ppo n_steps: {model.n_steps}, num_envs: {vec_env.num_envs}, rollout_size: {model.n_steps * vec_env.num_envs}")
+        mlflow_helper.log_param("training_annotation_file", str(training_annotations.annotation_file))
+        mlflow_helper.log_param("training_annotation_images", str(training_annotations.images_path))
 
+        # Create evaluation environment
+        evaluation_annotations = self.dataset_info["validation"]
+        evaluation_coco_dataset = COCODataset(images_root_path=evaluation_annotations.images_path,
+                                              annotation_file=evaluation_annotations.annotation_file)
+        evaluation_sampler_factory = lambda: SequentialCocoDatasetSampler(evaluation_coco_dataset)
+        evaluation_env_fn = self._create_environment(
+            coco_dataset_sampler_factory=evaluation_sampler_factory,
+            seed=self.evaluation_seed,
+            render_mode=self.evaluation_render_mode,
+            render_save_dir=self.evaluation_render_save_dir)
+        evaluation_vec_env = make_vec_env(env_id=evaluation_env_fn,
+                                          n_envs=1,
+                                          seed=self.evaluation_seed)
+        eval_callback = EvaluationCallback(
+            eval_env=evaluation_vec_env,
+            best_model_save_path=str(self.evaluation_model_save_dir),
+            log_path=str(self.evaluation_log_path),
+            eval_freq=self.evaluation_interval,
+            n_eval_episodes=len(evaluation_coco_dataset),
+            deterministic=self.evaluation_deterministic,
+            # NICE: Render callback implementieren
+            render=False
+        )
+
+        logger.info("total_training_steps param: %d", self.training_params["total_training_steps"])
+        logger.info("ppo n_steps: %d, num_envs: %d, rollout_size: %d", model.n_steps, training_vec_env.num_envs,
+                    model.n_steps * training_vec_env.num_envs)
+
+        callbacks = [eval_callback, rollout_callback]
+
+        # Start training
         model.learn(total_timesteps=self.training_params["total_training_steps"],
-                    callback=rollout_callback)
+                    callback=callbacks,
+                    progress_bar=False)
         # TODO: Modell speichern/serialisieren, z.B.model.save("ppo_image_transform")
         logger.info(f"Training ended for {self.experiment_name}")
+
+    def _create_environment(self,
+                            coco_dataset_sampler_factory: Optional[Callable[[], CocoDatasetSampler]],
+                            seed: int,
+                            render_mode: str,
+                            render_save_dir: Path
+                            ) -> Callable[[], SuccessCountingWrapper]:
+        return lambda: SuccessCountingWrapper(
+            ImageRenderWrapper(
+                ImageObservationWrapper(
+                    ImageTransformEnv(
+                        transformers=self.transformers,
+                        coco_dataset_sampler=coco_dataset_sampler_factory(),
+                        juror_client=self.juror_client,
+                        success_bonus=self.success_bonus,
+                        image_max_size=self.image_max_size,
+                        max_transformations=self.training_params["max_transformations"],
+                        seed=seed
+                    ),
+                    image_max_size=self.image_max_size
+                ),
+                render_mode=render_mode,
+                render_save_dir=render_save_dir,
+            ),
+            stats_key="episode_stats"
+        )
 
     def _evaluate_impl(self):
         logger.info(f"Evaluation started for {self.experiment_name} with images at: {self.training_source_path}")

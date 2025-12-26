@@ -1,17 +1,17 @@
 import logging
 from pathlib import Path
-from typing import SupportsFloat, Any, List, Tuple
+from typing import SupportsFloat, Any, List, Tuple, Callable, Optional, Dict
 
 import gymnasium as gym
 import matplotlib.pyplot as plt
 import numpy as np
 from gymnasium import spaces
 from gymnasium.core import ObsType
-from torch.utils.data import DataLoader
+from numpy import zeros
 
-from dataset.COCODataset import COCODataset
-from dataset.Utils import Utils
+from data_types.AgenticImage import ImageData
 from juror_client import JurorClient
+from training.stable_baselines.environment.samplers import CocoDatasetSampler
 from transformer.AbstractTransformer import AbstractTransformer
 
 logger = logging.getLogger(__name__)
@@ -22,7 +22,7 @@ class ImageTransformEnv(gym.Env):
 
     def __init__(self,
                  transformers: List[AbstractTransformer],
-                 coco_dataset: COCODataset,
+                 coco_dataset_sampler: CocoDatasetSampler,
                  juror_client: JurorClient,
                  success_bonus: float,
                  image_max_size: Tuple[int, int],
@@ -42,14 +42,12 @@ class ImageTransformEnv(gym.Env):
         """
         super(ImageTransformEnv, self).__init__()
         self.transformers = transformers
-        self.coco_dataset = coco_dataset
+        self.coco_dataset_sampler = coco_dataset_sampler
         self.juror_client = juror_client
         self.success_bonus = success_bonus
         self.image_max_size = image_max_size
         self.max_transformations = max_transformations
         self.max_action_param_dim = max_action_param_dim
-
-        self.dataloader = DataLoader(self.coco_dataset, shuffle=True, collate_fn=Utils.collate_keep_size)
 
         # Observation: normalisierte Float32-Bilder
         # h, w = image_max_size
@@ -79,7 +77,7 @@ class ImageTransformEnv(gym.Env):
         self.render_save_dir = render_save_dir
         self.reset_idx = 0
 
-    def reset(self, *, seed=None, options=None) -> tuple[ObsType, dict[str, Any]]:
+    def reset(self, *, seed=None, options: Optional[Dict] = None) -> tuple[ObsType, dict[str, Any]]:
         """
         Reset the environment to an initial state and return the initial observation.
         - Initialize or reset the image to be transformed
@@ -92,6 +90,11 @@ class ImageTransformEnv(gym.Env):
           - normalize
         - Return the initial observation and additional info
         """
+
+        options = options or {}
+        if options.get("reset_sampler"):
+            self.coco_dataset_sampler.reset()
+
         self.reset_idx += 1
 
         if seed is not None:
@@ -99,12 +102,13 @@ class ImageTransformEnv(gym.Env):
         # Informiere gymnasium über das Seed
         super().reset(seed=seed)
 
-        # Wähle ein zufälliges Bild aus dem COCO-Dataset
-        random_index = self._rng.randint(0, len(self.coco_dataset))
+        # Wähle ein Bild aus dem COCO-Dataset gemäss sampler.
+        # Falls der sampler erschöpft ist, wird StopIteration geworfen und training kann entsprechend reagieren
+        random_index, image_data, exhausted = self.coco_dataset_sampler()
+        if exhausted:
+            logger.debug("Dataset sampler exhausted at reset.")
+            self.coco_dataset_sampler.reset()
 
-        # TODO: Prüfen, welche Datenstruktur coco_dataset ist und ob ich per index zugreifen kann
-        #       Wenig effizient, da immer alles geladen wird, aber für den Anfang ok
-        image_data = self.coco_dataset[random_index]
         img = image_data.image_data
         logger.debug(
             "Resetting environment with image id %d at index %d. Initial score=%.4f, score=%.4f" % (image_data.id,
@@ -114,11 +118,11 @@ class ImageTransformEnv(gym.Env):
         # Die Pixelwerte des Bildes (Farben 0-255) werden in den Bereich [0,1] normalisiert
         # Beim Scoren wird dann wieder zurückgerechnet
         self.current_image = img
+        self.current_image_id = image_data.id
         self.initial_score = image_data.initial_score
         self.current_score = image_data.score
         self.step_count = 0
-        self.current_image_id = image_data.id
-        return self.current_image, {}
+        return self.current_image, {"dataset_exhausted": exhausted}
 
     def step(self, action) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
         """

@@ -18,6 +18,14 @@ class TrainingParams(TypedDict):
     total_training_steps: int
     render_mode: str
     render_save_dir: str
+    evaluation_seed: int
+    evaluation_interval: int
+    evaluation_n_episodes: int
+    evaluation_deterministic: bool
+    evaluation_render_mode: str
+    evaluation_render_save_dir: str
+    evaluation_model_save_dir: str
+    evaluation_log_path: str
 
 
 class GeneralParams(TypedDict):

@@ -26,6 +26,8 @@ class ImageRenderWrapper(gymnasium.Wrapper):
 
     def reset(self, **kwargs) -> Any:
         obs, info = self.env.reset(**kwargs)
+        if info.get("dataset_exhausted", False):
+            logger.warning("Dataset exhausted")
         self._capture_current_image(obs, info, True)
         self._terminated_image_to_render = None
         return obs, info
