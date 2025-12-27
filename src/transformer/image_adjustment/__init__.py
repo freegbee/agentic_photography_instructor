@@ -6,13 +6,21 @@ from .MedianBlurTransformer import MedianBlurTransformer3, MedianBlurTransformer
     MedianBlurTransformer9, MedianBlurTransformer11
 from .ShiftColorPlaneTransformer import (
     ShiftColorPlaneLeftB,
+    ShiftColorPlaneRightB,
     ShiftColorPlaneLeftG,
+    ShiftColorPlaneRightG,
     ShiftColorPlaneLeftR,
+    ShiftColorPlaneRightR,
     ShiftColorPlaneDownB,
+    ShiftColorPlaneUpB,
     ShiftColorPlaneDownG,
+    ShiftColorPlaneUpG,
     ShiftColorPlaneDownR,
+    ShiftColorPlaneUpR,
     ShiftColorPlaneLeftAll,
+    ShiftColorPlaneRightAll,
     ShiftColorPlaneDownAll,
+    ShiftColorPlaneUpAll
 )
 
 __all__ = [
@@ -32,11 +40,19 @@ __all__ = [
     "BoxBlurTransformer9",
     "BoxBlurTransformer11",
     "ShiftColorPlaneLeftB",
+    "ShiftColorPlaneRightB",
     "ShiftColorPlaneLeftG",
+    "ShiftColorPlaneRightG",
     "ShiftColorPlaneLeftR",
+    "ShiftColorPlaneRightR",
     "ShiftColorPlaneDownB",
+    "ShiftColorPlaneUpB",
     "ShiftColorPlaneDownG",
+    "ShiftColorPlaneUpG",
     "ShiftColorPlaneDownR",
+    "ShiftColorPlaneUpR",
     "ShiftColorPlaneLeftAll",
+    "ShiftColorPlaneRightAll",
     "ShiftColorPlaneDownAll",
+    "ShiftColorPlaneUpAll"
 ]

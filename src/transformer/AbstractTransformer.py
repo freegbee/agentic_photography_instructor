@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Union
 
 from transformer.TransformerTypes import TransformerTypeEnum
 from utils.Registries import TRANSFORMER_REGISTRY
@@ -32,3 +33,12 @@ class AbstractTransformer(AutoRegister(TRANSFORMER_REGISTRY), ABC):
         :return: transformed image data
         """
         pass
+
+    def get_reverse_transformer_label(self) -> Union[str, None]:
+        """ Returns the label(s) of the transformer(s) that can reverse this transformation.
+        If no reverse transformer is defined, returns an empty list.
+        """
+        if hasattr(self.__class__, 'reverse_transformer_label'):
+            return self.__class__.reverse_transformer_label
+        else:
+            return None
