@@ -20,7 +20,6 @@ class TrainingParams(TypedDict):
     render_save_dir: str
     evaluation_seed: int
     evaluation_interval: int
-    evaluation_n_episodes: int
     evaluation_deterministic: bool
     evaluation_render_mode: str
     evaluation_render_save_dir: str
@@ -30,5 +29,6 @@ class TrainingParams(TypedDict):
 
 class GeneralParams(TypedDict):
     success_bonus: float
+    learning_rate: float
     transformer_labels: list[str]
     image_max_size: Tuple[int, int]

@@ -12,7 +12,7 @@ from training import mlflow_helper
 from training.abstract_trainer import AbstractTrainer
 from training.data_loading.dataset_load_data import DatasetLoadData
 from training.hyperparameter_registry import HyperparameterRegistry
-from training.stable_baselines.callbacks.evaluation_callback import EvaluationCallback
+from training.stable_baselines.callbacks.image_transform_evaluation_callback import ImageTransformEvaluationCallback
 from training.stable_baselines.callbacks.rollout_success_callback import RolloutSuccessCallback
 from training.stable_baselines.environment.image_observation_wrapper import ImageObservationWrapper
 from training.stable_baselines.environment.image_render_wrapper import ImageRenderWrapper
@@ -20,7 +20,8 @@ from training.stable_baselines.environment.image_transform_env import ImageTrans
 from training.stable_baselines.environment.samplers import SequentialCocoDatasetSampler, RandomCocoDatasetSampler, \
     CocoDatasetSampler
 from training.stable_baselines.environment.success_counting_wrapper import SuccessCountingWrapper
-from training.stable_baselines.models.models import create_ppo_with_resnet_model
+from training.stable_baselines.models.learning_rate_schedules import linear_schedule
+from training.stable_baselines.models.models import create_ppo_with_resnet18_model
 from training.stable_baselines.training.hyper_params import TrainingParams, DataParams, GeneralParams
 from training.stable_baselines.utils.utils import get_consistent_transformers
 
@@ -38,6 +39,7 @@ class StableBaselineTrainer(AbstractTrainer):
 
         self.data_loader = DatasetLoadData(self.data_params["dataset_id"])
         self.transformers = get_consistent_transformers(general_params["transformer_labels"])
+        self.learning_rate = general_params["learning_rate"]
         self.success_bonus = general_params["success_bonus"]
         self.image_max_size = general_params["image_max_size"]
         self.training_source_path: Optional[Path] = None
@@ -50,7 +52,6 @@ class StableBaselineTrainer(AbstractTrainer):
         # Evaluation parameters
         self.evaluation_seed = self.training_params["evaluation_seed"]
         self.evaluation_interval = self.training_params["evaluation_interval"]
-        self.evaluation_n_episodes = self.training_params["evaluation_n_episodes"]
         self.evaluation_deterministic = self.training_params["evaluation_deterministic"]
         self.evaluation_render_mode = self.training_params["evaluation_render_mode"]
         self.evaluation_render_save_dir = Path(os.environ["IMAGE_VOLUME_PATH"]) / self.training_params[
@@ -104,16 +105,37 @@ class StableBaselineTrainer(AbstractTrainer):
             coco_dataset_sampler_factory=training_sampler_factory,
             seed=self.training_seed,
             render_mode=self.render_mode,
-            render_save_dir=self.render_save_dir)
-        training_vec_env = make_vec_env(training_env_fn,
+            render_save_dir=self.render_save_dir,
+            stats_key="episode_success")
+        training_vec_env = make_vec_env(env_id=training_env_fn,
                                         n_envs=self.training_params["num_vector_envs"],
                                         seed=self.training_seed)
-        model = create_ppo_with_resnet_model(vec_env=training_vec_env,
-                                             n_steps=self.training_params["n_steps"],
-                                             batch_size=self.training_params["mini_batch_size"],
-                                             n_epochs=self.training_params["n_epochs"],
-                                             feature_dim=512)
-        rollout_callback = RolloutSuccessCallback(stats_key="episode_success", episode_stats_key="episode_stats")
+
+        model_learning_schedule = linear_schedule(self.learning_rate)
+
+        # model = create_dqn_with_resnet_model(vec_env=training_vec_env,
+        #                                      learning_rate=model_learning_schedule,
+        #                                      buffer_size=2_000,
+        #                                      batch_size=self.training_params["mini_batch_size"],
+        #                                      learning_starts=1_000,
+        #                                      train_freq=4,
+        #                                      feature_dim=512)
+
+        # model = create_ppo_with_resnet_model(vec_env=training_vec_env,
+        #                                      learning_rate=model_learning_schedule,
+        #                                      n_steps=self.training_params["n_steps"],
+        #                                      batch_size=self.training_params["mini_batch_size"],
+        #                                      n_epochs=self.training_params["n_epochs"],
+        #                                      feature_dim=512)
+
+        model = create_ppo_with_resnet18_model(vec_env=training_vec_env,
+                                               learning_rate=model_learning_schedule,
+                                               n_steps=self.training_params["n_steps"],
+                                               batch_size=self.training_params["mini_batch_size"],
+                                               n_epochs=self.training_params["n_epochs"],
+                                               feature_dim=64)
+        rollout_callback = RolloutSuccessCallback(training_episode_stats_key="episode_success",
+                                                  evaluation_episode_stats_key="evaluation_episode_success")
 
         mlflow_helper.log_param("training_annotation_file", str(training_annotations.annotation_file))
         mlflow_helper.log_param("training_annotation_images", str(training_annotations.images_path))
@@ -127,11 +149,24 @@ class StableBaselineTrainer(AbstractTrainer):
             coco_dataset_sampler_factory=evaluation_sampler_factory,
             seed=self.evaluation_seed,
             render_mode=self.evaluation_render_mode,
-            render_save_dir=self.evaluation_render_save_dir)
+            render_save_dir=self.evaluation_render_save_dir,
+            stats_key="evaluation_episode_success")
         evaluation_vec_env = make_vec_env(env_id=evaluation_env_fn,
                                           n_envs=1,
                                           seed=self.evaluation_seed)
-        eval_callback = EvaluationCallback(
+        # eval_callback = EvaluationCallback(
+        #     eval_env=evaluation_vec_env,
+        #     best_model_save_path=str(self.evaluation_model_save_dir),
+        #     log_path=str(self.evaluation_log_path),
+        #     eval_freq=self.evaluation_interval,
+        #     n_eval_episodes=len(evaluation_coco_dataset),
+        #     deterministic=self.evaluation_deterministic,
+        #     # NICE: Render callback implementieren
+        #     render=False
+        # )
+
+        eval_callback = ImageTransformEvaluationCallback(
+            stats_key="evaluation_episode_success",
             eval_env=evaluation_vec_env,
             best_model_save_path=str(self.evaluation_model_save_dir),
             log_path=str(self.evaluation_log_path),
@@ -159,7 +194,8 @@ class StableBaselineTrainer(AbstractTrainer):
                             coco_dataset_sampler_factory: Optional[Callable[[], CocoDatasetSampler]],
                             seed: int,
                             render_mode: str,
-                            render_save_dir: Path
+                            render_save_dir: Path,
+                            stats_key: str
                             ) -> Callable[[], SuccessCountingWrapper]:
         return lambda: SuccessCountingWrapper(
             ImageRenderWrapper(
@@ -178,7 +214,7 @@ class StableBaselineTrainer(AbstractTrainer):
                 render_mode=render_mode,
                 render_save_dir=render_save_dir,
             ),
-            stats_key="episode_stats"
+            stats_key=stats_key
         )
 
     def _evaluate_impl(self):

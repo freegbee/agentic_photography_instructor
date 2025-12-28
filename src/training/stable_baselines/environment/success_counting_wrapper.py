@@ -44,17 +44,18 @@ class SuccessCountingWrapper(gym.Wrapper):
         if done:
             score = float(info["score"]) if "score" in info else None
             initial_score = float(info["initial_score"]) if "initial_score" in info else None
-
+            success = info.get("success", False)
             ep_info = {
                 "r": float(self._cum_reward),
                 "l": int(self._length),
                 "t": float(time.time() - (self._start_time or time.time())),
-                "success": info.get("success", False),
+                "success": success,
                 "score": score,
                 "initial_score": initial_score,
                 "score_change": float(score - initial_score) if score is not None and initial_score is not None else None
             }
             # Informationen bei abgeschlossener Episode ins info dict packen
             info[self._stats_key] = dict(ep_info)
+            info["is_success"] = success
             logger.debug("Episode ended: info=%s" % str(ep_info))
         return obs, reward, terminated, truncated, info
