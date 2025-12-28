@@ -14,7 +14,8 @@ def main():
 
     data_params = HyperparameterRegistry.get_store(DataParams)
     # Mögliche alternative Datensätze:
-    data_params.set({"dataset_id": "twenty_images"})
+    data_params.set({"dataset_id": "lhq_landscapes"})
+    # data_params.set({"dataset_id": "twenty_images"})
     # data_params.set({"dataset_id": "flickr8k"})
     # data_params.set({"dataset_id": "places365_val_large"})
 

@@ -54,10 +54,19 @@ class CopyAndResizePreprocessor(AbstractPreprocessor[CopyAndResizeResult]):
         for batch in dataloader:
             for image_path, parent_path, filename in batch:
                 with Image.open(image_path) as im:
+                    im = self._ensure_rgb(im)
                     im.thumbnail((self.target_max_size, self.target_max_size), Image.Resampling.LANCZOS)
-                    im.save(self.effective_images_path / filename)
+                    png_filename = filename.replace(".jpg", ".png")
+                    im.save(self.effective_images_path / png_filename)
                     # resized = im.resize((self.target_max_size, self.target_max_size))
-                    # resized.save(self.effective_images_path / filename)
+                    # resized.save(self.effective_images_path / png_filename)
+
+    def _ensure_rgb(self, image: Image.Image) -> Image.Image:
+        if image.mode != 'RGB':
+            return image.convert('RGB')
+        return image
 
     def get_preprocessing_result(self) -> CopyAndResizeResult:
         return CopyAndResizeResult(self.effective_destination_path, self.effective_images_path)
+
+
