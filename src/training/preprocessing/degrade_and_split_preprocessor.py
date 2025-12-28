@@ -4,6 +4,8 @@ from pathlib import Path
 from typing import Optional, List, Dict, Iterable
 
 import mlflow
+import numpy as np
+from numpy import ndarray
 from torch.utils.data import DataLoader, Sampler
 
 from data_types.AgenticImage import ImageData
@@ -22,8 +24,10 @@ from training.preprocessing.abstract_preprocessor import AbstractPreprocessor
 from training.rl_training.training_params import TransformPreprocessingParams, GeneralPreprocessingParams, \
     TrainingExecutionParams
 from training.split_ratios import SplitRatios
+from transformer.AbstractTransformer import AbstractTransformer
 from utils.CocoBuilder import CocoBuilder
 from utils.ImageUtils import ImageUtils
+from utils.Registries import TRANSFORMER_REGISTRY
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +65,7 @@ class DegradeAndSplitPreprocessor(AbstractPreprocessor[DegradeAndSplitPreprocess
         self.juror_client = juror_client if juror_client is not None else JurorClient(
             use_local=training_params["use_local_juror"])
         self.processed_splits: Dict[str, AnnotationFileAndImagePath] = {}
+        self.debug_degradation_scoring = False  # Wenn true, wird weitertest Scoring ausgeführt um die Degradation zu validieren
 
     def with_source_path(self, source_path: Path) -> 'DegradeAndSplitPreprocessor':
         self.source_path = source_path
@@ -103,7 +108,8 @@ class DegradeAndSplitPreprocessor(AbstractPreprocessor[DegradeAndSplitPreprocess
             # Save split annotations
             split_coco_file = split_dir / "annotations.json"
             split_coco_builder.save(str(split_coco_file))
-            mlflow_helper.log_artifact(local_path=str(split_coco_file), step=self.step_arg, artifact_path=str(split_name))
+            mlflow_helper.log_artifact(local_path=str(split_coco_file), step=self.step_arg,
+                                       artifact_path=str(split_name))
 
             mlflow_helper.log_metric(f"{split_name}_num_images", len(split_coco_builder.images))
             self.processed_splits[split_name] = AnnotationFileAndImagePath(split_coco_file, split_images_dir)
@@ -135,8 +141,52 @@ class DegradeAndSplitPreprocessor(AbstractPreprocessor[DegradeAndSplitPreprocess
             scoring_response: ScoringResponsePayloadV1 = self.juror_client.score_ndarray_bgr(degraded_image)
             coco_builder.add_image_score_annotation(image_id=image_id, score=scoring_response.score,
                                                     initial_score=image_data.initial_score)
+            if self.debug_degradation_scoring:
+                self._debug_degradation_scoring(degraded_image,
+                                                image_data,
+                                                image_id,
+                                                transformed_image_path,
+                                                transformer_labels)
+
             for transformer_label in transformer_labels:
                 coco_builder.add_image_transformation_annotation(image_id, transformer_name=transformer_label)
+
+    def _debug_degradation_scoring(self, degraded_image: ndarray, image_data: CocoImageData, image_id: int,
+                                   transformed_image_path: str, transformer_labels: list[str]):
+        # Rollback transformation to check initial score
+        degrading_transformer: AbstractTransformer = TRANSFORMER_REGISTRY.get(transformer_labels[0])
+        reversing_transformer_label = degrading_transformer.get_reverse_transformer_label()
+        if reversing_transformer_label:
+            initial_image_for_rescoring = image_data.get_image_data("BGR")
+            rescore_initial_scoring_response = self.juror_client.score_ndarray_bgr(
+                initial_image_for_rescoring).score
+            if abs(rescore_initial_scoring_response - image_data.initial_score) > 1e-5:
+                logger.warning(f"Initial score mismatch for image {image_data.image_relative_path}: "
+                               f"stored={image_data.initial_score}, live={rescore_initial_scoring_response}")
+            reverting_transformer: AbstractTransformer = TRANSFORMER_REGISTRY.get(reversing_transformer_label)
+            dedegraded_image = reverting_transformer.transform(degraded_image)
+            ImageUtils.save_image(image_data.get_image_data("BGR"),
+                                  transformed_image_path.replace(".png", "_initial.png"))
+            ImageUtils.save_image(dedegraded_image, transformed_image_path.replace(".png", "_dedegraded.png"))
+            dedegraded_scoring_response = self.juror_client.score_ndarray_bgr(dedegraded_image).score
+
+            logger.warning("%s: Initial: %.5f, Rescored: %.5f, Dedegraded: %.5f for image %s",
+                           image_data.image_relative_path, image_data.initial_score,
+                           rescore_initial_scoring_response, dedegraded_scoring_response, image_id)
+
+            if abs(dedegraded_scoring_response - image_data.initial_score) > 1e-5:
+                logger.warning(f"Rescored initial score mismatch for image {image_data.image_relative_path}: "
+                               f"stored={image_data.initial_score}, live={dedegraded_scoring_response}")
+
+            if abs(dedegraded_scoring_response - rescore_initial_scoring_response) > 1e-5:
+                logger.warning(f"Rescored initial score mismatch for image {image_data.image_relative_path}: "
+                               f"initial_rescored={rescore_initial_scoring_response}, dedegraded={dedegraded_scoring_response}")
+
+            if not np.array_equal(initial_image_for_rescoring, dedegraded_image):
+                logger.warning(
+                    f"Dedegraded image does not match the original for image {image_data.image_relative_path}")
+        else:
+            logger.warning(f"No reversable transformer for {degrading_transformer.label}")
 
     def _create_splits(self, source_dataset: COCODataset) -> Dict[str, List[int]]:
         total_images = len(source_dataset)

@@ -8,18 +8,10 @@ def _normalize_reverse_labels(obj) -> List[str]:
 
     Handles cases where the attribute is a list, tuple, string or missing.
     """
-    rev = getattr(obj, "reverse_transformer_labels", None)
+    rev = getattr(obj, "reverse_transformer_label", None)
     if rev is None:
         return []
-    if isinstance(rev, (list, tuple)):
-        return list(rev)
-    if isinstance(rev, str):
-        return [rev]
-    # fallback: try to iterate
-    try:
-        return list(rev)
-    except Exception:
-        return []
+    return [rev]
 
 
 def generate_transformer_pairs(

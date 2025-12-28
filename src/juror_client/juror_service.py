@@ -156,7 +156,6 @@ class JurorHttpService(JurorService):
             raise ValueError("Unsupported encoding; use 'npy' or 'npz'")
 
         files = {"array_file": (filename, bio.read(), content_type)}
-        logger.info("Sending file for scoring: %s", files["array_file"][0])
         logger.debug("Sending array file for scoring: %s", filename)
         resp = self._client.post(self.scoring_endpoint + "/ndarray", files=files)
         logger.debug("Response status=%s headers=%s", resp.status_code, dict(resp.headers))

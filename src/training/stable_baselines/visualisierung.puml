@@ -1,0 +1,33 @@
+@startuml
+left to right direction
+skinparam componentStyle rectangle
+skinparam shadowing false
+
+package "Environment" {
+  rectangle "Step\n(Observation → Action → Reward, done flag)" as Step
+  rectangle "Episode\n(Sequenz von Steps, endet bei done)" as Episode
+  Step --> Episode : gehört zu
+}
+
+rectangle "Vector Envs\n`num_envs` parallele Instanzen" as VecEnv
+VecEnv -down-> Step : pro globalem Step → `num_envs` Env-Steps
+
+rectangle "Rollout Batch\n`n_steps * num_envs` Transitions" as Rollout
+VecEnv --> Rollout : sammle `n_steps` Schritte pro Env
+
+rectangle "Minibatches\nGröße = `mini_batch_size`" as MB
+Rollout --> MB : aufteilen in Minibatches
+
+rectangle "n_epochs\nAnzahl Wiederholungen über Rollout" as Epoch
+Epoch --> MB : pro Epoche alle Minibatches durchlaufen
+
+rectangle "Training / total_timesteps" as Training
+Training --> Rollout : wiederhole Sammlung bis `total_timesteps` erreicht
+
+note right of Training
+Wichtige Beziehungen:
+- `rollout_batch_size = n_steps * num_envs`\
+- `Updates ≈ total_timesteps / (n_steps * num_envs)`\
+- `GradSteps pro Update = n_epochs * (rollout_batch_size / mini_batch_size)`
+End note
+@enduml

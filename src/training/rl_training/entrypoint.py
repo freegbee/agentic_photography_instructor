@@ -10,13 +10,14 @@ configure_logging()
 
 def main():
     training_params = HyperparameterRegistry.get_store(TrainingExecutionParams)
-    training_params.set({"experiment_name": "Dynamic_RL_Agent_Training", "use_local_juror": True, "random_seed": 42})
+    training_params.set({"experiment_name": "Dynamic_RL_Agent_Training PoC 0.01", "use_local_juror": True, "random_seed": 42})
 
     data_params = HyperparameterRegistry.get_store(DataParams)
     # Mögliche alternative Datensätze:
+    data_params.set({"dataset_id": "lhq_landscapes"})
     # data_params.set({"dataset_id": "twenty_images"})
     # data_params.set({"dataset_id": "flickr8k"})
-    data_params.set({"dataset_id": "places365_val_large"})
+    # data_params.set({"dataset_id": "places365_val_large"})
 
     general_processing_params = HyperparameterRegistry.get_store(GeneralPreprocessingParams)
     general_processing_params.set({"batch_size": 64, "random_seed": 67})
