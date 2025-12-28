@@ -120,12 +120,24 @@ image_acquisition:
     destination_dir: twenty_two_actions
     archive_root: twenty_two_actions
     target_hash: 0172fae63d92f2514a867bfa91751dab98f67b55bff5f7258d60c3736f46be99
+  twenty_two_actions_amd-win:
+    type: zip
+    source_url: "https://casml4se-artifacts.fra1.digitaloceanspaces.com/manual/twenty_two_actions_amd-win.zip"
+    destination_dir: twenty_two_actions_amd-win
+    archive_root: twenty_two_actions_amd-win
+    target_hash: 468a6138648e2b980edf04e919437fa6428a5077674d6ded3a6d540ddb2289fa
   lhq_landscapes_two_actions:
     type: zip
     source_url: "https://casml4se-artifacts.fra1.digitaloceanspaces.com/manual/lhq_landscapes_two_actions.zip"
     destination_dir: lhq_landscapes_two_actions
     archive_root: lhq_landscapes_two_actions
     target_hash: 5432ad7eeb1fcbff11ebeb5e497545375dc07b0d561b658cd08cfea8b978de58
+  lhq_landscapes_two_actions_amd-win:
+    type: zip
+    source_url: "https://casml4se-artifacts.fra1.digitaloceanspaces.com/manual/lhq_landscapes_two_actions_amd-win.zip"
+    destination_dir: lhq_landscapes_two_actions_amd-win
+    archive_root: lhq_landscapes_two_actions_amd-win
+    target_hash: 6cfd248482ae04209351be9c2bf18f2a5a49d158fefb14cce10cc73b832ef95e
   lhq_landscapes:
     type: kaggle
     kaggle_dataset: "arnaud58/landscape-pictures"
