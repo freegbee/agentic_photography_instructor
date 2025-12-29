@@ -56,7 +56,7 @@ class SwapColorChannelTransformerGB(AbstractColorAdjustmentTransformer):
 
     label = "CA_SWAP_GB"
     description = "Swap the green and blue color channels while keeping BGR format."
-    reverse_transformer_labels = "CA_SWAP_GB"
+    reverse_transformer_label = "CA_SWAP_GB"
 
     def transform(self, image: ndarray) -> ndarray:
         return _swap_channels(image, "G", "B")

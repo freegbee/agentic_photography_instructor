@@ -4,16 +4,7 @@ from . import cropping
 from . import image_adjustment
 from .PairGenerator import generate_transformer_pairs
 from .color_adjustment import *
-from .image_adjustment import (
-    ShiftColorPlaneLeftB,
-    ShiftColorPlaneLeftG,
-    ShiftColorPlaneLeftR,
-    ShiftColorPlaneDownB,
-    ShiftColorPlaneDownG,
-    ShiftColorPlaneDownR,
-    ShiftColorPlaneLeftAll,
-    ShiftColorPlaneDownAll,
-)
+from .image_adjustment import *
 
 REVERSIBLE_TRANSFORMERS = [SwapColorChannelTransformerGB.label,
                            SwapColorChannelTransformerRB.label,
@@ -40,4 +31,13 @@ POC_TWO_WAY_TRANSFORMERS = [
     InvertColorChannelTransformerR.label
 ]
 
-__all__ = ["generate_transformer_pairs", "REVERSIBLE_TRANSFORMERS", "POC_ONE_WAY_TRANSFORMERS", "POC_TWO_WAY_TRANSFORMERS"]
+POC_MULTI_ONE_STEP_TRANSFORMERS = [
+    InvertColorChannelTransformerB.label,
+    InvertColorChannelTransformerG.label,
+    InvertColorChannelTransformerR.label,
+    SwapColorChannelTransformerRB.label,
+    SwapColorChannelTransformerRG.label,
+    SwapColorChannelTransformerGB.label
+]
+
+__all__ = ["generate_transformer_pairs", "REVERSIBLE_TRANSFORMERS", "POC_ONE_WAY_TRANSFORMERS", "POC_TWO_WAY_TRANSFORMERS", "POC_MULTI_ONE_STEP_TRANSFORMERS"]
