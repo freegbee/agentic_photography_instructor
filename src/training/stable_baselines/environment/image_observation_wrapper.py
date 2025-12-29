@@ -46,6 +46,10 @@ class ImageObservationWrapper(ObservationWrapper):
         if img_resized.ndim == 3 and img_resized.shape[2] == 4:
             img_resized = img_resized[:, :, :3]
 
+        # Konvertierung von BGR zu RGB für ResNet (erwartet RGB)
+        if img_resized.ndim == 3 and img_resized.shape[2] == 3:
+            img_resized = img_resized[..., ::-1]
+
         img_clipped = np.clip(img_resized, 0.0, 1.0).astype(np.float32)
 
         # HWC -> CHW
