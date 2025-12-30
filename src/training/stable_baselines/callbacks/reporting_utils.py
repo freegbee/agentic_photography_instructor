@@ -8,6 +8,7 @@ class ReportingUtils:
         cumulated_successes: int = 0
         cumulated_score: float = 0
         cumulated_initial_score: float = 0
+        cumulated_matches_expected: int = 0
 
         for episode in metrics_collection:
             cumulated_episodes += 1
@@ -15,6 +16,8 @@ class ReportingUtils:
             cumulated_reward += float(episode.get("r", 0.0))
             if episode.get("success", False):
                 cumulated_successes += 1
+            if episode.get("matches_expected", False):
+                cumulated_matches_expected += 1
             if episode.get("score") is not None:
                 cumulated_score += float(episode.get("score"))
             if episode.get("initial_score") is not None:
@@ -33,6 +36,7 @@ class ReportingUtils:
             f"{metric_key_prefix}_mean_reward": mean_reward,
             f"{metric_key_prefix}_images_with_success": int(cumulated_successes),
             f"{metric_key_prefix}_success_rate": float(success_rate),
+            f"{metric_key_prefix}_matches_expected": float(cumulated_matches_expected),
             f"{metric_key_prefix}_mean_score": float(mean_score),
             f"{metric_key_prefix}_mean_initial_score": float(mean_initial_score)
         }

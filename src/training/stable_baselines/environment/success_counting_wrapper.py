@@ -45,11 +45,13 @@ class SuccessCountingWrapper(gym.Wrapper):
             score = float(info["score"]) if "score" in info else None
             initial_score = float(info["initial_score"]) if "initial_score" in info else None
             success = info.get("success", False)
+            matches_expected = info.get("matches_expected", False)
             ep_info = {
                 "r": float(self._cum_reward),
                 "l": int(self._length),
                 "t": float(time.time() - (self._start_time or time.time())),
                 "success": success,
+                "matches_expected": matches_expected,
                 "score": score,
                 "initial_score": initial_score,
                 "score_change": float(score - initial_score) if score is not None and initial_score is not None else None

@@ -12,13 +12,14 @@ configure_logging()
 
 def main():
     run_name = "run_" + time.strftime("%Y%m%d-%H%M%S")
+    run_name = "Landscapes, One-of-Six, Juror Scores, no resnet"
 
     source_transformer_labels = POC_MULTI_ONE_STEP_TRANSFORMERS
     transformer_labels = [TRANSFORMER_REGISTRY.get(l).get_reverse_transformer_label() for l in source_transformer_labels]
 
     general_params = HyperparameterRegistry.get_store(GeneralParams)
     general_params.set({
-        "success_bonus": 0.0,
+        "success_bonus": 1.0,
         "learning_rate": 3e-4,
         "transformer_labels": transformer_labels,
         "image_max_size": (384, 384)

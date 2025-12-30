@@ -16,6 +16,7 @@ class _EnhancedAnnotation(TypedDict, total=False):
     is_scoring_annotation: Optional[bool]
     score: Optional[float]
     initial_score: Optional[float]
+    sequence: Optional[int]
 
 
 class EnhancedCOCO(COCO):

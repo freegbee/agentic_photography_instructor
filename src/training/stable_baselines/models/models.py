@@ -50,7 +50,20 @@ def create_ppo_with_resnet18_model(vec_env: VecEnv,
                policy_kwargs=create_resnet_extractor(ResNet18FeatureExtractor, feature_dim),
                verbose=1)
 
-
+def create_ppo_model_without_backbone(vec_env: VecEnv,
+                                 n_steps: int,
+                                 batch_size: int,
+                                 n_epochs: int,
+                                 learning_rate: Union[float, Schedule] = 3e-4,
+                                 ) -> PPO:
+    return PPO("CnnPolicy",
+               env=vec_env,
+               n_steps=n_steps,
+               learning_rate=learning_rate,
+               batch_size=batch_size,
+               n_epochs=n_epochs,
+               policy_kwargs={"normalize_images": False},
+               verbose=1)
 
 def create_dqn_with_resnet_model(vec_env: VecEnv,
                                 learning_rate: Union[float, Schedule] = 1e-4,
@@ -67,5 +80,5 @@ def create_dqn_with_resnet_model(vec_env: VecEnv,
                batch_size=batch_size,
                learning_starts=learning_starts,
                train_freq=train_freq,
-               policy_kwargs=create_resnet_extractor(feature_dim),
+               policy_kwargs=create_resnet_extractor(ResNet18FeatureExtractor, feature_dim),
                verbose=1)
