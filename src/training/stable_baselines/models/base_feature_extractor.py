@@ -19,6 +19,7 @@ class ResNetFeatureExtractor(BaseFeaturesExtractor):
         modules = list(backbone.children())[:-1]
         self.backbone = nn.Sequential(*modules)  # Ausgabe: (B, 2048, 1, 1)
         if freeze_backbone:
+            self.backbone.eval()
             for p in self.backbone.parameters():
                 p.requires_grad = False
         self.proj = nn.Sequential(
@@ -52,6 +53,7 @@ class ResNet18FeatureExtractor(BaseFeaturesExtractor):
         backbone_feature_dim = int(self.backbone.fc.in_features)  # 512 for ResNet18
         self.backbone.fc = nn.Identity()
         if freeze_backbone:
+            self.backbone.eval()
             for p in self.backbone.parameters():
                 p.requires_grad = False
         self.proj = nn.Sequential(

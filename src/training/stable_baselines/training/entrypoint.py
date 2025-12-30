@@ -12,7 +12,7 @@ configure_logging()
 
 def main():
     run_name = "run_" + time.strftime("%Y%m%d-%H%M%S")
-    run_name = "Landscapes, One-of-Six, Juror Scores, no resnet"
+    run_name = "Landscapes, One-of-Six, Juror Scores, resnet eval mode, no normalize"
 
     source_transformer_labels = POC_MULTI_ONE_STEP_TRANSFORMERS
     transformer_labels = [TRANSFORMER_REGISTRY.get(l).get_reverse_transformer_label() for l in source_transformer_labels]

@@ -8,12 +8,10 @@ import numpy as np
 from gymnasium import spaces
 from gymnasium.core import ObsType
 
-from data_types.AgenticImage import ImageData
 from juror_client import JurorClient
 from training.stable_baselines.environment.samplers import CocoDatasetSampler
 from transformer.AbstractTransformer import AbstractTransformer
 from utils.ImageUtils import ImageUtils
-from utils.Registries import TRANSFORMER_REGISTRY
 
 logger = logging.getLogger(__name__)
 
@@ -129,12 +127,12 @@ class ImageTransformEnv(gym.Env):
             life_score = self.juror_client.score_ndarray_bgr(img)
             if life_score.score != self.current_score:
                 logger.warning("Initial score mismatch for image id %d: stored=%.4f, live=%.4f" % (image_data.id,
-                                                                                                 self.current_score,
-                                                                                                 life_score.score))
+                                                                                                   self.current_score,
+                                                                                                   life_score.score))
                 proof_file_name = str(image_data.image_path).replace(".png", "_with_mismatch.png")
                 proof_file_name = str(proof_file_name).replace(".jpg", "_with_mismatch.jpg")
                 ImageUtils.save_image(image_data.image_data, proof_file_name)
-                raise(ValueError("Initial score mismatch. proof at %s" % proof_file_name))
+                raise (ValueError("Initial score mismatch. proof at %s" % proof_file_name))
         self.step_count = 0
         return self.current_image, {"dataset_exhausted": exhausted}
 
@@ -182,7 +180,8 @@ class ImageTransformEnv(gym.Env):
         # Erfolg prüfen und Bonus vergeben
         success = (new_score >= self.initial_score) if (self.initial_score is not None) else False
         if not success and abs(new_score - self.initial_score) < 0.25:
-            logger.warning(f"Suspiciously small score change for image id {self.current_image_id}: initial={self.initial_score}, new={new_score}")
+            logger.warning(
+                f"Suspiciously small score change for image id {self.current_image_id}: initial={self.initial_score}, new={new_score}")
         if success:
             reward += self.success_bonus
 
@@ -196,7 +195,7 @@ class ImageTransformEnv(gym.Env):
         # truncated = not success and (self.step_count >= self.max_transformations)
         # Nie truncated, da das korrekterweise fertig ist und das Netz nicht meinen soll, dass es eigentlich noch hätte weiter gehen sollen
         truncated = False  # Success oder Anzahl Steps gemacht, d.h. 2
-        done = True        # Success oder truncated
+        done = True  # Success oder truncated
 
         info = {
             "score": new_score,

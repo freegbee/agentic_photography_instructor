@@ -29,9 +29,10 @@ class COCODataset(Dataset[CocoImageData]):
     """
 
     def __init__(self, images_root_path: Path, annotation_file: Path, score_category_id: int = 0,
-                 transformation_supercategory_id: int = 2):
+                 include_transformations: bool = True):
         self.images_root_path: Path = images_root_path
         self.coco: EnhancedCOCO = EnhancedCOCO(annotation_file)
+        self.include_transformations = include_transformations
         self.image_ids = list(self.coco.imgs.keys())
         self.score_category_id = score_category_id
         self.transformation_supercategory_id = self.coco.getCatIds(catNms=["transformer"])[0]
@@ -60,7 +61,7 @@ class COCODataset(Dataset[CocoImageData]):
             if ann['category_id'] == self.score_category_id:
                 score = ann.get("score", 0.0)
                 initial_score = ann.get("initial_score", 0.0)
-            elif ann['category_id'] in self.transformation_cats:
+            elif self.include_transformations and ann['category_id'] in self.transformation_cats:
                 transformations.append(TransformationAnnotationTypeDict({
                     'sequence': ann['sequence'],
                     'category_id': ann['category_id'],

@@ -128,17 +128,18 @@ class StableBaselineTrainer(AbstractTrainer):
         #                                      n_epochs=self.training_params["n_epochs"],
         #                                      feature_dim=512)
 
-        # model = create_ppo_with_resnet18_model(vec_env=training_vec_env,
-        #                                        learning_rate=model_learning_schedule,
-        #                                        n_steps=self.training_params["n_steps"],
-        #                                        batch_size=self.training_params["mini_batch_size"],
-        #                                        n_epochs=self.training_params["n_epochs"],
-        #                                        feature_dim=64)
-        model = create_ppo_model_without_backbone(vec_env=training_vec_env,
-                                                  learning_rate=model_learning_schedule,
-                                                  n_steps=self.training_params["n_steps"],
-                                                  batch_size=self.training_params["mini_batch_size"],
-                                                  n_epochs=self.training_params["n_epochs"], )
+        model = create_ppo_with_resnet18_model(vec_env=training_vec_env,
+                                               learning_rate=model_learning_schedule,
+                                               n_steps=self.training_params["n_steps"],
+                                               batch_size=self.training_params["mini_batch_size"],
+                                               n_epochs=self.training_params["n_epochs"],
+                                               feature_dim=64,
+                                               freeze_backbone=True)
+        # model = create_ppo_model_without_backbone(vec_env=training_vec_env,
+        #                                           learning_rate=model_learning_schedule,
+        #                                           n_steps=self.training_params["n_steps"],
+        #                                           batch_size=self.training_params["mini_batch_size"],
+        #                                           n_epochs=self.training_params["n_epochs"], )
         rollout_callback = RolloutSuccessCallback(training_episode_stats_key="episode_success",
                                                   evaluation_episode_stats_key="evaluation_episode_success")
 
@@ -148,7 +149,8 @@ class StableBaselineTrainer(AbstractTrainer):
         # Create evaluation environment
         evaluation_annotations = self.dataset_info["validation"]
         evaluation_coco_dataset = COCODataset(images_root_path=evaluation_annotations.images_path,
-                                              annotation_file=evaluation_annotations.annotation_file)
+                                              annotation_file=evaluation_annotations.annotation_file,
+                                              include_transformations=False)
         evaluation_sampler_factory = lambda: SequentialCocoDatasetSampler(evaluation_coco_dataset)
         evaluation_env_fn = self._create_environment(
             coco_dataset_sampler_factory=evaluation_sampler_factory,
