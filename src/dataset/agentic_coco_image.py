@@ -9,6 +9,7 @@ class CocoImageData(ImageData):
     width: int
     height: int
     annotations: Optional[List[_EnhancedAnnotation]]
+    applied_transformations: Optional[List[str]]
 
     def clone(self):
         cloned = super().clone()

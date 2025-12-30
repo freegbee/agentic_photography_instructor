@@ -70,6 +70,8 @@ class ImageTransformEnv(gym.Env):
         self.initial_score = None
         self.current_score = None
         self.current_image_id = None
+        self.applied_transformation = None
+        self.expected_transformation = None
         self.step_count = 0
         self._rng = np.random.RandomState(seed)
 
@@ -77,6 +79,8 @@ class ImageTransformEnv(gym.Env):
         self.render_mode = render_mode
         self.render_save_dir = render_save_dir
         self.reset_idx = 0
+
+        self.expected_transformer_label_cache: Dict[str] = {}
 
         self.debug_scoring = False
 
@@ -122,6 +126,7 @@ class ImageTransformEnv(gym.Env):
         # Beim Scoren wird dann wieder zurückgerechnet
         self.current_image = img
         self.current_image_id = image_data.id
+        self.expected_transformation = self._retrieve_expected_transformation(image_data)
 
         self.initial_score = image_data.initial_score
         self.current_score = image_data.score
@@ -129,12 +134,12 @@ class ImageTransformEnv(gym.Env):
             life_score = self.juror_client.score_ndarray_bgr(img)
             if life_score.score != self.current_score:
                 logger.warning("Initial score mismatch for image id %d: stored=%.4f, live=%.4f" % (image_data.id,
-                                                                                                 self.current_score,
-                                                                                                 life_score.score))
+                                                                                                   self.current_score,
+                                                                                                   life_score.score))
                 proof_file_name = str(image_data.image_path).replace(".png", "_with_mismatch.png")
                 proof_file_name = str(proof_file_name).replace(".jpg", "_with_mismatch.jpg")
                 ImageUtils.save_image(image_data.image_data, proof_file_name)
-                raise(ValueError("Initial score mismatch. proof at %s" % proof_file_name))
+                raise (ValueError("Initial score mismatch. proof at %s" % proof_file_name))
         self.step_count = 0
         return self.current_image, {"dataset_exhausted": exhausted}
 
@@ -168,11 +173,11 @@ class ImageTransformEnv(gym.Env):
         transformed_img = transformer.transform(self.current_image)
 
         # Berechne die neue Punktzahl mit dem Juror-Client
-        scoring_response = self.juror_client.score_ndarray_bgr(transformed_img)
-        new_score = scoring_response.score
+        # scoring_response = self.juror_client.score_ndarray_bgr(transformed_img)
+        # new_score = scoring_response.score
 
         # Berechne die Belohnung als Differenz der Punktzahlen
-        reward = new_score - self.current_score
+        # reward = new_score - self.current_score
 
         # optional: Penalty für große params oder jeden Schritt
         # param_penalty = 0.01 * float(np.linalg.norm(params))
@@ -180,30 +185,49 @@ class ImageTransformEnv(gym.Env):
         # reward = reward - param_penalty + step_penalty
 
         # Erfolg prüfen und Bonus vergeben
-        success = (new_score >= self.initial_score) if (self.initial_score is not None) else False
-        if not success and abs(new_score - self.initial_score) < 0.25:
-            logger.warning(f"Suspiciously small score change for image id {self.current_image_id}: initial={self.initial_score}, new={new_score}")
-        if success:
-            reward += self.success_bonus
+        matches_expected = (self.expected_transformation == transformer.label)
+        if matches_expected:
+            success = True
+            reward = 1.0
+        else:
+            success = False
+            reward = -0.1
+        # success = matches_expected
+
+        # success = (new_score >= self.initial_score) if (self.initial_score is not None) else False
+        # if not success and abs(new_score - self.initial_score) < 0.25:
+        #     logger.warning(
+        #         f"Image id {self.current_image_id}: Suspiciously small score change for image id : initial={self.initial_score}, new={new_score}")
+        # if success != matches_expected:
+        #     logger.warning("Image id %d: Mismatch between action %s, expected action %s and success %s. initial score=%.7f, new score=%.7f, score before transformation=%.7f", self.current_image_id,
+        #                    transformer.label, self.expected_transformation, success, self.initial_score, new_score, self.current_score)
+        #
+        # # Testweise: Success ist nur, wenn es auch gematched wurde. Score ist eigentlich Egal
+        # success = matches_expected
+
+        # Bonus für success addieren zum reward
+        # if success:
+        #     reward += self.success_bonus
 
         # Aktualisiere den Zustand (bild ist wieder normalisiert im Bereich [0,1])
         # self.current_image = self._preprocess(transformed_img)
         self.current_image = transformed_img
-        self.current_score = new_score
+        # self.current_score = new_score
         self.step_count += 1
 
         # TODO: Prüfen, ob es eine "truncated" Bedingung gibt und diese implementieren
         # truncated = not success and (self.step_count >= self.max_transformations)
         # Nie truncated, da das korrekterweise fertig ist und das Netz nicht meinen soll, dass es eigentlich noch hätte weiter gehen sollen
-        truncated = False  # Success oder Anzahl Steps gemacht, d.h. 2
-        done = True        # Success oder truncated
+        truncated = False
+        done = True
 
         info = {
-            "score": new_score,
+            "score": self.current_score,
             # "param_penalty": param_penalty,
             "steps": self.step_count,
             "success": bool(success),
-            "initial_score": self.initial_score
+            "initial_score": self.initial_score,
+            "matches_expected": bool(matches_expected)
         }
 
         logger.debug(
@@ -214,6 +238,24 @@ class ImageTransformEnv(gym.Env):
                                                                                               self.current_score))
 
         return self.current_image, reward, done, truncated, info
+
+    def _retrieve_expected_transformation(self, image_data: ImageData):
+        if self.expected_transformer_label_cache.get(str(image_data.id)) is not None:
+            return self.expected_transformer_label_cache.get(str(image_data.id))
+        if len(image_data.applied_transformations) == 1:
+            self.applied_transformation = image_data.applied_transformations[0]
+        elif len(image_data.applied_transformations) == 0:
+            logger.warning("No applied transformation found for image_id %d", image_data.id)
+        else:
+            logger.warning("More than one applied transformation found for image_id %d. Taking first one",
+                           image_data.id)
+            self.applied_transformation = image_data.applied_transformations[0]
+
+        if self.applied_transformation:
+            t: AbstractTransformer = TRANSFORMER_REGISTRY.get(self.applied_transformation)
+            return t.get_reverse_transformer_label()
+
+        raise ValueError("Unable to retrieve expected transformation for image_id %d")
 
     def close(self):
         """
