@@ -1,5 +1,7 @@
 from typing import TypedDict, Tuple
 
+from training.stable_baselines.models.model_factory import PpoModelVariant
+
 
 class DataParams(TypedDict):
     dataset_id: str
@@ -10,6 +12,7 @@ class TrainingParams(TypedDict):
     run_name: str
     use_local_juror: bool
     random_seed: int
+    ppo_model_variant: PpoModelVariant
     num_vector_envs: int
     mini_batch_size: int
     n_steps: int

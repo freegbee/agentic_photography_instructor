@@ -21,7 +21,7 @@ from training.stable_baselines.environment.samplers import SequentialCocoDataset
     CocoDatasetSampler
 from training.stable_baselines.environment.success_counting_wrapper import SuccessCountingWrapper
 from training.stable_baselines.models.learning_rate_schedules import linear_schedule
-from training.stable_baselines.models.models import create_ppo_with_resnet18_model, create_ppo_model_without_backbone
+from training.stable_baselines.models.model_factory import PpoModelFactory
 from training.stable_baselines.training.hyper_params import TrainingParams, DataParams, GeneralParams
 from training.stable_baselines.utils.utils import get_consistent_transformers
 
@@ -113,6 +113,13 @@ class StableBaselineTrainer(AbstractTrainer):
 
         model_learning_schedule = linear_schedule(self.learning_rate)
 
+        model = (PpoModelFactory(self.training_params["ppo_model_variant"])
+                 .create_model(vec_env=training_vec_env,
+                               learning_rate=model_learning_schedule,
+                               n_steps=self.training_params["n_steps"],
+                               batch_size=self.training_params["mini_batch_size"],
+                               n_epochs=self.training_params["n_epochs"]))
+
         # model = create_dqn_with_resnet_model(vec_env=training_vec_env,
         #                                      learning_rate=model_learning_schedule,
         #                                      buffer_size=2_000,
@@ -121,25 +128,6 @@ class StableBaselineTrainer(AbstractTrainer):
         #                                      train_freq=4,
         #                                      feature_dim=512)
 
-        # model = create_ppo_with_resnet_model(vec_env=training_vec_env,
-        #                                      learning_rate=model_learning_schedule,
-        #                                      n_steps=self.training_params["n_steps"],
-        #                                      batch_size=self.training_params["mini_batch_size"],
-        #                                      n_epochs=self.training_params["n_epochs"],
-        #                                      feature_dim=512)
-
-        model = create_ppo_with_resnet18_model(vec_env=training_vec_env,
-                                               learning_rate=model_learning_schedule,
-                                               n_steps=self.training_params["n_steps"],
-                                               batch_size=self.training_params["mini_batch_size"],
-                                               n_epochs=self.training_params["n_epochs"],
-                                               feature_dim=64,
-                                               freeze_backbone=True)
-        # model = create_ppo_model_without_backbone(vec_env=training_vec_env,
-        #                                           learning_rate=model_learning_schedule,
-        #                                           n_steps=self.training_params["n_steps"],
-        #                                           batch_size=self.training_params["mini_batch_size"],
-        #                                           n_epochs=self.training_params["n_epochs"], )
         rollout_callback = RolloutSuccessCallback(training_episode_stats_key="episode_success",
                                                   evaluation_episode_stats_key="evaluation_episode_success")
 

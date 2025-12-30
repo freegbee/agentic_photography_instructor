@@ -1,6 +1,7 @@
 import time
 
 from training.hyperparameter_registry import HyperparameterRegistry
+from training.stable_baselines.models.model_factory import PpoModelVariant
 from training.stable_baselines.training.hyper_params import TrainingParams, DataParams, GeneralParams
 from training.stable_baselines.training.trainer import StableBaselineTrainer
 from transformer import POC_MULTI_ONE_STEP_TRANSFORMERS
@@ -12,7 +13,8 @@ configure_logging()
 
 def main():
     run_name = "run_" + time.strftime("%Y%m%d-%H%M%S")
-    run_name = "Landscapes, One-of-Six, Juror Scores, resnet eval mode, no normalize"
+    model_variant = PpoModelVariant.PPO_WITHOUT_BACKBONE
+    run_name = f"Landscapes, One-of-Six, Juror Scores, {model_variant.value}"
 
     source_transformer_labels = POC_MULTI_ONE_STEP_TRANSFORMERS
     transformer_labels = [TRANSFORMER_REGISTRY.get(l).get_reverse_transformer_label() for l in source_transformer_labels]
@@ -26,14 +28,12 @@ def main():
     })
 
     training_params = HyperparameterRegistry.get_store(TrainingParams)
-
-    data_params = HyperparameterRegistry.get_store(DataParams)
     training_params.set({
-        "experiment_name": "SB3_POC_MULTI_ONE_STEP_TRANSFORMERS",
+        "experiment_name": "SB3_POC_EVALUATION_VISUALISATION",
         "run_name": run_name,
         "use_local_juror": True,
         "random_seed": 42,
-        # "num_vector_envs": 20,
+        "ppo_model_variant": model_variant,
         "num_vector_envs": 20,
         "n_steps": 200,
         "mini_batch_size": 100,  # (n_steps * num_vector_env) % mini_batch_size == 0, also
@@ -51,6 +51,8 @@ def main():
         "evaluation_log_path": "./evaluation/logs/",
         "evaluation_model_save_dir": "./evaluation/models/"
     })
+
+    data_params = HyperparameterRegistry.get_store(DataParams)
     # data_params.set({"dataset_id": "lhq_landscapes_two_actions"})
     # data_params.set({"dataset_id": "lhq_landscapes_two_actions_amd-win"})
     data_params.set({"dataset_id": "lhq_landscapes_multi_one_step_actions_amd-win"})
