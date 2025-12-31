@@ -34,20 +34,20 @@ def main():
         "use_local_juror": True,
         "random_seed": 42,
         "ppo_model_variant": model_variant,
-        "num_vector_envs": 2,
-        "n_steps": 20,
-        "mini_batch_size": 10,  # (n_steps * num_vector_env) % mini_batch_size == 0, also
+        "num_vector_envs": 20,
+        "n_steps": 200,
+        "mini_batch_size": 100,  # (n_steps * num_vector_env) % mini_batch_size == 0, also
         "n_epochs": 4,
         "max_transformations": 1,
-        "total_training_steps": 4000,
+        "total_training_steps": 400_000,
         "render_mode": "skip",  # "save",
         "render_save_dir": "./renders/",
         # evaluation parameters
         "evaluation_seed": 67,
-        "evaluation_interval": 200,  # num_vector_envs * n_steps -> Nach jedem Rollout validieren
+        "evaluation_interval": 4000,  # num_vector_envs * n_steps -> Nach jedem Rollout validieren
         "evaluation_deterministic": True,
         "evaluation_visual_history": True,
-        "evaluation_visual_history_max_images": 3,
+        "evaluation_visual_history_max_images": 15,
         "evaluation_visual_history_max_size": 150,
         "evaluation_render_mode": "skip",
         "evaluation_render_save_dir": "./evaluation/renders/",
@@ -58,8 +58,8 @@ def main():
     data_params = HyperparameterRegistry.get_store(DataParams)
     # data_params.set({"dataset_id": "lhq_landscapes_two_actions"})
     #data_params.set({"dataset_id": "lhq_landscapes_two_actions_amd-win"})
-    # data_params.set({"dataset_id": "lhq_landscapes_multi_one_step_actions_amd-win"})
-    data_params.set({"dataset_id": "twenty_two_actions_amd-win"})
+    data_params.set({"dataset_id": "lhq_landscapes_multi_one_step_actions_amd-win"})
+    #data_params.set({"dataset_id": "twenty_two_actions_amd-win"})
     # data_params.set({"dataset_id": "twenty_two_actions"})
 
     trainer = StableBaselineTrainer()
