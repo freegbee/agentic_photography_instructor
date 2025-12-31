@@ -11,16 +11,56 @@ from numpy import ndarray
 logger = logging.getLogger(__name__)
 
 
+class ImageHistoryBuffer:
+    """
+    Verwaltet die Historie von Bildern einer Episode und kümmert sich um
+    Speicheroptimierung (Resizing).
+    """
+    def __init__(self, max_size: int = 150, enabled: bool = False):
+        self._max_size = max_size
+        self._enabled = enabled
+        self._history: list[ndarray] = []
+
+    @property
+    def history(self) -> list[ndarray]:
+        return self._history
+
+    def set_enabled(self, enabled: bool):
+        self._enabled = enabled
+
+    def is_enabled(self) -> bool:
+        return self._enabled
+
+    def reset(self):
+        self._history = []
+
+    def add_image(self, img: ndarray):
+        if not self._enabled or img is None:
+            return
+        self._history.append(self._resize_image(img))
+
+    def _resize_image(self, img: ndarray) -> ndarray:
+        h, w = img.shape[:2]
+        if h > self._max_size or w > self._max_size:
+            scale = min(self._max_size / h, self._max_size / w)
+            new_w, new_h = int(w * scale), int(h * scale)
+            return cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
+        return np.array(img, copy=True)
+
+
 class ImageRenderWrapper(gymnasium.Wrapper):
     metadata = {"render_modes": ["human", "rgb_array", "save"]}
 
     def __init__(self,
                  env,
                  render_mode: str = "imshow",  # | "save"
-                 render_save_dir: Path = None, ):
+                 render_save_dir: Path = None,
+                 keep_image_history: bool = False,
+                 history_image_max_size: int = 150):
         super(ImageRenderWrapper, self).__init__(env)
         self._render_mode: str = render_mode
         self._render_save_dir: Path = render_save_dir
+        self._history_buffer = ImageHistoryBuffer(max_size=history_image_max_size, enabled=keep_image_history)
         self._initial_image_to_render = None
         self._terminated_image_to_render = None
 
@@ -28,18 +68,23 @@ class ImageRenderWrapper(gymnasium.Wrapper):
         obs, info = self.env.reset(**kwargs)
         if info.get("dataset_exhausted", False):
             logger.warning("Dataset exhausted")
-        self._capture_current_image(obs, info, True)
+        self._capture_current_image(True)
         self._terminated_image_to_render = None
         return obs, info
 
     def step(self, action):
         obs, reward, terminated, truncated, info = self.env.step(action)
-        if terminated:
-            self._capture_current_image(obs, info, False)
+        
+        # Bild jeden Schritt aufzeichnen
+        self._capture_current_image(False)
+
+        if terminated or truncated:
             self.render()
+            if self._history_buffer.is_enabled():
+                info["image_history"] = self._history_buffer.history
         return obs, reward, terminated, truncated, info
 
-    def _capture_current_image(self, obs, info, on_reset: bool):
+    def _capture_current_image(self, on_reset: bool):
         # Aktuelles Bild aus dem (gewrappten) env holen und intern speichern
         # Das bild könnte theoretisch auch in info oder obs sein. Hier wird angenommen, dass das env ein Attribut current_image hat
         img = getattr(self.env.unwrapped, "current_image", None)
@@ -50,8 +95,14 @@ class ImageRenderWrapper(gymnasium.Wrapper):
         if on_reset:
             self._initial_image_to_render = np.array(img, copy=True) if img is not None else None
             self._current_image_id = current_image_id
+            self._history_buffer.reset()
+            self._history_buffer.add_image(self._initial_image_to_render)
         else:
             self._terminated_image_to_render = np.array(img, copy=True) if img is not None else None
+            self._history_buffer.add_image(img)
+
+    def set_keep_image_history(self, keep_image_history: bool):
+        self._history_buffer.set_enabled(keep_image_history)
 
     def close(self) -> None:
         self.env.close()

@@ -136,6 +136,10 @@ class ImageTransformEnv(gym.Env):
         self.step_count = 0
         return self.current_image, {"dataset_exhausted": exhausted}
 
+    def reset_sampler(self):
+        self.coco_dataset_sampler.reset()
+
+
     def step(self, action) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
         """
         Execute one time step within the environment.

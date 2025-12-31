@@ -19,7 +19,7 @@ class CocoDatasetSampler(ABC):
         raise NotImplementedError("This method should be implemented by subclasses.")
 
     def reset(self):
-        pass
+        raise NotImplementedError("This method should be implemented by subclasses if supporting reset.")
 
 
 class RandomCocoDatasetSampler(CocoDatasetSampler):
