@@ -12,9 +12,8 @@ configure_logging()
 
 
 def main():
-    run_name = "run_" + time.strftime("%Y%m%d-%H%M%S")
     model_variant = PpoModelVariant.PPO_WITHOUT_BACKBONE
-    run_name = f"Landscapes, One-of-Six, Juror Scores, {model_variant.value}"
+    run_name = f"{time.strftime("%Y%m%d-%H%M%S")} - Landscapes, One-of-Six, Juror Scores, {model_variant.value}"
 
     source_transformer_labels = POC_MULTI_ONE_STEP_TRANSFORMERS
     transformer_labels = [TRANSFORMER_REGISTRY.get(l).get_reverse_transformer_label() for l in source_transformer_labels]
