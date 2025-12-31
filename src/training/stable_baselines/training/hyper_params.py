@@ -1,4 +1,6 @@
-from typing import TypedDict, Tuple
+from typing import TypedDict, Tuple, Union, Type
+
+from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
 
 from training.stable_baselines.models.model_factory import PpoModelVariant
 
@@ -38,3 +40,4 @@ class GeneralParams(TypedDict):
     learning_rate: float
     transformer_labels: list[str]
     image_max_size: Tuple[int, int]
+    vec_env_cls: Union[type[DummyVecEnv] | type[SubprocVecEnv] | None]

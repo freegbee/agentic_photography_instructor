@@ -13,17 +13,17 @@ class MlflowHelper:
     _instance: Optional["MlflowHelper"] = None
     _lock = threading.Lock()
 
-    def __new__(cls, mlflow_client, active_run: Optional[Run] = None):
+    def __new__(cls, active_run: Optional[Run] = None):
         if cls._instance is None:
             with cls._lock:
                 if cls._instance is None:
                     cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self, mlflow_client, active_run: Optional[Run] = None):
+    def __init__(self, active_run: Optional[Run] = None):
         logger.info(f"++++ MlflowHelper.__init__ called")
         self.mlflow = mlflow
-        self.mlflow_client = mlflow_client
+        self.mlflow_client = mlflow.tracking.MlflowClient()
         self.active_run: Optional[Run] = active_run
         self.local_logging = False
 

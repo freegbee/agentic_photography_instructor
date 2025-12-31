@@ -1,9 +1,12 @@
 import logging
 import os
+import uuid
 from pathlib import Path
 from typing import Optional, Dict, Callable
 
+import cv2
 from stable_baselines3.common.env_util import make_vec_env
+from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
 
 from dataset.COCODataset import COCODataset
 from dataset.enhanced_coco import AnnotationFileAndImagePath
@@ -13,6 +16,7 @@ from training.abstract_trainer import AbstractTrainer
 from training.data_loading.dataset_load_data import DatasetLoadData
 from training.hyperparameter_registry import HyperparameterRegistry
 from training.stable_baselines.callbacks.image_transform_evaluation_callback import ImageTransformEvaluationCallback
+from training.stable_baselines.callbacks.performance_callback import MlflowPerformanceCallback
 from training.stable_baselines.callbacks.rollout_success_callback import RolloutSuccessCallback
 from training.stable_baselines.environment.image_observation_wrapper import ImageObservationWrapper
 from training.stable_baselines.environment.image_render_wrapper import ImageRenderWrapper
@@ -42,9 +46,9 @@ class StableBaselineTrainer(AbstractTrainer):
         self.learning_rate = general_params["learning_rate"]
         self.success_bonus = general_params["success_bonus"]
         self.image_max_size = general_params["image_max_size"]
+        self.vec_env_cls = general_params["vec_env_cls"]
         self.training_source_path: Optional[Path] = None
         self.dataset_info: Dict[str, AnnotationFileAndImagePath] = {}
-        self.juror_client = JurorClient(use_local=self.training_params["use_local_juror"])
 
         self.render_mode = self.training_params["render_mode"]
         self.render_save_dir = Path(os.environ["IMAGE_VOLUME_PATH"]) / self.training_params["render_save_dir"]
@@ -103,18 +107,31 @@ class StableBaselineTrainer(AbstractTrainer):
         training_annotations = self.dataset_info["train"]
         training_coco_dataset = COCODataset(images_root_path=training_annotations.images_path,
                                             annotation_file=training_annotations.annotation_file)
-        training_sampler_factory = lambda: RandomCocoDatasetSampler(training_coco_dataset, self.training_seed)
-        training_env_fn = self._create_environment(
-            coco_dataset_sampler_factory=training_sampler_factory,
-            seed=self.training_seed,
-            render_mode=self.render_mode,
-            render_save_dir=self.render_save_dir,
-            stats_key="episode_success",
-            keep_image_history=False
-        )
-        training_vec_env = make_vec_env(env_id=training_env_fn,
-                                        n_envs=self.training_params["num_vector_envs"],
-                                        seed=self.training_seed)
+
+        # Bestimmen der Environment-Klasse basierend auf den Parametern (String -> Klasse)
+        vec_env_cls = SubprocVecEnv if self.vec_env_cls == "SubprocVecEnv" else DummyVecEnv
+
+        # WICHTIG: Wir erstellen eine Liste von Funktionen, damit jedes Environment einen EIGENEN Seed bekommt.
+        # Sonst nutzen alle 12 Envs den gleichen Seed und liefern exakt die gleichen Bilder -> Verschwendung.
+        training_env_fns = []
+        for i in range(self.training_params["num_vector_envs"]):
+            # Seed inkrementieren pro Environment
+            env_seed = self.training_seed + i
+            # Lambda muss den aktuellen Wert von env_seed binden (s=env_seed)
+            sampler_factory = lambda s=env_seed: RandomCocoDatasetSampler(training_coco_dataset, s)
+
+            training_env_fns.append(self._create_environment(
+                coco_dataset_sampler_factory=sampler_factory,
+                juror_use_local=self.training_params["use_local_juror"],
+                seed=env_seed,
+                render_mode=self.render_mode,
+                render_save_dir=self.render_save_dir,
+                stats_key="episode_success",
+                keep_image_history=False,
+                vec_env_cls=vec_env_cls
+            ))
+
+        training_vec_env = vec_env_cls(training_env_fns)
 
         model_learning_schedule = linear_schedule(self.learning_rate)
 
@@ -135,6 +152,7 @@ class StableBaselineTrainer(AbstractTrainer):
 
         rollout_callback = RolloutSuccessCallback(training_episode_stats_key="episode_success",
                                                   evaluation_episode_stats_key="evaluation_episode_success")
+        performance_callback = MlflowPerformanceCallback()
 
         mlflow_helper.log_param("training_annotation_file", str(training_annotations.annotation_file))
         mlflow_helper.log_param("training_annotation_images", str(training_annotations.images_path))
@@ -145,17 +163,25 @@ class StableBaselineTrainer(AbstractTrainer):
                                               annotation_file=evaluation_annotations.annotation_file,
                                               include_transformations=False)
         evaluation_sampler_factory = lambda: SequentialCocoDatasetSampler(evaluation_coco_dataset)
+
+        # Für Evaluation nutzen wir n_envs=1. 
+        # Grund: Der SequentialSampler startet immer bei 0. Mit 12 Envs würden wir 12x das gleiche Bild 0, dann 12x Bild 1 bewerten.
+        # Das ist redundant. Die Warnung von SB3 bzgl. unterschiedlicher Env-Anzahl können wir ignorieren.
         evaluation_env_fn = self._create_environment(
             coco_dataset_sampler_factory=evaluation_sampler_factory,
+            juror_use_local=self.training_params["use_local_juror"],
             seed=self.evaluation_seed,
             render_mode=self.evaluation_render_mode,
             render_save_dir=self.evaluation_render_save_dir,
             keep_image_history=self.evaluation_visual_history,
             history_image_max_size=self.evaluation_visual_history_max_size,
-            stats_key="evaluation_episode_success")
+            stats_key="evaluation_episode_success",
+            vec_env_cls=DummyVecEnv)  # Evaluation ist sequenziell oft effizienter/einfacher
+
         evaluation_vec_env = make_vec_env(env_id=evaluation_env_fn,
                                           n_envs=1,
-                                          seed=self.evaluation_seed)
+                                          seed=self.evaluation_seed,
+                                          vec_env_cls=DummyVecEnv)
         # eval_callback = EvaluationCallback(
         #     eval_env=evaluation_vec_env,
         #     best_model_save_path=str(self.evaluation_model_save_dir),
@@ -185,7 +211,7 @@ class StableBaselineTrainer(AbstractTrainer):
         logger.info("ppo n_steps: %d, num_envs: %d, rollout_size: %d", model.n_steps, training_vec_env.num_envs,
                     model.n_steps * training_vec_env.num_envs)
 
-        callbacks = [eval_callback, rollout_callback]
+        callbacks = [eval_callback, rollout_callback, performance_callback]
 
         # Start training
         model.learn(total_timesteps=self.training_params["total_training_steps"],
@@ -196,34 +222,53 @@ class StableBaselineTrainer(AbstractTrainer):
 
     def _create_environment(self,
                             coco_dataset_sampler_factory: Optional[Callable[[], CocoDatasetSampler]],
+                            juror_use_local: bool,
                             seed: int,
                             render_mode: str,
                             render_save_dir: Path,
                             stats_key: str,
                             keep_image_history: bool = False,
                             history_image_max_size: int = 150,
+                            vec_env_cls=DummyVecEnv
                             ) -> Callable[[], SuccessCountingWrapper]:
-        return lambda: SuccessCountingWrapper(
-            ImageRenderWrapper(
-                ImageObservationWrapper(
-                    ImageTransformEnv(
-                        transformers=self.transformers,
-                        coco_dataset_sampler=coco_dataset_sampler_factory(),
-                        juror_client=self.juror_client,
-                        success_bonus=self.success_bonus,
-                        image_max_size=self.image_max_size,
-                        max_transformations=self.training_params["max_transformations"],
-                        seed=seed
+
+        def _init_env():
+            # Zwingt OpenCV dazu, nur einen Thread zu nutzen. 
+            # Essenziell für SubprocVecEnv, um CPU-Thrashing zu vermeiden.
+            cv2.setNumThreads(0)
+
+            # Singleton-Vermeidung:
+            # Bei SubprocVecEnv (echte Parallelität) geben wir jedem Client einen einzigartigen Namen.
+            # Das zwingt die Registry, eine neue Instanz zu erstellen, statt eine (vermeintlich) geteilte zu nutzen.
+            # Bei DummyVecEnv behalten wir den Default bei, um RAM zu sparen (da eh sequenziell).
+            register_name = "default_juror_client"
+            if vec_env_cls == SubprocVecEnv:
+                register_name = f"juror_client_{uuid.uuid4()}"
+
+            return SuccessCountingWrapper(
+                ImageRenderWrapper(
+                    ImageObservationWrapper(
+                        ImageTransformEnv(
+                            transformers=self.transformers,
+                            coco_dataset_sampler=coco_dataset_sampler_factory(),
+                            # WICHTIG: Client muss im Prozess erstellt werden. Mit unique name, um Registry-Locks zu umgehen.
+                            juror_client=JurorClient(use_local=juror_use_local, register_name=register_name),
+                            success_bonus=self.success_bonus,
+                            image_max_size=self.image_max_size,
+                            max_transformations=self.training_params["max_transformations"],
+                            seed=seed
+                        ),
+                        image_max_size=self.image_max_size
                     ),
-                    image_max_size=self.image_max_size
+                    render_mode=render_mode,
+                    render_save_dir=render_save_dir,
+                    keep_image_history=keep_image_history,
+                    history_image_max_size=history_image_max_size
                 ),
-                render_mode=render_mode,
-                render_save_dir=render_save_dir,
-                keep_image_history=keep_image_history,
-                history_image_max_size=history_image_max_size
-            ),
-            stats_key=stats_key
-        )
+                stats_key=stats_key
+            )
+
+        return _init_env
 
     def _evaluate_impl(self):
         logger.info(f"Evaluation started for {self.experiment_name} with images at: {self.training_source_path}")

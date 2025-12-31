@@ -88,7 +88,7 @@ class ImageTransformEvaluationCallback(EvalCallback):
             obs, rewards, dones, infos = env.step(actions)
 
             # make infos iterable for single-env
-            infos_list = infos if isinstance(infos, list) else [infos]
+            infos_list = infos if isinstance(infos, (list, tuple)) else [infos]
 
             # Loop über alle Environments (bei Vektor-Env) - sonst halt genau 1 mal
             # Wir haben dann Zugriff auf die ergebnisse der actions und rewards und infos etc. für jede Environment bier counter
