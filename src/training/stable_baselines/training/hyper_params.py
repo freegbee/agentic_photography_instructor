@@ -24,6 +24,9 @@ class TrainingParams(TypedDict):
     evaluation_seed: int
     evaluation_interval: int
     evaluation_deterministic: bool
+    evaluation_visual_history: bool
+    evaluation_visual_history_max_images: int
+    evaluation_visual_history_max_size: int
     evaluation_render_mode: str
     evaluation_render_save_dir: str
     evaluation_model_save_dir: str

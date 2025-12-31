@@ -53,6 +53,9 @@ class StableBaselineTrainer(AbstractTrainer):
         self.evaluation_seed = self.training_params["evaluation_seed"]
         self.evaluation_interval = self.training_params["evaluation_interval"]
         self.evaluation_deterministic = self.training_params["evaluation_deterministic"]
+        self.evaluation_visual_history = self.training_params["evaluation_visual_history"]
+        self.evaluation_visual_history_max_images = self.training_params["evaluation_visual_history_max_images"]
+        self.evaluation_visual_history_max_size = self.training_params["evaluation_visual_history_max_size"]
         self.evaluation_render_mode = self.training_params["evaluation_render_mode"]
         self.evaluation_render_save_dir = Path(os.environ["IMAGE_VOLUME_PATH"]) / self.training_params[
             "evaluation_render_save_dir"]
@@ -106,7 +109,9 @@ class StableBaselineTrainer(AbstractTrainer):
             seed=self.training_seed,
             render_mode=self.render_mode,
             render_save_dir=self.render_save_dir,
-            stats_key="episode_success")
+            stats_key="episode_success",
+            keep_image_history=False
+        )
         training_vec_env = make_vec_env(env_id=training_env_fn,
                                         n_envs=self.training_params["num_vector_envs"],
                                         seed=self.training_seed)
@@ -145,6 +150,8 @@ class StableBaselineTrainer(AbstractTrainer):
             seed=self.evaluation_seed,
             render_mode=self.evaluation_render_mode,
             render_save_dir=self.evaluation_render_save_dir,
+            keep_image_history=self.evaluation_visual_history,
+            history_image_max_size=self.evaluation_visual_history_max_size,
             stats_key="evaluation_episode_success")
         evaluation_vec_env = make_vec_env(env_id=evaluation_env_fn,
                                           n_envs=1,
@@ -162,6 +169,8 @@ class StableBaselineTrainer(AbstractTrainer):
 
         eval_callback = ImageTransformEvaluationCallback(
             stats_key="evaluation_episode_success",
+            num_images_to_log=self.evaluation_visual_history_max_images,
+            tile_max_size=self.evaluation_visual_history_max_size,
             eval_env=evaluation_vec_env,
             best_model_save_path=str(self.evaluation_model_save_dir),
             log_path=str(self.evaluation_log_path),
@@ -190,7 +199,9 @@ class StableBaselineTrainer(AbstractTrainer):
                             seed: int,
                             render_mode: str,
                             render_save_dir: Path,
-                            stats_key: str
+                            stats_key: str,
+                            keep_image_history: bool = False,
+                            history_image_max_size: int = 150,
                             ) -> Callable[[], SuccessCountingWrapper]:
         return lambda: SuccessCountingWrapper(
             ImageRenderWrapper(
@@ -208,6 +219,8 @@ class StableBaselineTrainer(AbstractTrainer):
                 ),
                 render_mode=render_mode,
                 render_save_dir=render_save_dir,
+                keep_image_history=keep_image_history,
+                history_image_max_size=history_image_max_size
             ),
             stats_key=stats_key
         )
