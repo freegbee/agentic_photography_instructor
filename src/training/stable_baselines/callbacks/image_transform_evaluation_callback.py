@@ -31,7 +31,7 @@ class VisualSummaryLogger:
                 return
 
             with tempfile.TemporaryDirectory() as tmp_dir:
-                filename = f"eval_mosaic_{evaluation_idx}.jpg"
+                filename = f"eval_mosaic_{evaluation_idx:03d}.jpg"
                 filepath = Path(tmp_dir) / filename
                 # JPG-Qualität (0-100). Höher ist besser. 85 ist ein guter Standardwert.
                 cv2.imwrite(str(filepath), mosaic, [cv2.IMWRITE_JPEG_QUALITY, 85])
