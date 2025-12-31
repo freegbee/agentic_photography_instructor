@@ -124,10 +124,14 @@ class ImageTransformEvaluationCallback(EvalCallback):
         env = self.eval_env  # Evaluations-Environment
         n_target = int(self.n_eval_episodes)  # Anzahl Episoden, die evaluiert werden sollen
         n_envs = getattr(env, "num_envs", 1)  # Anzahl paralleler Environments - falls Vektor-Env genutzt wird
-        obs = env.reset()  # Environment zurücksetzen und von vorne beginnen
 
         # History-Aufzeichnung aktivieren (für die ersten N Bilder), falls gewünscht
         self._set_history_recording(env, self.num_images_to_log > 0)
+
+        # Sampler explizit auf Anfang setzen, um Doppel-Reset-Probleme zu vermeiden
+        self._reset_sampler_to_start(env)
+
+        obs = env.reset()  # Environment zurücksetzen und von vorne beginnen
 
         # Sammeln aller Episoden-Statistiken - kumulieren erfolg später
         # NICE Lässt sich wohl auch so lösen, dass es nicht so viel Speicher braucht (laufend kumulieren, statt am Ende nochmals über alles loopen)
@@ -187,6 +191,16 @@ class ImageTransformEvaluationCallback(EvalCallback):
                 env.env_method("set_keep_image_history", enable)
         except AttributeError:
             pass  # Ignore if wrapper is not present or method does not exist
+
+    def _reset_sampler_to_start(self, env):
+        """Versucht, den Sampler im Environment auf den Anfang zurückzusetzen."""
+        try:
+            if hasattr(env, "env_method"):
+                # Erwartet, dass ImageTransformEnv eine Methode 'reset_sampler()' hat
+                env.env_method("reset_sampler")
+        except Exception:
+            # Falls die Methode nicht existiert, machen wir einfach weiter (Fallback auf Standard-Verhalten)
+            pass
 
     def _on_step(self) -> bool:
         if self.eval_freq > 0 and (self.num_timesteps - self.last_eval_step) >= self.eval_freq:
