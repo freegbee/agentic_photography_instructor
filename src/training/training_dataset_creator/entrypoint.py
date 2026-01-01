@@ -16,8 +16,8 @@ def main():
 
     data_params = HyperparameterRegistry.get_store(DataParams)
     # Mögliche alternative Datensätze:
-    data_params.set({"dataset_id": "lhq_landscapes"})
-    # data_params.set({"dataset_id": "twenty_images"})
+    # data_params.set({"dataset_id": "lhq_landscapes"})
+    data_params.set({"dataset_id": "twenty_images"})
     # data_params.set({"dataset_id": "flickr8k"})
     # data_params.set({"dataset_id": "places365_val_large"})
 
@@ -25,7 +25,7 @@ def main():
     general_processing_params.set({"batch_size": 64, "random_seed": 67})
 
     image_preprocessing_params = HyperparameterRegistry.get_store(ImagePreprocessingParams)
-    image_preprocessing_params.set({"batch_size": 64, "resize_max_size": 1000})
+    image_preprocessing_params.set({"batch_size": 64, "resize_max_size": 384})
 
     transform_preprocessing_params = HyperparameterRegistry.get_store(TransformPreprocessingParams)
     transform_preprocessing_params.set({"batch_size": 64, "split": SplitRatios.create_default_split_ratios()})
