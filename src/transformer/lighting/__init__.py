@@ -14,6 +14,7 @@ from .lightness_transformer import (
     LightnessDecreaseTransformerMedium,
     LightnessDecreaseTransformerStrong
 )
+from .gamma_transformer import AutoGammaCorrectionTransformer
 
 __all__ = [
     "ContrastIncreaseTransformerWeak",
@@ -27,10 +28,12 @@ __all__ = [
     "LightnessIncreaseTransformerStrong",
     "LightnessDecreaseTransformerWeak",
     "LightnessDecreaseTransformerMedium",
-    "LightnessDecreaseTransformerStrong"
+    "LightnessDecreaseTransformerStrong",
+    "AutoGammaCorrectionTransformer"
 ]
 
 SENSIBLE_LIGHTING_TRANSFORMERS = [
     ContrastIncreaseTransformerWeak.label, ContrastDecreaseTransformerWeak.label,
-    LightnessIncreaseTransformerWeak.label, LightnessDecreaseTransformerWeak.label
+    LightnessIncreaseTransformerWeak.label, LightnessDecreaseTransformerWeak.label,
+    AutoGammaCorrectionTransformer.label
 ]
