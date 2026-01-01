@@ -1,0 +1,49 @@
+@startuml
+title Sequenzdiagramm: Bewertung eines Bildes (Shared Memory Flow)
+
+participant "Environment\n(ImageTransformEnv)" as Env
+participant "JurorQueueService" as Service
+participant "SharedMemory\n(OS RAM)" as SHM
+participant "RequestQueue\n(Multiprocessing)" as ReqQ
+participant "JurorWorker\n(GPU Process)" as Worker
+participant "ReplyQueue\n(Specific)" as RepQ
+
+== Schritt 1: Environment Step ==
+Env -> Env: Transform Image (CPU)
+Env -> Service: score_ndarray(image)
+
+== Schritt 2: Datenbereitstellung (Zero-Copy) ==
+activate Service
+Service -> SHM: create(size=image.nbytes)
+Service -> SHM: write(image_data)
+note right: Bilddaten werden NICHT\ngepickled, sondern direkt\nin RAM geschrieben.
+
+== Schritt 3: Anfrage senden ==
+Service -> ReqQ: put(shm_name, shape, dtype, reply_queue)
+Service -> RepQ: get() (blockiert)
+
+== Schritt 4: Verarbeitung im Worker ==
+activate Worker
+ReqQ -> Worker: get() -> (shm_name, ...)
+Worker -> SHM: attach(shm_name)
+Worker -> SHM: read() as numpy array
+
+Worker -> Worker: Inference (GPU)
+note right: Hier passiert die\neigentliche Bewertung
+
+Worker -> SHM: close()
+
+== Schritt 5: Antwort senden ==
+Worker -> RepQ: put(score)
+deactivate Worker
+
+== Schritt 6: Abschluss ==
+RepQ -> Service: return score
+Service -> SHM: close()
+Service -> SHM: unlink() (Speicher freigeben)
+deactivate Service
+
+Service -> Env: return score
+Env -> Env: Calculate Reward
+
+@enduml
