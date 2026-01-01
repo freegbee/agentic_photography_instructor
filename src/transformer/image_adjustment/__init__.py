@@ -5,6 +5,7 @@ from .GaussianBlurTransformer import GaussianBlurTransformer3, GaussianBlurTrans
     GaussianBlurTransformer9, GaussianBlurTransformer11
 from .MedianBlurTransformer import MedianBlurTransformer3, MedianBlurTransformer5, MedianBlurTransformer7, \
     MedianBlurTransformer9, MedianBlurTransformer11
+from .SharpenTransformer import SharpenTransformerWeak, SharpenTransformerStrong
 from .ShiftColorPlaneTransformer import (
     ShiftColorPlaneLeftB,
     ShiftColorPlaneRightB,
@@ -57,7 +58,13 @@ __all__ = [
     "ShiftColorPlaneLeftAll",
     "ShiftColorPlaneRightAll",
     "ShiftColorPlaneDownAll",
-    "ShiftColorPlaneUpAll"
+    "ShiftColorPlaneUpAll",
+    "SharpenTransformerWeak",
+    "SharpenTransformerStrong"
 ]
 
-SENSIBLE_IA_TRANSFORMERS = [FlipHorizontalTransformer.label, FlipVerticalTransformer.label, MedianBlurTransformer3.label, MedianBlurTransformer7.label]
+SENSIBLE_IA_TRANSFORMERS = [
+    FlipHorizontalTransformer.label, FlipVerticalTransformer.label,
+    MedianBlurTransformer3.label, MedianBlurTransformer7.label,
+    SharpenTransformerWeak.label
+]
