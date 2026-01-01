@@ -54,9 +54,9 @@ class CocoBuilder:
         self._image_id_map[file_name] = image_id
         return image_id
 
-    def add_image_score_annotation(self, image_id: int, score: float, initial_score: Optional[float] = None) -> int:
+    def add_image_score_annotation(self, image_id: int, score: Optional[float], initial_score: Optional[float] = None) -> int:
         """
-        Fügt eine Annotation mit einem Score für das gegebene Bild hinzu.
+        Fügt eine Annotation mit einem Score und einem initial score für das gegebene Bild hinzu.
         - Für image-level scores werden bbox/segmentation leer gelassen und area=0 gesetzt.
         """
         return self._add_image_score_annotation(image_id=image_id, score=score, initial_score=initial_score)

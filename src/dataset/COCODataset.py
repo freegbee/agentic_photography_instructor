@@ -35,9 +35,11 @@ class COCODataset(Dataset[CocoImageData]):
         self.include_transformations = include_transformations
         self.image_ids = list(self.coco.imgs.keys())
         self.score_category_id = score_category_id
-        self.transformation_supercategory_id = self.coco.getCatIds(catNms=["transformer"])[0]
-        # Ja, es ist ein Bug: supNums ist eine Liste (oder eine einzelne) ID einer Super-Categorie
-        self.transformation_cats = self.coco.getCatIds(supNms=self.transformation_supercategory_id)
+        transformation_supercategories = self.coco.getCatIds(catNms=["transformer"])
+        if len(transformation_supercategories) > 0:
+            self.transformation_supercategory_id = self.coco.getCatIds(catNms=["transformer"])[0]
+            # Ja, es ist ein Bug: supNums ist eine Liste (oder eine einzelne) ID einer Super-Category
+            self.transformation_cats = self.coco.getCatIds(supNms=self.transformation_supercategory_id)
         self.scores = []
 
     def __len__(self):
