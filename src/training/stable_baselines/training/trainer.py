@@ -1,18 +1,14 @@
 import logging
 import os
-import uuid
 from pathlib import Path
-from queue import Queue
-from typing import Optional, Dict, Callable, List, Tuple
+from typing import Optional, Dict
 
-import cv2
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
 
 from dataset.COCODataset import COCODataset
 from dataset.enhanced_coco import AnnotationFileAndImagePath
-from juror_client import JurorClient
-from juror_client.juror_worker_pool import JurorWorkerPool, JurorQueueService
+from juror_client.juror_worker_pool import JurorWorkerPool
 from training import mlflow_helper
 from training.abstract_trainer import AbstractTrainer
 from training.data_loading.dataset_load_data import DatasetLoadData
@@ -20,17 +16,12 @@ from training.hyperparameter_registry import HyperparameterRegistry
 from training.stable_baselines.callbacks.image_transform_evaluation_callback import ImageTransformEvaluationCallback
 from training.stable_baselines.callbacks.performance_callback import MlflowPerformanceCallback
 from training.stable_baselines.callbacks.rollout_success_callback import RolloutSuccessCallback
-from training.stable_baselines.environment.image_observation_wrapper import ImageObservationWrapper
-from training.stable_baselines.environment.image_render_wrapper import ImageRenderWrapper
-from training.stable_baselines.environment.image_transform_env import ImageTransformEnv
-from training.stable_baselines.environment.samplers import SequentialCocoDatasetSampler, RandomCocoDatasetSampler, \
-    CocoDatasetSampler
-from training.stable_baselines.environment.success_counting_wrapper import SuccessCountingWrapper
+from training.stable_baselines.environment.environment_factory import ImageTransformEnvFactory
+from training.stable_baselines.environment.samplers import SequentialCocoDatasetSampler, RandomCocoDatasetSampler
 from training.stable_baselines.models.learning_rate_schedules import linear_schedule
 from training.stable_baselines.models.model_factory import PpoModelFactory
 from training.stable_baselines.training.hyper_params import TrainingParams, DataParams, GeneralParams
 from training.stable_baselines.utils.utils import get_consistent_transformers
-from transformer.AbstractTransformer import AbstractTransformer
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +117,17 @@ class StableBaselineTrainer(AbstractTrainer):
         # Bestimmen der Environment-Klasse basierend auf den Parametern (String -> Klasse)
         vec_env_cls = SubprocVecEnv if self.vec_env_cls == "SubprocVecEnv" else DummyVecEnv
 
+        # Factory initialisieren
+        # Hier wird definiert, WELCHES Environment wir nutzen.
+        env_factory = ImageTransformEnvFactory(
+            transformers=self.transformers,
+            image_max_size=self.image_max_size,
+            max_transformations=self.training_params["max_transformations"],
+            success_bonus=self.success_bonus,
+            juror_use_local=self.training_params["use_local_juror"],
+            vec_env_cls=vec_env_cls
+        )
+
         # WICHTIG: Wir erstellen eine Liste von Funktionen, damit jedes Environment einen EIGENEN Seed bekommt.
         # Sonst nutzen alle 12 Envs den gleichen Seed und liefern exakt die gleichen Bilder -> Verschwendung.
         training_env_fns = []
@@ -141,16 +143,14 @@ class StableBaselineTrainer(AbstractTrainer):
                 # WICHTIG: Muss via Manager erstellt werden für SubprocVecEnv auf Windows
                 env_reply_queue = juror_worker_pool.manager.Queue()
 
-            training_env_fns.append(self._create_environment(
+            training_env_fns.append(env_factory.create_env_fn(
                 coco_dataset_sampler_factory=sampler_factory,
-                juror_use_local=self.training_params["use_local_juror"],
                 seed=env_seed,
                 render_mode=self.render_mode,
                 render_save_dir=self.render_save_dir,
                 stats_key="episode_success",
                 keep_image_history=False,
-                vec_env_cls=vec_env_cls,
-                juror_worker_pool=juror_worker_pool,
+                pool_request_queue=juror_worker_pool.request_queue if juror_worker_pool else None,
                 pool_reply_queue=env_reply_queue
             ))
 
@@ -196,18 +196,16 @@ class StableBaselineTrainer(AbstractTrainer):
                 # WICHTIG: Muss via Manager erstellt werden
                 eval_reply_queue = juror_worker_pool.manager.Queue()
 
-            evaluation_env_fn = self._create_environment(
+            evaluation_env_fn = env_factory.create_env_fn(
                 coco_dataset_sampler_factory=evaluation_sampler_factory,
-                juror_use_local=self.training_params["use_local_juror"],
                 seed=self.evaluation_seed,
                 render_mode=self.evaluation_render_mode,
                 render_save_dir=self.evaluation_render_save_dir,
                 keep_image_history=self.evaluation_visual_history,
                 history_image_max_size=self.evaluation_visual_history_max_size,
                 stats_key="evaluation_episode_success",
-                vec_env_cls=DummyVecEnv,
-                juror_worker_pool=juror_worker_pool,
-                pool_reply_queue=eval_reply_queue)  # Auch Evaluation nutzt den Pool!
+                pool_request_queue=juror_worker_pool.request_queue if juror_worker_pool else None,
+                pool_reply_queue=eval_reply_queue)
 
             evaluation_vec_env = make_vec_env(env_id=evaluation_env_fn,
                                               n_envs=1,
@@ -255,92 +253,6 @@ class StableBaselineTrainer(AbstractTrainer):
             # Aufräumen
             if juror_worker_pool:
                 juror_worker_pool.stop()
-
-    def _create_environment(self,
-                            coco_dataset_sampler_factory: Optional[Callable[[], CocoDatasetSampler]],
-                            juror_use_local: bool,
-                            seed: int,
-                            render_mode: str,
-                            render_save_dir: Path,
-                            stats_key: str,
-                            keep_image_history: bool = False,
-                            history_image_max_size: int = 150,
-                            vec_env_cls=DummyVecEnv,
-                            juror_worker_pool: Optional[JurorWorkerPool] = None,
-                            pool_reply_queue: Optional[Queue] = None
-                            ) -> Callable[[], SuccessCountingWrapper]:
-
-        # Extract picklable components
-        pool_request_queue = None
-        if juror_worker_pool:
-            pool_request_queue = juror_worker_pool.request_queue
-
-        # Determine register name logic outside
-        register_name_prefix = "default_juror_client"
-        use_unique_name = (vec_env_cls == SubprocVecEnv)
-
-        # Capture all necessary variables in local scope to pass to static method
-        # This prevents 'self' from being captured by the closure
-        transformers = self.transformers
-        success_bonus = self.success_bonus
-        image_max_size = self.image_max_size
-        max_transformations = self.training_params["max_transformations"]
-
-        return lambda: StableBaselineTrainer._init_env_static(transformers=transformers,
-                                                              coco_dataset_sampler=coco_dataset_sampler_factory(),
-                                                              image_max_size=image_max_size,
-                                                              max_transformations=max_transformations,
-                                                              success_bonus=success_bonus, seed=seed,
-                                                              juror_use_local=juror_use_local,
-                                                              juror_client_registry_name_prefix=register_name_prefix,
-                                                              juror_pool_use_unique_name=use_unique_name,
-                                                              pool_request_queue=pool_request_queue,
-                                                              pool_reply_queue=pool_reply_queue,
-                                                              render_mode=render_mode, render_save_dir=render_save_dir,
-                                                              stats_key=stats_key,
-                                                              keep_image_history=keep_image_history,
-                                                              history_image_max_size=history_image_max_size)
-
-    @staticmethod
-    def _init_env_static(transformers: List[AbstractTransformer], coco_dataset_sampler: CocoDatasetSampler,
-                         image_max_size: Tuple[int, int], max_transformations: int, success_bonus: float, seed: int,
-                         juror_use_local: bool, juror_client_registry_name_prefix: str,
-                         juror_pool_use_unique_name: bool, pool_request_queue: Queue, pool_reply_queue: Optional[Queue],
-                         render_mode, render_save_dir, stats_key: str, keep_image_history: bool,
-                         history_image_max_size: int):
-        # Zwingt OpenCV dazu, nur einen Thread zu nutzen.
-        cv2.setNumThreads(0)
-
-        register_name = juror_client_registry_name_prefix
-        if juror_pool_use_unique_name:
-            register_name = f"juror_client_{uuid.uuid4()}"
-
-        service_instance = None
-        if pool_request_queue is not None and pool_reply_queue is not None:
-            service_instance = JurorQueueService(pool_request_queue, pool_reply_queue)
-
-        return SuccessCountingWrapper(
-            ImageRenderWrapper(
-                ImageObservationWrapper(
-                    ImageTransformEnv(
-                        transformers=transformers,
-                        coco_dataset_sampler=coco_dataset_sampler,
-                        juror_client=JurorClient(use_local=juror_use_local, register_name=register_name,
-                                                 service=service_instance),
-                        success_bonus=success_bonus,
-                        image_max_size=image_max_size,
-                        max_transformations=max_transformations,
-                        seed=seed
-                    ),
-                    image_max_size=image_max_size
-                ),
-                render_mode=render_mode,
-                render_save_dir=render_save_dir,
-                keep_image_history=keep_image_history,
-                history_image_max_size=history_image_max_size
-            ),
-            stats_key=stats_key
-        )
 
     def _evaluate_impl(self):
         logger.info(f"Evaluation started for {self.experiment_name} with images at: {self.training_source_path}")
