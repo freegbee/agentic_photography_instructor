@@ -8,7 +8,8 @@ from .saturation_transformer import (
     SaturationIncreaseTransformerStrong,
     SaturationDecreaseTransformerWeak,
     SaturationDecreaseTransformerMedium,
-    SaturationDecreaseTransformerStrong
+    SaturationDecreaseTransformerStrong,
+    VibranceTransformer
 )
 
 
@@ -30,10 +31,12 @@ __all__ = [
     "SaturationIncreaseTransformerStrong",
     "SaturationDecreaseTransformerWeak",
     "SaturationDecreaseTransformerMedium",
-    "SaturationDecreaseTransformerStrong"
+    "SaturationDecreaseTransformerStrong",
+    "VibranceTransformer"
 ]
 
 SENSIBLE_CA_TRANSFORMERS = [
     GrayscaleTransformer.label, GrayscaleAverageTransformer.label, InvertColorChannelTransformerAll.label,
-    SaturationIncreaseTransformerWeak.label, SaturationDecreaseTransformerWeak.label
+    SaturationIncreaseTransformerWeak.label, SaturationDecreaseTransformerWeak.label,
+    VibranceTransformer.label
 ]

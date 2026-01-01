@@ -1,5 +1,6 @@
 from abc import abstractmethod
 import cv2
+import numpy as np
 from numpy import ndarray
 
 from transformer.color_adjustment.AbstractColorAdjustmentTransformer import AbstractColorAdjustmentTransformer
@@ -70,3 +71,26 @@ class SaturationDecreaseTransformerStrong(AbstractSaturationTransformer):
     description = "Decrease saturation strongly (factor=0.4)."
     saturation_factor = 0.4
     reverse_transformer_label = "CA_SAT_INC_STRONG"
+
+
+class VibranceTransformer(AbstractColorAdjustmentTransformer):
+    """Applies Vibrance (smart saturation) which boosts muted colors more than saturated ones."""
+    label = "CA_VIBRANCE"
+    description = "Smart saturation boost (Vibrance)."
+
+    def transform(self, image: ndarray) -> ndarray:
+        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+        h, s, v = cv2.split(hsv)
+
+        # Convert S to float for calculation (0..1)
+        s_float = s.astype(np.float32) / 255.0
+
+        # Vibrance formula: boost low saturation pixels more
+        # strength = 0.5
+        s_new = s_float * (1.0 + 0.5 * (1.0 - s_float))
+
+        # Clip and convert back
+        s_new = np.clip(s_new * 255, 0, 255).astype(np.uint8)
+
+        hsv_new = cv2.merge([h, s_new, v])
+        return cv2.cvtColor(hsv_new, cv2.COLOR_HSV2BGR)

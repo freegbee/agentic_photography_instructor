@@ -8,7 +8,8 @@ from transformer.color_adjustment.saturation_transformer import (
     SaturationIncreaseTransformerStrong,
     SaturationDecreaseTransformerWeak,
     SaturationDecreaseTransformerMedium,
-    SaturationDecreaseTransformerStrong
+    SaturationDecreaseTransformerStrong,
+    VibranceTransformer
 )
 
 
@@ -52,3 +53,24 @@ def test_saturation_decrease_decreases_saturation():
         sat_new = _get_mean_saturation(out)
         assert sat_new < sat_orig, f"{t.label} did not decrease saturation"
         assert out.shape == image.shape
+
+
+def test_vibrance_boosts_low_saturation_more_than_high():
+    # Create two images: one with low saturation, one with high
+    # Low sat: (100, 100, 120) -> diff 20
+    low_sat_img = np.full((10, 10, 3), [100, 100, 120], dtype=np.uint8)
+    # High sat: (50, 50, 200) -> diff 150
+    high_sat_img = np.full((10, 10, 3), [50, 50, 200], dtype=np.uint8)
+
+    transformer = VibranceTransformer()
+
+    low_out = transformer.transform(low_sat_img)
+    high_out = transformer.transform(high_sat_img)
+
+    low_gain = _get_mean_saturation(low_out) - _get_mean_saturation(low_sat_img)
+    high_gain = _get_mean_saturation(high_out) - _get_mean_saturation(high_sat_img)
+
+    # Vibrance should boost the dull image significantly more than the already vivid one
+    assert low_gain > 0
+    assert high_gain >= 0
+    assert low_gain > high_gain
