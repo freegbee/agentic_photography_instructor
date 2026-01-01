@@ -63,3 +63,22 @@ class ContrastDecreaseTransformerStrong(AbstractContrastTransformer):
     description = "Decrease contrast strongly (alpha=0.5)."
     alpha = 0.5
     reverse_transformer_label = "LI_CONTRAST_INC_STRONG"
+
+
+class CLAHETransformer(AbstractLightingTransformer):
+    """Applies Contrast Limited Adaptive Histogram Equalization (CLAHE)."""
+    label = "LI_CLAHE"
+    description = "Adaptive histogram equalization on L-channel."
+
+    def transform(self, image: ndarray) -> ndarray:
+        # Convert to LAB color space to operate only on Lightness channel
+        lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
+        l, a, b = cv2.split(lab)
+
+        # Apply CLAHE to L-channel
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        cl = clahe.apply(l)
+
+        # Merge and convert back to BGR
+        merged = cv2.merge((cl, a, b))
+        return cv2.cvtColor(merged, cv2.COLOR_LAB2BGR)
