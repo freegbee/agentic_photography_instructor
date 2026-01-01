@@ -18,3 +18,5 @@ __all__ = [
     "InvertColorChannelTransformerGR",
     "InvertColorChannelTransformerAll",
 ]
+
+SENSIBLE_CA_TRANSFORMERS = [GrayscaleTransformer.label, GrayscaleAverageTransformer.label, InvertColorChannelTransformerAll.label]

@@ -59,3 +59,5 @@ __all__ = [
     "ShiftColorPlaneDownAll",
     "ShiftColorPlaneUpAll"
 ]
+
+SENSIBLE_IA_TRANSFORMERS = [FlipHorizontalTransformer.label, FlipVerticalTransformer.label, MedianBlurTransformer3.label, MedianBlurTransformer7.label]
