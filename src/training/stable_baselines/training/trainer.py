@@ -2,7 +2,8 @@ import logging
 import os
 import uuid
 from pathlib import Path
-from typing import Optional, Dict, Callable
+from queue import Queue
+from typing import Optional, Dict, Callable, List, Tuple
 
 import cv2
 from stable_baselines3.common.env_util import make_vec_env
@@ -29,6 +30,7 @@ from training.stable_baselines.models.learning_rate_schedules import linear_sche
 from training.stable_baselines.models.model_factory import PpoModelFactory
 from training.stable_baselines.training.hyper_params import TrainingParams, DataParams, GeneralParams
 from training.stable_baselines.utils.utils import get_consistent_transformers
+from transformer.AbstractTransformer import AbstractTransformer
 
 logger = logging.getLogger(__name__)
 
@@ -248,7 +250,7 @@ class StableBaselineTrainer(AbstractTrainer):
                         progress_bar=False)
 
             logger.info(f"Training ended for {self.experiment_name}")
-        
+
         finally:
             # Aufräumen
             if juror_worker_pool:
@@ -265,7 +267,7 @@ class StableBaselineTrainer(AbstractTrainer):
                             history_image_max_size: int = 150,
                             vec_env_cls=DummyVecEnv,
                             juror_worker_pool: Optional[JurorWorkerPool] = None,
-                            pool_reply_queue: Optional[object] = None
+                            pool_reply_queue: Optional[Queue] = None
                             ) -> Callable[[], SuccessCountingWrapper]:
 
         # Extract picklable components
@@ -284,34 +286,33 @@ class StableBaselineTrainer(AbstractTrainer):
         image_max_size = self.image_max_size
         max_transformations = self.training_params["max_transformations"]
 
-        return lambda: StableBaselineTrainer._init_env_static(
-            transformers=transformers,
-            coco_dataset_sampler=coco_dataset_sampler_factory(),
-            juror_use_local=juror_use_local,
-            register_name_prefix=register_name_prefix,
-            use_unique_name=use_unique_name,
-            pool_request_queue=pool_request_queue,
-            pool_reply_queue=pool_reply_queue,
-            success_bonus=success_bonus,
-            image_max_size=image_max_size,
-            max_transformations=max_transformations,
-            seed=seed,
-            render_mode=render_mode,
-            render_save_dir=render_save_dir,
-            stats_key=stats_key,
-            keep_image_history=keep_image_history,
-            history_image_max_size=history_image_max_size
-        )
+        return lambda: StableBaselineTrainer._init_env_static(transformers=transformers,
+                                                              coco_dataset_sampler=coco_dataset_sampler_factory(),
+                                                              image_max_size=image_max_size,
+                                                              max_transformations=max_transformations,
+                                                              success_bonus=success_bonus, seed=seed,
+                                                              juror_use_local=juror_use_local,
+                                                              juror_client_registry_name_prefix=register_name_prefix,
+                                                              juror_pool_use_unique_name=use_unique_name,
+                                                              pool_request_queue=pool_request_queue,
+                                                              pool_reply_queue=pool_reply_queue,
+                                                              render_mode=render_mode, render_save_dir=render_save_dir,
+                                                              stats_key=stats_key,
+                                                              keep_image_history=keep_image_history,
+                                                              history_image_max_size=history_image_max_size)
 
     @staticmethod
-    def _init_env_static(transformers, coco_dataset_sampler, juror_use_local, register_name_prefix, use_unique_name,
-                         pool_request_queue, pool_reply_queue, success_bonus, image_max_size, max_transformations, seed,
-                         render_mode, render_save_dir, stats_key, keep_image_history, history_image_max_size):
+    def _init_env_static(transformers: List[AbstractTransformer], coco_dataset_sampler: CocoDatasetSampler,
+                         image_max_size: Tuple[int, int], max_transformations: int, success_bonus: float, seed: int,
+                         juror_use_local: bool, juror_client_registry_name_prefix: str,
+                         juror_pool_use_unique_name: bool, pool_request_queue: Queue, pool_reply_queue: Optional[Queue],
+                         render_mode, render_save_dir, stats_key: str, keep_image_history: bool,
+                         history_image_max_size: int):
         # Zwingt OpenCV dazu, nur einen Thread zu nutzen.
         cv2.setNumThreads(0)
 
-        register_name = register_name_prefix
-        if use_unique_name:
+        register_name = juror_client_registry_name_prefix
+        if juror_pool_use_unique_name:
             register_name = f"juror_client_{uuid.uuid4()}"
 
         service_instance = None
