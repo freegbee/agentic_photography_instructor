@@ -3,7 +3,7 @@ from training.rl_training.rl_trainer import RlTrainer
 from training.rl_training.training_params import ImagePreprocessingParams, TransformPreprocessingParams, DataParams, \
     TrainingExecutionParams, GeneralPreprocessingParams
 from training.split_ratios import SplitRatios
-from transformer import POC_MULTI_ONE_STEP_TRANSFORMERS
+from transformer import POC_MULTI_TWO_STEP_TRANSFORMERS
 from utils.LoggingUtils import configure_logging
 
 configure_logging()
@@ -12,7 +12,7 @@ configure_logging()
 def main():
     training_params = HyperparameterRegistry.get_store(TrainingExecutionParams)
     training_params.set(
-        {"experiment_name": "Dynamic_RL_Agent_Training PoC 0.02", "use_local_juror": True, "random_seed": 42})
+        {"experiment_name": "Multy Transformation Degrading PoC 0.2", "use_local_juror": True, "random_seed": 42})
 
     data_params = HyperparameterRegistry.get_store(DataParams)
     # Mögliche alternative Datensätze:
@@ -29,8 +29,9 @@ def main():
 
     transform_preprocessing_params = HyperparameterRegistry.get_store(TransformPreprocessingParams)
     h = {"batch_size": 64,
-         "transformer_names": POC_MULTI_ONE_STEP_TRANSFORMERS,
+         "transformer_names": POC_MULTI_TWO_STEP_TRANSFORMERS,
          "use_random_transformer": True,
+         "num_transformations": 2,  # Apply 2 transformations per image
          "split": SplitRatios.create_default_split_ratios()}
     transform_preprocessing_params.set(h)
 

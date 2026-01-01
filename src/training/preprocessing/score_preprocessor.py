@@ -67,7 +67,8 @@ class ScorePreprocessor(AbstractPreprocessor[ScorePreprocessorResult]):
     def _score_images(self):
         logger.info("Start scoring for image in path %s based on cocofile %s", self.image_path,
                     self.annotations_file_path)
-        dataset: COCODataset = COCODataset(self.image_path, self.annotations_file_path)
+        # Don't include transformations yet - they haven't been applied at this stage
+        dataset: COCODataset = COCODataset(self.image_path, self.annotations_file_path, include_transformations=False)
         dataloader = DataLoader(dataset, batch_size=self.batch_size, collate_fn=Utils.collate_keep_size)
         metrics_accumulator = BatchImageScoringMetricAccumulator()
         for batch_index, batch in enumerate(dataloader):

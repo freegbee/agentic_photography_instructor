@@ -17,6 +17,7 @@ from training.stable_baselines.callbacks.rollout_success_callback import Rollout
 from training.stable_baselines.environment.image_observation_wrapper import ImageObservationWrapper
 from training.stable_baselines.environment.image_render_wrapper import ImageRenderWrapper
 from training.stable_baselines.environment.image_transform_env import ImageTransformEnv
+from training.stable_baselines.environment.multi_step_wrapper import MultiStepTransformWrapper
 from training.stable_baselines.environment.samplers import SequentialCocoDatasetSampler, RandomCocoDatasetSampler, \
     CocoDatasetSampler
 from training.stable_baselines.environment.success_counting_wrapper import SuccessCountingWrapper
@@ -203,27 +204,47 @@ class StableBaselineTrainer(AbstractTrainer):
                             keep_image_history: bool = False,
                             history_image_max_size: int = 150,
                             ) -> Callable[[], SuccessCountingWrapper]:
-        return lambda: SuccessCountingWrapper(
-            ImageRenderWrapper(
-                ImageObservationWrapper(
-                    ImageTransformEnv(
-                        transformers=self.transformers,
-                        coco_dataset_sampler=coco_dataset_sampler_factory(),
-                        juror_client=self.juror_client,
-                        success_bonus=self.success_bonus,
-                        image_max_size=self.image_max_size,
-                        max_transformations=self.training_params["max_transformations"],
-                        seed=seed
-                    ),
-                    image_max_size=self.image_max_size
-                ),
+        def create_env():
+            # Create the base environment
+            base_env = ImageTransformEnv(
+                transformers=self.transformers,
+                coco_dataset_sampler=coco_dataset_sampler_factory(),
+                juror_client=self.juror_client,
+                success_bonus=self.success_bonus,
+                image_max_size=self.image_max_size,
+                max_transformations=self.training_params["max_transformations"],
+                seed=seed
+            )
+
+            # Conditionally wrap with multi-step wrapper
+            use_multi_step = self.training_params.get("use_multi_step_wrapper", False)
+            if use_multi_step:
+                steps_per_episode = self.training_params.get("steps_per_episode", 2)
+                intermediate_reward = self.training_params.get("multi_step_intermediate_reward", False)
+                reward_shaping = self.training_params.get("multi_step_reward_shaping", False)
+
+                logger.info(f"Using MultiStepTransformWrapper with {steps_per_episode} steps per episode")
+                base_env = MultiStepTransformWrapper(
+                    base_env,
+                    steps_per_episode=steps_per_episode,
+                    intermediate_reward=intermediate_reward,
+                    reward_shaping=reward_shaping
+                )
+
+            # Apply standard wrappers
+            env = ImageObservationWrapper(base_env, image_max_size=self.image_max_size)
+            env = ImageRenderWrapper(
+                env,
                 render_mode=render_mode,
                 render_save_dir=render_save_dir,
                 keep_image_history=keep_image_history,
                 history_image_max_size=history_image_max_size
-            ),
-            stats_key=stats_key
-        )
+            )
+            env = SuccessCountingWrapper(env, stats_key=stats_key)
+
+            return env
+
+        return create_env
 
     def _evaluate_impl(self):
         logger.info(f"Evaluation started for {self.experiment_name} with images at: {self.training_source_path}")
