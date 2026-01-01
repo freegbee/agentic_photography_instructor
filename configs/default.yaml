@@ -126,6 +126,18 @@ image_acquisition:
     destination_dir: twenty_two_actions_amd-win
     archive_root: twenty_two_actions_amd-win
     target_hash: 468a6138648e2b980edf04e919437fa6428a5077674d6ded3a6d540ddb2289fa
+  twenty_original_split_amd-win:
+    type: zip
+    source_url: "https://casml4se-artifacts.fra1.digitaloceanspaces.com/manual/twenty_original_split_amd-win.zip"
+    destination_dir: twenty_original_split_amd-win
+    archive_root: twenty_original_split_amd-win
+    target_hash: 0b6c1ece0884d8d7e364216cdcaac8052af9a9f040e27773c2754fdadebdb6e0
+  twenty_original_HQ_split_amd-win:
+    type: zip
+    source_url: "https://casml4se-artifacts.fra1.digitaloceanspaces.com/manual/twenty_original_HQ_split_amd-win.zip"
+    destination_dir: twenty_original_HQ_split_amd-win
+    archive_root: twenty_original_HQ_split_amd-win
+    target_hash: faf0a5304b5a97d0cb5fada1596598ddc4d861ca6ea6bd19c01022b9fae09cfd
   lhq_landscapes_two_actions:
     type: zip
     source_url: "https://casml4se-artifacts.fra1.digitaloceanspaces.com/manual/lhq_landscapes_two_actions.zip"
@@ -133,17 +145,33 @@ image_acquisition:
     archive_root: lhq_landscapes_two_actions
     target_hash: 5432ad7eeb1fcbff11ebeb5e497545375dc07b0d561b658cd08cfea8b978de58
   lhq_landscapes_two_actions_amd-win:
+    # 0.7GB, 4319 images 384x384 (scored on that size on AMD and windows), split into 3 sets with annotation files, one of two possible transformations
     type: zip
     source_url: "https://casml4se-artifacts.fra1.digitaloceanspaces.com/manual/lhq_landscapes_two_actions_amd-win.zip"
     destination_dir: lhq_landscapes_two_actions_amd-win
     archive_root: lhq_landscapes_two_actions_amd-win
     target_hash: 6cfd248482ae04209351be9c2bf18f2a5a49d158fefb14cce10cc73b832ef95e
   lhq_landscapes_multi_one_step_actions_amd-win:
+    # 0.7GB, 4319 images 384x384 (scored on that size on AMD and windows), split into 3 sets with annotation files, one of six possible transformations
     type: zip
     source_url: "https://casml4se-artifacts.fra1.digitaloceanspaces.com/manual/lhq_landscapes_multi_one_step_actions_amd-win.zip"
     destination_dir: lhq_landscapes_multi_one_step_actions_amd-win
     archive_root: lhq_landscapes_multi_one_step_actions_amd-win
     target_hash: 8177e9333b13599a9421e7b85fef46e9e08472225d45c5f2a24e919a0da46a0a
+  lhq_landscapes_original_split_amd-win:
+    # 0.7GB, 4319 images 384x384 (scored on that size on AMD and windows), split into 3 sets with annotation files, no transformation
+    type: zip
+    source_url: "https://casml4se-artifacts.fra1.digitaloceanspaces.com/manual/lhq_landscapes_original_split_amd-win.zip"
+    destination_dir: lhq_landscapes_original_split_amd-win
+    archive_root: lhq_landscapes_original_split_amd-win
+    target_hash: e31d16ea3c84e60a4001b1aecc6c815b8ea45c82b57379420104263f28ab9505
+  lhq_landscapes_original_HQ_split_amd-win:
+    # 3.7GB, 4319 images 1000x1000 (scored on that size), split into 3 sets with annotation files, no transformation
+    type: zip
+    source_url: "https://casml4se-artifacts.fra1.digitaloceanspaces.com/manual/lhq_landscapes_original_HQ_split_amd-win.zip"
+    destination_dir: lhq_landscapes_original_HQ_split_amd-win
+    archive_root: lhq_landscapes_original_HQ_split_amd-win
+    target_hash: 4cacdb0a0900539185d1fe19e9135bbd1a0eaeb90ce0d7ba56cbddce28e22437
   lhq_landscapes:
     type: kaggle
     kaggle_dataset: "arnaud58/landscape-pictures"
