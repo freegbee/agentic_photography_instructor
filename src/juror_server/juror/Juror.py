@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+import logging
 
 
 class Juror:
@@ -13,7 +14,15 @@ class Juror:
             self.model = self.model.to(torch.bfloat16).cuda()
 
         if torch.mps.is_available():
-            self.model = self.model.to('mps').to(torch.bfloat16)
+            # Mac MPS Support: bfloat16 ist erst ab macOS 14+ stabil.
+            # Fallback auf float16, falls bfloat16 nicht unterstützt wird.
+            device = torch.device("mps")
+            try:
+                self.model = self.model.to(device).to(torch.bfloat16)
+            except (RuntimeError, TypeError):
+                logging.getLogger(__name__).warning(
+                    "MPS does not support bfloat16 on this system. Falling back to float16.")
+                self.model = self.model.to(device).to(torch.float16)
 
     def inference(self, image_rgb: np.ndarray) -> float:
         """
@@ -34,7 +43,10 @@ class Juror:
             pixel_values = pixel_values.to(torch.bfloat16).cuda()
 
         if torch.mps.is_available():
-            pixel_values = pixel_values.to('mps').to(torch.bfloat16)
+            # Nutze den Datentyp, den das Modell tatsächlich hat (bfloat16 oder float16)
+            # self.model.dtype ist zuverlässiger als hardcoded bfloat16
+            target_dtype = self.model.dtype if hasattr(self.model, "dtype") else torch.float16
+            pixel_values = pixel_values.to('mps').to(target_dtype)
 
         # predict aesthetic score
         with torch.inference_mode():
