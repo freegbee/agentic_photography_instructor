@@ -18,7 +18,8 @@ class VisualSnapshotLogger:
     def __init__(self, max_tile_size: int = 150):
         self._max_tile_size = max_tile_size
 
-    def log_summary(self, histories: List[List[np.ndarray]], evaluation_idx: int, save_dir: Path = None) -> Optional[
+    def log_summary(self, histories: List[List[np.ndarray]], evaluation_idx: int, save_dir: Path = None,
+                    metadata: Optional[List[dict]] = None) -> Optional[
         Path]:
         """
         Erstellt ein Mosaik aus den Bildverläufen und lädt es als MLflow Artefakt hoch.
@@ -28,7 +29,7 @@ class VisualSnapshotLogger:
         :return: Pfad zur gespeicherten Datei
         """
         try:
-            mosaic = self._generate_mosaic(histories)
+            mosaic = self._generate_mosaic(histories, metadata)
             if mosaic is None:
                 return None
 
@@ -53,11 +54,16 @@ class VisualSnapshotLogger:
         logger.info(f"Logged evaluation mosaic: {filename}")
         return filepath
 
-    def _generate_mosaic(self, histories: List[List[np.ndarray]]) -> Optional[np.ndarray]:
+    def _generate_mosaic(self, histories: List[List[np.ndarray]], metadata: Optional[List[dict]] = None) -> Optional[np.ndarray]:
         rows = []
-        for history in histories:
+        for i, history in enumerate(histories):
+            meta = metadata[i] if metadata and i < len(metadata) else {}
             row_images = []
-            for img in history:
+            
+            # Info-Kachel erstellen und als erstes Element (links) hinzufügen
+            row_images.append(self._create_info_tile(meta))
+            
+            for j, img in enumerate(history):
                 if img is None:
                     continue
 
@@ -69,9 +75,23 @@ class VisualSnapshotLogger:
 
                 # Auf quadratischen Canvas zentrieren (für sauberes Grid)
                 canvas = np.zeros((self._max_tile_size, self._max_tile_size, 3), dtype=np.uint8)
+                canvas[:] = 32
                 y_offset = (self._max_tile_size - new_h) // 2
                 x_offset = (self._max_tile_size - new_w) // 2
                 canvas[y_offset:y_offset + new_h, x_offset:x_offset + new_w] = resized
+
+                # Rahmen um das letzte Bild zeichnen
+                if j == len(history) - 1:
+                    success = meta.get("success", False)
+                    truncated = meta.get("truncated", False)
+                    
+                    # Success/Fail Rahmen (Grün/Rot)
+                    color = (0, 255, 0) if success else (0, 0, 255)
+                    cv2.rectangle(canvas, (x_offset, y_offset), (x_offset + new_w - 1, y_offset + new_h - 1), color, 2)
+                    
+                    if truncated:
+                        # Truncated Rahmen (Orange gestrichelt)
+                        self._draw_dashed_rect(canvas, (x_offset, y_offset), (x_offset + new_w - 1, y_offset + new_h - 1), (0, 140, 255), 2)
 
                 row_images.append(canvas)
 
@@ -88,10 +108,65 @@ class VisualSnapshotLogger:
             h, w = row.shape[:2]
             if w < max_width:
                 padding = np.zeros((h, max_width - w, 3), dtype=np.uint8)
+                padding[:] = 32
                 row = np.hstack([row, padding])
             padded_rows.append(row)
 
         return np.vstack(padded_rows)
+
+    def _create_info_tile(self, meta: dict) -> np.ndarray:
+        canvas = np.zeros((self._max_tile_size, self._max_tile_size, 3), dtype=np.uint8)
+        canvas[:] = 32
+
+        initial = meta.get("initial_score")
+        final = meta.get("score")
+
+        lines = []
+        if initial is not None:
+            lines.append(f"i: {initial:.4f}")
+        else:
+            lines.append("i: N/A")
+
+        if final is not None:
+            lines.append(f"f: {final:.4f}")
+        else:
+            lines.append("f: N/A")
+
+        if initial is not None and final is not None:
+            delta = final - initial
+            lines.append(f"d: {delta:+.4f}")
+        else:
+            lines.append("d: N/A")
+
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 0.45
+        color = (255, 255, 255)
+        thickness = 1
+        line_spacing = 25
+
+        # Vertikal zentrieren
+        total_height = len(lines) * line_spacing
+        y_start = (self._max_tile_size - total_height) // 2 + 15
+
+        for idx, line in enumerate(lines):
+            y = y_start + idx * line_spacing
+            cv2.putText(canvas, line, (10, y), font, font_scale, color, thickness, cv2.LINE_AA)
+
+        return canvas
+
+    def _draw_dashed_rect(self, img, pt1, pt2, color, thickness=1, dash_len=5):
+        x1, y1 = pt1
+        x2, y2 = pt2
+        
+        # Top and Bottom
+        for x in range(x1, x2, dash_len * 2):
+            cv2.line(img, (x, y1), (min(x + dash_len, x2), y1), color, thickness)
+            cv2.line(img, (x, y2), (min(x + dash_len, x2), y2), color, thickness)
+            
+        # Left and Right
+        for y in range(y1, y2, dash_len * 2):
+            cv2.line(img, (x1, y), (x1, min(y + dash_len, y2)), color, thickness)
+            cv2.line(img, (x2, y), (x2, min(y + dash_len, y2)), color, thickness)
 
 
 class VisualTrainingLogger:

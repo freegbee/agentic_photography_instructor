@@ -74,6 +74,7 @@ class ImageTransformEvaluationCallback(EvalCallback):
         # NICE Lässt sich wohl auch so lösen, dass es nicht so viel Speicher braucht (laufend kumulieren, statt am Ende nochmals über alles loopen)
         collected_evaluation_episode_infos: List[dict] = []
         collected_image_histories: List[List[np.ndarray]] = []
+        collected_image_metadata: List[dict] = []
         collected_episode = 0
 
         # Für jede Environment Episoden sammeln, bis n_target erreicht ist
@@ -105,6 +106,14 @@ class ImageTransformEvaluationCallback(EvalCallback):
                     # Bild-Historie sammeln, falls vorhanden und Limit noch nicht erreicht
                     if "image_history" in episode_info and len(collected_image_histories) < self.num_images_to_log:
                         collected_image_histories.append(episode_info["image_history"])
+
+                        stats = episode_info.get(self._stats_key, {})
+                        collected_image_metadata.append({
+                            "success": stats.get("success", False),
+                            "score": stats.get("score", None),
+                            "initial_score": stats.get("initial_score", None),
+                            "truncated": episode_info.get("TimeLimit.truncated", False)
+                        })
                         
                         # Wenn Limit erreicht, Aufzeichnung deaktivieren um Ressourcen zu sparen
                         if len(collected_image_histories) >= self.num_images_to_log:
@@ -116,7 +125,7 @@ class ImageTransformEvaluationCallback(EvalCallback):
         
         # Mosaik generieren und loggen
         if collected_image_histories:
-            mosaic_path = self._snapshot_logger.log_summary(collected_image_histories, self.evaluation_idx, save_dir=self._video_frame_dir)
+            mosaic_path = self._snapshot_logger.log_summary(collected_image_histories, self.evaluation_idx, save_dir=self._video_frame_dir, metadata=collected_image_metadata)
             if mosaic_path:
                 self._collected_mosaic_paths.append(mosaic_path)
 
