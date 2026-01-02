@@ -58,25 +58,30 @@ class VisualSnapshotLogger:
         rows = []
         for i, history in enumerate(histories):
             meta = metadata[i] if metadata and i < len(metadata) else {}
+            step_history = meta.get("step_history", [])
             row_images = []
             
             # Info-Kachel erstellen und als erstes Element (links) hinzufügen
             row_images.append(self._create_info_tile(meta))
-            
+
             for j, img in enumerate(history):
                 if img is None:
                     continue
 
+                # Platz für Text reservieren (unten)
+                text_height = 30
+                available_height = self._max_tile_size - text_height
+
                 # Resize auf Kachelgröße (falls noch nicht geschehen oder abweichend)
                 h, w = img.shape[:2]
-                scale = min(self._max_tile_size / h, self._max_tile_size / w)
+                scale = min(available_height / h, self._max_tile_size / w)
                 new_w, new_h = int(w * scale), int(h * scale)
                 resized = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
 
                 # Auf quadratischen Canvas zentrieren (für sauberes Grid)
                 canvas = np.zeros((self._max_tile_size, self._max_tile_size, 3), dtype=np.uint8)
                 canvas[:] = 32
-                y_offset = (self._max_tile_size - new_h) // 2
+                y_offset = (available_height - new_h) // 2
                 x_offset = (self._max_tile_size - new_w) // 2
                 canvas[y_offset:y_offset + new_h, x_offset:x_offset + new_w] = resized
 
@@ -92,6 +97,47 @@ class VisualSnapshotLogger:
                     if truncated:
                         # Truncated Rahmen (Orange gestrichelt)
                         self._draw_dashed_rect(canvas, (x_offset, y_offset), (x_offset + new_w - 1, y_offset + new_h - 1), (0, 140, 255), 2)
+
+                # Textinformationen rendern (Label und Rewards)
+                # Das erste Bild (j=0) ist der Startzustand, daher keine Aktion/Reward davor.
+                if j > 0 and (j - 1) < len(step_history):
+                    step_info = step_history[j - 1]
+                    label = str(step_info.get("label", ""))
+                    rew = step_info.get("reward", 0.0)
+                    # cum_rew = step_info.get("cum_reward", 0.0)
+
+                    font = cv2.FONT_HERSHEY_SIMPLEX
+                    font_scale = 0.35
+                    color = (200, 200, 200)
+                    thickness = 1
+
+                    # Farben definieren (BGR)
+                    color_pos = (100, 255, 100)  # Lindgrün
+                    color_neg = (0, 140, 255)    # Orange
+
+                    cv2.putText(canvas, label, (5, available_height + 12), font, font_scale, color, thickness, cv2.LINE_AA)
+                    
+                    # Zeile zusammenbauen: "r: <val> s: <val>"
+                    y_pos = available_height + 25
+                    x_pos = 5
+
+                    # Reward
+                    cv2.putText(canvas, "r:", (x_pos, y_pos), font, font_scale, color, thickness, cv2.LINE_AA)
+                    x_pos += cv2.getTextSize("r:", font, font_scale, thickness)[0][0]
+                    
+                    rew_str = f"{rew:.4f}"
+                    cv2.putText(canvas, rew_str, (x_pos, y_pos), font, font_scale, color_neg if rew < 0 else color_pos, thickness, cv2.LINE_AA)
+                    x_pos += cv2.getTextSize(rew_str, font, font_scale, thickness)[0][0]
+
+                    # Score
+                    score = step_info.get("score", 0.0)
+                    initial_score = meta.get("initial_score")
+                    cv2.putText(canvas, " s:", (x_pos, y_pos), font, font_scale, color, thickness, cv2.LINE_AA)
+                    x_pos += cv2.getTextSize(" s:", font, font_scale, thickness)[0][0]
+                    
+                    score_str = f"{score:.4f}"
+                    is_bad_score = score < initial_score if initial_score is not None else score < 0
+                    cv2.putText(canvas, score_str, (x_pos, y_pos), font, font_scale, color_neg if is_bad_score else color_pos, thickness, cv2.LINE_AA)
 
                 row_images.append(canvas)
 

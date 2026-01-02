@@ -76,6 +76,7 @@ class ImageTransformEvaluationCallback(EvalCallback):
         collected_image_histories: List[List[np.ndarray]] = []
         collected_image_metadata: List[dict] = []
         collected_episode = 0
+        collected_step_details = [[] for _ in range(n_envs)]
 
         # Für jede Environment Episoden sammeln, bis n_target erreicht ist
         # n_target ist die Anzahl der zu durchlaufenden Datensätze. Beim Evaluation Callback ist das die Anzahl der Bilder des Validationssets.
@@ -95,6 +96,16 @@ class ImageTransformEvaluationCallback(EvalCallback):
             # Wir haben dann Zugriff auf die ergebnisse der actions und rewards und infos etc. für jede Environment bier counter
             for i in range(n_envs):
                 r = float(rewards[i]) if isinstance(rewards, (list, np.ndarray)) else float(rewards)
+                
+                # Step-Details sammeln (Label, Reward, kumulierter Reward)
+                current_hist = collected_step_details[i]
+                prev_cum = current_hist[-1]["cum_reward"] if current_hist else 0.0
+                current_hist.append({
+                    "label": infos_list[i].get("transformer_label", ""),
+                    "reward": r,
+                    "cum_reward": prev_cum + r,
+                    "score": infos_list[i].get("score", 0.0)
+                })
 
                 done = dones[i] if isinstance(dones, (list, np.ndarray)) else dones
                 if done:
@@ -112,7 +123,8 @@ class ImageTransformEvaluationCallback(EvalCallback):
                             "success": stats.get("success", False),
                             "score": stats.get("score", None),
                             "initial_score": stats.get("initial_score", None),
-                            "truncated": episode_info.get("TimeLimit.truncated", False)
+                            "truncated": episode_info.get("TimeLimit.truncated", False),
+                            "step_history": list(current_hist)
                         })
                         
                         # Wenn Limit erreicht, Aufzeichnung deaktivieren um Ressourcen zu sparen
@@ -122,6 +134,9 @@ class ImageTransformEvaluationCallback(EvalCallback):
                     # Abbrechen mit dem Sammeln, wenn Ziel erreicht
                     if collected_episode >= n_target:
                         break
+                    
+                    # Reset step details für dieses Environment für die nächste Episode
+                    collected_step_details[i] = []
         
         # Mosaik generieren und loggen
         if collected_image_histories:

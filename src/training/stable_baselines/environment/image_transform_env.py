@@ -215,7 +215,8 @@ class ImageTransformEnv(gym.Env):
             # "param_penalty": param_penalty,
             "steps": self.step_count,
             "success": bool(success),
-            "initial_score": self.initial_score
+            "initial_score": self.initial_score,
+            "transformer_label": transformer.label
         }
 
         logger.debug(

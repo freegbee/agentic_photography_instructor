@@ -64,10 +64,12 @@ class ImageOptimizationEnv(ImageTransformEnv):
         if self._is_stop_action(action_val):
             reward = self._calculate_stop_reward(previous_score)
             terminated = True
+            transformer_label = "STOP"
         else:
             self.current_image, self.current_score = self._transform_and_score(self.current_image,
                                                                                self.transformers[action_val])
             reward = self._calculate_reward(previous_score, self.current_score)
+            transformer_label = self.transformers[action_val].label
 
         self.step_count += 1
         
@@ -79,7 +81,8 @@ class ImageOptimizationEnv(ImageTransformEnv):
             "score": self.current_score,
             "steps": self.step_count,
             "success": self.current_score > self.initial_score,
-            "initial_score": self.initial_score
+            "initial_score": self.initial_score,
+            "transformer_label": transformer_label
         }
 
         return self.current_image, reward, terminated, truncated, info
