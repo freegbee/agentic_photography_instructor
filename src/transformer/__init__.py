@@ -40,4 +40,14 @@ POC_MULTI_ONE_STEP_TRANSFORMERS = [
     SwapColorChannelTransformerGB.label
 ]
 
-__all__ = ["generate_transformer_pairs", "REVERSIBLE_TRANSFORMERS", "POC_ONE_WAY_TRANSFORMERS", "POC_TWO_WAY_TRANSFORMERS", "POC_MULTI_ONE_STEP_TRANSFORMERS"]
+POC_MULTI_TWO_STEP_TRANSFORMERS = [
+    InvertColorChannelTransformerB.label,
+    InvertColorChannelTransformerG.label,
+    InvertColorChannelTransformerR.label,
+    SwapColorChannelTransformerRB.label,
+    SwapColorChannelTransformerRG.label,
+    SwapColorChannelTransformerGB.label
+]
+
+__all__ = ["generate_transformer_pairs", "REVERSIBLE_TRANSFORMERS", "POC_ONE_WAY_TRANSFORMERS",
+           "POC_TWO_WAY_TRANSFORMERS", "POC_MULTI_ONE_STEP_TRANSFORMERS", "POC_MULTI_TWO_STEP_TRANSFORMERS"]

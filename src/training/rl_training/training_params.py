@@ -13,10 +13,11 @@ class ImagePreprocessingParams(TypedDict):
     resize_max_size: int
 
 
-class TransformPreprocessingParams(TypedDict):
+class TransformPreprocessingParams(TypedDict, total=False):
     batch_size: int
     transformer_names: list[str]
     use_random_transformer: bool
+    num_transformations: int  # Number of transformations to apply (default: 1)
     split: SplitRatios
 
 

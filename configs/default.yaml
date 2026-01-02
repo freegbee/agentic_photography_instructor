@@ -144,6 +144,12 @@ image_acquisition:
     destination_dir: lhq_landscapes_multi_one_step_actions_amd-win
     archive_root: lhq_landscapes_multi_one_step_actions_amd-win
     target_hash: 8177e9333b13599a9421e7b85fef46e9e08472225d45c5f2a24e919a0da46a0a
+  lhq_landscapes_multi_two_step_actions_amd-mac:
+    type: zip
+    source_url: "https://casml4se-artifacts.fra1.digitaloceanspaces.com/manual/lhq_landscapes_multi_two_step_actions_amd-mac.zip"
+    destination_dir: lhq_landscapes_multi_two_step_actions_amd-mac
+    archive_root: lhq_landscapes_multi_two_step_actions_amd-mac
+    target_hash: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
   lhq_landscapes:
     type: kaggle
     kaggle_dataset: "arnaud58/landscape-pictures"

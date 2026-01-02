@@ -9,7 +9,7 @@ class DataParams(TypedDict):
     dataset_id: str
 
 
-class TrainingParams(TypedDict):
+class TrainingParams(TypedDict, total=False):
     experiment_name: str
     run_name: str
     use_local_juror: bool
@@ -33,6 +33,11 @@ class TrainingParams(TypedDict):
     evaluation_render_save_dir: str
     evaluation_model_save_dir: str
     evaluation_log_path: str
+    # Multi-step wrapper parameters
+    use_multi_step_wrapper: bool  # Whether to use the multi-step wrapper
+    steps_per_episode: int  # Number of transformations per episode (default: 2)
+    multi_step_intermediate_reward: bool  # Give small rewards at intermediate steps (default: False)
+    multi_step_reward_shaping: bool  # Use reward shaping for intermediate steps (default: False)
 
 
 class GeneralParams(TypedDict):

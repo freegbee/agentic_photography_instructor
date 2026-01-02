@@ -132,13 +132,21 @@ class DegradeAndSplitPreprocessor(AbstractPreprocessor[DegradeAndSplitPreprocess
         """Processes single batch of images: Apply transformations, update COCO builder, store images"""
         for image_data in batch:
             degraded_image, transformer_labels = self.degradation_function.degrade(image_data.get_image_data("BGR"))
+
+            # Score the degraded image
+            scoring_response: ScoringResponsePayloadV1 = self.juror_client.score_ndarray_bgr(degraded_image)
+
+            # Skip images with scores higher than or equal to the original
+            if scoring_response.score >= image_data.initial_score:
+                logger.info(f"Skipping image {image_data.image_relative_path}: degraded score ({scoring_response.score:.5f}) >= original score ({image_data.initial_score:.5f})")
+                continue
+
             transformed_image_path = str(split_images_dir / image_data.image_relative_path)
             ImageUtils.save_image(degraded_image, transformed_image_path)
             image_id = coco_builder.add_image(file_name=str(image_data.image_relative_path),
                                               width=image_data.width,
                                               height=image_data.height,
                                               initial_score=image_data.initial_score)
-            scoring_response: ScoringResponsePayloadV1 = self.juror_client.score_ndarray_bgr(degraded_image)
             coco_builder.add_image_score_annotation(image_id=image_id, score=scoring_response.score,
                                                     initial_score=image_data.initial_score)
             if self.debug_degradation_scoring:
