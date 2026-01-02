@@ -104,6 +104,17 @@ class ImageOptimizationEnv(ImageTransformEnv):
     def _calculate_stop_reward(self, previous_score: float) -> float:
         """
         Berechnet den Reward, falls STOP erreicht wird.
-        Denkbar wäre z.B. etwas zu belohnen, wenn früher gestoppt wird, aber nur wenn, der Score besser wurde
+        Hier integrieren wir den Success-Bonus, um den Agenten zu motivieren, 
+        erst zu verbessern und DANN zu stoppen.
         """
-        return self.stop_bonus
+        reward = self.stop_bonus
+
+        if self.current_score > self.initial_score:
+            # Jackpot: Wir haben uns verbessert und loggen das Ergebnis ein.
+            reward += self.success_bonus
+        else:
+            # Optional: Kleine Strafe für "Aufgeben ohne Versuch" (Safe Haven vermeiden)
+            # Damit 0 (nichts tun) schlechter ist als "Versuchen"
+            reward -= 0.1
+            
+        return reward
