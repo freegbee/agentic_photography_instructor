@@ -1,0 +1,48 @@
+@startuml
+
+title Trainingsarchitektur: Multiprocessing & Shared Memory
+
+package "Main Process (Trainer)" {
+    component [StableBaselineTrainer] as Trainer
+    component [PPO Model] as PPO
+
+    component "JurorWorkerPool\n(Manager)" as PoolManager
+    queue "Request Queue\n(Metadata only)" as ReqQ
+}
+
+package "CPU Worker Processes (Environments)" {
+    node "Environment Process 1..N" {
+        component [SubprocVecEnv Worker] as VecWorker
+        component [ImageTransformEnv] as Env
+        component [JurorQueueService] as Service
+        queue "Reply Queue\n(Specific to Env)" as RepQ
+    }
+}
+
+package "GPU Worker Processes (Jurors)" {
+    node "Juror Worker Process 1..M" {
+        component [Juror Worker Loop] as WorkerLoop
+        component [Juror Model (GPU)] as GPUModel
+    }
+}
+
+database "Shared Memory (RAM)" as SHM
+
+Trainer --> PoolManager : manages
+PoolManager --> ReqQ : creates
+PoolManager --> RepQ : creates via Manager
+
+Trainer ..> VecWorker : spawns (cloudpickle)
+VecWorker --> Env : runs
+Env --> Service : uses
+
+Service --> SHM : 1. Write Image\n(Zero Copy)
+Service --> ReqQ : 2. Put(shm_name, shape, reply_q)
+Service --> RepQ : 3. Wait for result
+
+ReqQ --> WorkerLoop : 4. Get Job
+WorkerLoop --> SHM : 5. Read Image\n(Zero Copy)
+WorkerLoop --> GPUModel : 6. Inference
+WorkerLoop --> RepQ : 7. Put Score
+
+@enduml
