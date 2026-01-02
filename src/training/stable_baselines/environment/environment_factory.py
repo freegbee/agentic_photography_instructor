@@ -13,6 +13,7 @@ from juror_client.juror_worker_pool import JurorQueueService
 from training.stable_baselines.environment.image_observation_wrapper import ImageObservationWrapper
 from training.stable_baselines.environment.image_render_wrapper import ImageRenderWrapper
 from training.stable_baselines.environment.image_transform_env import ImageTransformEnv
+from training.stable_baselines.environment.multi_step_wrapper import MultiStepTransformWrapper
 from training.stable_baselines.environment.samplers import CocoDatasetSampler
 from training.stable_baselines.environment.success_counting_wrapper import SuccessCountingWrapper
 from transformer.AbstractTransformer import AbstractTransformer
@@ -82,7 +83,11 @@ class ImageTransformEnvFactory(AbstractEnvFactory):
                  max_transformations: int,
                  success_bonus: float,
                  juror_use_local: bool,
-                 vec_env_cls=None):
+                 vec_env_cls=None,
+                 use_multi_step: bool = False,
+                 steps_per_episode: int = 2,
+                 intermediate_reward: bool = False,
+                 reward_shaping: bool = False):
         """
         Initialisiert die Factory mit den statischen Parametern, die für alle Environments gleich sind.
         """
@@ -92,6 +97,10 @@ class ImageTransformEnvFactory(AbstractEnvFactory):
         self.max_transformations = max_transformations
         self.success_bonus = success_bonus
         self.juror_use_local = juror_use_local
+        self.use_multi_step = use_multi_step
+        self.steps_per_episode = steps_per_episode
+        self.intermediate_reward = intermediate_reward
+        self.reward_shaping = reward_shaping
 
     # Überschreiben der Signatur für Type-Hinting und spezifische Argumente
     # noinspection PyMethodOverriding
@@ -154,6 +163,16 @@ class ImageTransformEnvFactory(AbstractEnvFactory):
         """
         Wendet die Standard-Wrapper (Observation, Render, Success) an.
         """
+        if self.use_multi_step:
+
+            logger.info(f"Using MultiStepTransformWrapper with {self.steps_per_episode} steps per episode")
+            env = MultiStepTransformWrapper(
+                env,
+                steps_per_episode=self.steps_per_episode,
+                intermediate_reward=self.intermediate_reward,
+                reward_shaping=self.reward_shaping
+            )
+
         env = ImageObservationWrapper(env, image_max_size=self.image_max_size)
 
         env = ImageRenderWrapper(

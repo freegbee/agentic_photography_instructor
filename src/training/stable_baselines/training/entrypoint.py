@@ -73,7 +73,7 @@ def main():
 
     training_params = HyperparameterRegistry.get_store(TrainingParams)
     training_params.set({
-        "experiment_name": "SB3_POC_PERFORMANCE_OPTIMIZED",
+        "experiment_name": "SB3_POC_PERFORMANCE_OPTIMIZED_MPS",
         "run_name": run_name,
         "use_local_juror": True,
         "random_seed": 42,
@@ -86,6 +86,14 @@ def main():
         "total_training_steps": 16_000,
         "render_mode": "skip",  # "save",
         "render_save_dir": "./renders/",
+
+        # === MULTI-STEP WRAPPER CONFIGURATION ===
+        "use_multi_step_wrapper": True,  # Enable multi-step wrapper
+        "steps_per_episode": 2,  # Agent must take 2 actions per episode
+        "multi_step_intermediate_reward": False,  # No reward for intermediate steps (default)
+        "multi_step_reward_shaping": False,  # No shaped rewards (default)
+        # =========================================
+
         # evaluation parameters
         "evaluation_seed": 67,
         "evaluation_interval": 4000,  # num_vector_envs * n_steps -> Nach jedem Rollout validieren
@@ -102,9 +110,10 @@ def main():
     data_params = HyperparameterRegistry.get_store(DataParams)
     # data_params.set({"dataset_id": "lhq_landscapes_two_actions"})
     # data_params.set({"dataset_id": "lhq_landscapes_two_actions_amd-win"})
-    data_params.set({"dataset_id": "lhq_landscapes_multi_one_step_actions_amd-win"})
+    #data_params.set({"dataset_id": "lhq_landscapes_multi_one_step_actions_amd-win"})
     # data_params.set({"dataset_id": "twenty_two_actions_amd-win"})
     # data_params.set({"dataset_id": "twenty_two_actions"})
+    data_params.set({"dataset_id": "lhq_landscapes_multi_two_step_actions_amd-mac"})
 
     trainer = StableBaselineTrainer()
     trainer.run_training(run_name=run_name)

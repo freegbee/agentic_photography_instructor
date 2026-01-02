@@ -63,7 +63,14 @@ class StableBaselineTrainer(AbstractTrainer):
             "evaluation_model_save_dir"]
         self.evaluation_log_path = Path(os.environ["IMAGE_VOLUME_PATH"]) / self.training_params["evaluation_log_path"]
 
+        # Multy step degredation parameters
+        self.use_multi_step = self.training_params["use_multi_step_wrapper"]
+        self.steps_per_episode = self.training_params["steps_per_episode"]
+        self.intermediate_reward = self.training_params["multi_step_intermediate_reward"]
+        self.reward_shaping = self.training_params["multi_step_reward_shaping"]
+
         self._register_mlflow_params()
+
 
     def _register_mlflow_params(self):
         """
@@ -125,7 +132,11 @@ class StableBaselineTrainer(AbstractTrainer):
             max_transformations=self.training_params["max_transformations"],
             success_bonus=self.success_bonus,
             juror_use_local=self.training_params["use_local_juror"],
-            vec_env_cls=vec_env_cls
+            vec_env_cls=vec_env_cls,
+            use_multi_step=self.use_multi_step,
+            steps_per_episode=self.steps_per_episode,
+            intermediate_reward=self.intermediate_reward,
+            reward_shaping=self.reward_shaping
         )
 
         # WICHTIG: Wir erstellen eine Liste von Funktionen, damit jedes Environment einen EIGENEN Seed bekommt.
