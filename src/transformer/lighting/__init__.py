@@ -5,7 +5,8 @@ from .contrast_transformer import (
     ContrastDecreaseTransformerWeak,
     ContrastDecreaseTransformerMedium,
     ContrastDecreaseTransformerStrong,
-    CLAHETransformer
+    CLAHETransformer,
+    AutoContrastTransformer
 )
 from .lightness_transformer import (
     LightnessIncreaseTransformerWeak,
@@ -15,7 +16,11 @@ from .lightness_transformer import (
     LightnessDecreaseTransformerMedium,
     LightnessDecreaseTransformerStrong
 )
-from .gamma_transformer import AutoGammaCorrectionTransformer
+from .gamma_transformer import (
+    AutoGammaCorrectionTransformer,
+    GammaBrightenTransformer,
+    GammaDarkenTransformer
+)
 
 __all__ = [
     "ContrastIncreaseTransformerWeak",
@@ -31,12 +36,17 @@ __all__ = [
     "LightnessDecreaseTransformerWeak",
     "LightnessDecreaseTransformerMedium",
     "LightnessDecreaseTransformerStrong",
-    "AutoGammaCorrectionTransformer"
+    "AutoGammaCorrectionTransformer",
+    "GammaBrightenTransformer",
+    "GammaDarkenTransformer",
+    "AutoContrastTransformer"
 ]
 
 SENSIBLE_LIGHTING_TRANSFORMERS = [
     ContrastIncreaseTransformerWeak.label, ContrastDecreaseTransformerWeak.label,
     LightnessIncreaseTransformerWeak.label, LightnessDecreaseTransformerWeak.label,
     AutoGammaCorrectionTransformer.label,
-    CLAHETransformer.label
+    GammaBrightenTransformer.label, GammaDarkenTransformer.label,
+    CLAHETransformer.label,
+    AutoContrastTransformer.label
 ]
