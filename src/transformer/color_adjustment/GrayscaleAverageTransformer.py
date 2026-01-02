@@ -1,3 +1,4 @@
+import numpy as np
 from numpy import ndarray
 
 from transformer.color_adjustment.AbstractColorAdjustmentTransformer import AbstractColorAdjustmentTransformer
@@ -8,14 +9,9 @@ class GrayscaleAverageTransformer(AbstractColorAdjustmentTransformer):
     description = "Converts the image to grayscale by averaging the color channels."
 
     def transform(self, image: ndarray) -> ndarray:
-        # see https://www.geeksforgeeks.org/python/python-grayscaling-of-images-using-opencv/, method 3
-        (row, col) = image.shape[0:2]
-
-        # Take the average of pixel values of the BGR Channels
-        # to convert the colored image to grayscale image
-        for i in range(row):
-            for j in range(col):
-                # Find the average of the BGR pixel values
-                image[i, j] = sum(image[i, j]) * 0.33
-
-        return image
+        # Vectorized implementation avoids overflow and loop overhead
+        # Calculate mean across channels (axis 2) using float to prevent uint8 overflow
+        avg = np.mean(image, axis=2, dtype=float).astype(image.dtype)
+        
+        # Reconstruct 3-channel image (BGR)
+        return np.dstack((avg, avg, avg))

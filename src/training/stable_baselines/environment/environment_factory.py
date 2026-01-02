@@ -82,7 +82,8 @@ class ImageTransformEnvFactory(AbstractEnvFactory):
                  max_transformations: int,
                  success_bonus: float,
                  juror_use_local: bool,
-                 vec_env_cls=None):
+                 vec_env_cls=None,
+                 core_env_cls=ImageTransformEnv):
         """
         Initialisiert die Factory mit den statischen Parametern, die für alle Environments gleich sind.
         """
@@ -92,6 +93,7 @@ class ImageTransformEnvFactory(AbstractEnvFactory):
         self.max_transformations = max_transformations
         self.success_bonus = success_bonus
         self.juror_use_local = juror_use_local
+        self.core_env_cls = core_env_cls
 
     # Überschreiben der Signatur für Type-Hinting und spezifische Argumente
     # noinspection PyMethodOverriding
@@ -139,7 +141,7 @@ class ImageTransformEnvFactory(AbstractEnvFactory):
         sampler = kwargs["coco_dataset_sampler_factory"]()
 
         # 3. Environment instanziieren
-        return ImageTransformEnv(
+        return self.core_env_cls(
             transformers=self.transformers,
             coco_dataset_sampler=sampler,
             juror_client=JurorClient(use_local=self.juror_use_local, register_name=register_name,

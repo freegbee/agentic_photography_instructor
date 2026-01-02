@@ -2,6 +2,7 @@ from typing import TypedDict, Tuple, Union, Type
 
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
 
+from training.stable_baselines.environment.welldefined_environments import WellDefinedEnvironment
 from training.stable_baselines.models.model_factory import PpoModelVariant
 
 
@@ -14,6 +15,7 @@ class TrainingParams(TypedDict):
     run_name: str
     use_local_juror: bool
     random_seed: int
+    core_env: WellDefinedEnvironment
     ppo_model_variant: PpoModelVariant
     num_vector_envs: int
     mini_batch_size: int

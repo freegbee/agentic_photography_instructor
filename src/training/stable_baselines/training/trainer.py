@@ -17,7 +17,10 @@ from training.stable_baselines.callbacks.image_transform_evaluation_callback imp
 from training.stable_baselines.callbacks.performance_callback import MlflowPerformanceCallback
 from training.stable_baselines.callbacks.rollout_success_callback import RolloutSuccessCallback
 from training.stable_baselines.environment.environment_factory import ImageTransformEnvFactory
+from training.stable_baselines.environment.image_transform_env import ImageTransformEnv
+from training.stable_baselines.environment.image_optimization_env import ImageOptimizationEnv
 from training.stable_baselines.environment.samplers import SequentialCocoDatasetSampler, RandomCocoDatasetSampler
+from training.stable_baselines.environment.welldefined_environments import WellDefinedEnvironment
 from training.stable_baselines.models.learning_rate_schedules import linear_schedule
 from training.stable_baselines.models.model_factory import PpoModelFactory
 from training.stable_baselines.training.hyper_params import TrainingParams, DataParams, GeneralParams
@@ -117,6 +120,10 @@ class StableBaselineTrainer(AbstractTrainer):
         # Bestimmen der Environment-Klasse basierend auf den Parametern (String -> Klasse)
         vec_env_cls = SubprocVecEnv if self.vec_env_cls == "SubprocVecEnv" else DummyVecEnv
 
+        # Bestimmen der Core-Environment Klasse
+        # Standard ist ImageTransformEnv, kann via GeneralParams überschrieben werden
+        core_env_cls = self.training_params.get("core_env", WellDefinedEnvironment.IMAGE_DEDEGRATION).env_class
+
         # Factory initialisieren
         # Hier wird definiert, WELCHES Environment wir nutzen.
         env_factory = ImageTransformEnvFactory(
@@ -125,7 +132,8 @@ class StableBaselineTrainer(AbstractTrainer):
             max_transformations=self.training_params["max_transformations"],
             success_bonus=self.success_bonus,
             juror_use_local=self.training_params["use_local_juror"],
-            vec_env_cls=vec_env_cls
+            vec_env_cls=vec_env_cls,
+            core_env_cls=core_env_cls
         )
 
         # WICHTIG: Wir erstellen eine Liste von Funktionen, damit jedes Environment einen EIGENEN Seed bekommt.
