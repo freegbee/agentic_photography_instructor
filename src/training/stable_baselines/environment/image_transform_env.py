@@ -7,7 +7,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from gymnasium import spaces
 from gymnasium.core import ObsType
+from gymnasium.spaces import Discrete
+from numpy import integer, ndarray
 
+from data_types.AgenticImage import ImageData
 from juror_client import JurorClient
 from training.stable_baselines.environment.samplers import CocoDatasetSampler
 from transformer.AbstractTransformer import AbstractTransformer
@@ -61,7 +64,7 @@ class ImageTransformEnv(gym.Env):
         #     "transformer_index": spaces.Discrete(len(self.transformers)),
         #     "params": spaces.Box(-1.0, 1.0, shape=(self.max_action_param_dim,), dtype=np.float32),
         # })
-        self.action_space = spaces.Discrete(len(self.transformers))
+        self.action_space = self._calculate_action_space()
 
         # State variables
         self.current_image = None
@@ -77,6 +80,9 @@ class ImageTransformEnv(gym.Env):
         self.reset_idx = 0
 
         self.debug_scoring = False
+
+    def _calculate_action_space(self) -> Discrete[integer[Any] | Any]:
+        return spaces.Discrete(len(self.transformers))
 
     def reset(self, *, seed=None, options: Optional[Dict] = None) -> tuple[ObsType, dict[str, Any]]:
         """
@@ -110,6 +116,11 @@ class ImageTransformEnv(gym.Env):
             logger.debug("Dataset sampler exhausted at reset.")
             self.coco_dataset_sampler.reset()
 
+        self._reset_image_properties(image_data, random_index)
+        self.step_count = 0
+        return self.current_image, {"dataset_exhausted": exhausted}
+
+    def _reset_image_properties(self, image_data: ImageData, random_index: int):
         img = image_data.image_data
         logger.debug(
             "Resetting environment with image id %d at index %d. Initial score=%.4f, score=%.4f" % (image_data.id,
@@ -133,8 +144,6 @@ class ImageTransformEnv(gym.Env):
                 proof_file_name = str(proof_file_name).replace(".jpg", "_with_mismatch.jpg")
                 ImageUtils.save_image(image_data.image_data, proof_file_name)
                 raise (ValueError("Initial score mismatch. proof at %s" % proof_file_name))
-        self.step_count = 0
-        return self.current_image, {"dataset_exhausted": exhausted}
 
     def reset_sampler(self):
         self.coco_dataset_sampler.reset()
@@ -217,6 +226,12 @@ class ImageTransformEnv(gym.Env):
                                                                                               self.current_score))
 
         return self.current_image, reward, done, truncated, info
+
+    def _transform_and_score(self, image_data: ndarray, transformer: AbstractTransformer) -> Tuple[ndarray, float]:
+        transformed_img = transformer.transform(self.current_image)
+        scoring_response = self.juror_client.score_ndarray_bgr(transformed_img)
+        return transformed_img, scoring_response.score
+
 
     def close(self):
         """

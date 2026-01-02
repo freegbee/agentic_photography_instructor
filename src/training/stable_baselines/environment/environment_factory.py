@@ -84,6 +84,7 @@ class ImageTransformEnvFactory(AbstractEnvFactory):
                  success_bonus: float,
                  juror_use_local: bool,
                  vec_env_cls=None,
+                 core_env_cls=ImageTransformEnv,
                  use_multi_step: bool = False,
                  steps_per_episode: int = 2,
                  intermediate_reward: bool = False,
@@ -97,6 +98,7 @@ class ImageTransformEnvFactory(AbstractEnvFactory):
         self.max_transformations = max_transformations
         self.success_bonus = success_bonus
         self.juror_use_local = juror_use_local
+        self.core_env_cls = core_env_cls
         self.use_multi_step = use_multi_step
         self.steps_per_episode = steps_per_episode
         self.intermediate_reward = intermediate_reward
@@ -148,7 +150,7 @@ class ImageTransformEnvFactory(AbstractEnvFactory):
         sampler = kwargs["coco_dataset_sampler_factory"]()
 
         # 3. Environment instanziieren
-        return ImageTransformEnv(
+        return self.core_env_cls(
             transformers=self.transformers,
             coco_dataset_sampler=sampler,
             juror_client=JurorClient(use_local=self.juror_use_local, register_name=register_name,

@@ -124,6 +124,10 @@ class StableBaselineTrainer(AbstractTrainer):
         # Bestimmen der Environment-Klasse basierend auf den Parametern (String -> Klasse)
         vec_env_cls = SubprocVecEnv if self.vec_env_cls == "SubprocVecEnv" else DummyVecEnv
 
+        # Bestimmen der Core-Environment Klasse
+        # Standard ist ImageTransformEnv, kann via GeneralParams überschrieben werden
+        core_env_cls = self.training_params.get("core_env", WellDefinedEnvironment.IMAGE_DEDEGRATION).env_class
+
         # Factory initialisieren
         # Hier wird definiert, WELCHES Environment wir nutzen.
         env_factory = ImageTransformEnvFactory(
@@ -133,6 +137,7 @@ class StableBaselineTrainer(AbstractTrainer):
             success_bonus=self.success_bonus,
             juror_use_local=self.training_params["use_local_juror"],
             vec_env_cls=vec_env_cls,
+            core_env_cls=core_env_cls,
             use_multi_step=self.use_multi_step,
             steps_per_episode=self.steps_per_episode,
             intermediate_reward=self.intermediate_reward,

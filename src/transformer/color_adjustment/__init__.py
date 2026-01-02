@@ -2,6 +2,16 @@ from .GrayscaleTransformer import GrayscaleTransformer
 from .GrayscaleAverageTransformer import GrayscaleAverageTransformer
 from .SwapColorChannelTransformer import SwapColorChannelTransformerGB, SwapColorChannelTransformerRB, SwapColorChannelTransformerRG
 from .InvertColorChannelTransformer import InvertColorChannelTransformerB, InvertColorChannelTransformerG, InvertColorChannelTransformerR, InvertColorChannelTransformerBG, InvertColorChannelTransformerBR, InvertColorChannelTransformerGR, InvertColorChannelTransformerAll
+from .saturation_transformer import (
+    SaturationIncreaseTransformerWeak,
+    SaturationIncreaseTransformerMedium,
+    SaturationIncreaseTransformerStrong,
+    SaturationDecreaseTransformerWeak,
+    SaturationDecreaseTransformerMedium,
+    SaturationDecreaseTransformerStrong,
+    VibranceTransformer
+)
+from .white_balance_transformer import AutoWhiteBalanceTransformer
 
 
 __all__ = [
@@ -17,4 +27,19 @@ __all__ = [
     "InvertColorChannelTransformerBR",
     "InvertColorChannelTransformerGR",
     "InvertColorChannelTransformerAll",
+    "SaturationIncreaseTransformerWeak",
+    "SaturationIncreaseTransformerMedium",
+    "SaturationIncreaseTransformerStrong",
+    "SaturationDecreaseTransformerWeak",
+    "SaturationDecreaseTransformerMedium",
+    "SaturationDecreaseTransformerStrong",
+    "VibranceTransformer",
+    "AutoWhiteBalanceTransformer"
+]
+
+SENSIBLE_CA_TRANSFORMERS = [
+    GrayscaleTransformer.label, GrayscaleAverageTransformer.label, InvertColorChannelTransformerAll.label,
+    SaturationIncreaseTransformerWeak.label, SaturationDecreaseTransformerWeak.label,
+    VibranceTransformer.label,
+    AutoWhiteBalanceTransformer.label
 ]

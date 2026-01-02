@@ -13,11 +13,12 @@ if OPTIMIZE_FOR_MULTIPROCESSING:
     os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
     os.environ["NUMEXPR_NUM_THREADS"] = "1"
 
+from training.stable_baselines.environment.welldefined_environments import WellDefinedEnvironment
 from training.hyperparameter_registry import HyperparameterRegistry
 from training.stable_baselines.models.model_factory import PpoModelVariant
 from training.stable_baselines.training.hyper_params import TrainingParams, DataParams, GeneralParams
 from training.stable_baselines.training.trainer import StableBaselineTrainer
-from transformer import POC_MULTI_ONE_STEP_TRANSFORMERS
+from transformer import POC_MULTI_ONE_STEP_TRANSFORMERS, SENSIBLE_TRANSFORMERS
 from utils.LoggingUtils import configure_logging
 from utils.Registries import TRANSFORMER_REGISTRY
 
@@ -45,14 +46,35 @@ def calculate_n_steps(num_envs, target_total=4000, batch_size=100):
 def main():
     configure_logging()
 
+    # --- EXPERIMENT CONFIGURATION SWITCH ---
+    training_modus = "Optimization"
+    # ---------------------------------------
+
     model_variant = PpoModelVariant.PPO_WITHOUT_BACKBONE
 
     opt_str = "MultiProc" if OPTIMIZE_FOR_MULTIPROCESSING else "SingleProc"
-    run_name = f"{time.strftime('%Y%m%d-%H%M%S')} - Landscapes, One-of-Six, Juror Scores, {model_variant.value} ({opt_str})"
 
-    source_transformer_labels = POC_MULTI_ONE_STEP_TRANSFORMERS
-    transformer_labels = [TRANSFORMER_REGISTRY.get(l).get_reverse_transformer_label() for l in
-                          source_transformer_labels]
+    # Setup basierend auf Modus
+    if training_modus == "Optimization":
+        # Beispiel für das neue Setup
+        run_name_prefix = "Landscapes, Multi-Optimization, Sensible"
+        core_env = WellDefinedEnvironment.IMAGE_OPTIMIZATION
+        transformer_labels = SENSIBLE_TRANSFORMERS
+        dataset_id = "twenty_original_split_amd-win"
+        max_transformations = 5
+        # core_env_cls_name = "ImageTransformEnvVariant"
+    else:
+        # Default Setup
+        run_name_prefix = "Landscapes, One-of-Six, Juror Scores"
+        source_transformer_labels = POC_MULTI_ONE_STEP_TRANSFORMERS
+        core_env = WellDefinedEnvironment.IMAGE_DEDEGRATION
+        transformer_labels = [TRANSFORMER_REGISTRY.get(l).get_reverse_transformer_label() for l in
+                              source_transformer_labels]
+        dataset_id = "lhq_landscapes_multi_one_step_actions_amd-win"
+        max_transformations = 1
+        # core_env_cls_name = "ImageTransformEnv"
+
+    run_name = f"{time.strftime('%Y%m%d-%H%M%S')} - {run_name_prefix}, {model_variant.value} ({opt_str})"
 
     # Dynamische Berechnung von n_steps für konstante Batch-Größe (~4000)
     target_rollout_size = 4000
@@ -73,16 +95,17 @@ def main():
 
     training_params = HyperparameterRegistry.get_store(TrainingParams)
     training_params.set({
-        "experiment_name": "SB3_POC_PERFORMANCE_OPTIMIZED_MPS",
+        "experiment_name": "SB3_POC_IMAGE_OPTIMIZATION",
         "run_name": run_name,
         "use_local_juror": True,
         "random_seed": 42,
+        "core_env": core_env,
         "ppo_model_variant": model_variant,
         "num_vector_envs": NUM_VECTOR_ENVS,
         "n_steps": n_steps,
         "mini_batch_size": 100,  # (n_steps * num_vector_env) % mini_batch_size == 0, also
         "n_epochs": 4,
-        "max_transformations": 1,
+        "max_transformations": max_transformations,
         "total_training_steps": 16_000,
         "render_mode": "skip",  # "save",
         "render_save_dir": "./renders/",
@@ -108,12 +131,7 @@ def main():
     })
 
     data_params = HyperparameterRegistry.get_store(DataParams)
-    # data_params.set({"dataset_id": "lhq_landscapes_two_actions"})
-    # data_params.set({"dataset_id": "lhq_landscapes_two_actions_amd-win"})
-    #data_params.set({"dataset_id": "lhq_landscapes_multi_one_step_actions_amd-win"})
-    # data_params.set({"dataset_id": "twenty_two_actions_amd-win"})
-    # data_params.set({"dataset_id": "twenty_two_actions"})
-    data_params.set({"dataset_id": "lhq_landscapes_multi_two_step_actions_amd-mac"})
+    data_params.set({"dataset_id": dataset_id})
 
     trainer = StableBaselineTrainer()
     trainer.run_training(run_name=run_name)
