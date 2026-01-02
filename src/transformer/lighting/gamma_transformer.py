@@ -33,3 +33,34 @@ class AutoGammaCorrectionTransformer(AbstractLightingTransformer):
 
         # Apply LUT
         return cv2.LUT(image, lut)
+
+class GammaBrightenTransformer(AbstractLightingTransformer):
+    """Brighten image slightly using gamma correction (gamma=0.8)."""
+
+    label = "LI_GAMMA_0.8"
+    description = "Brighten image slightly with gamma correction (0.8)"
+
+    def transform(self, image: ndarray) -> ndarray:
+        """Apply gamma correction with gamma=0.8 to brighten."""
+        # Build lookup table for gamma correction
+        inv_gamma = 1.0 / 0.8
+        table = np.array([((i / 255.0) ** inv_gamma) * 255 for i in range(256)]).astype(np.uint8)
+
+        # Apply gamma correction using lookup table
+        return cv2.LUT(image, table)
+
+
+class GammaDarkenTransformer(AbstractLightingTransformer):
+    """Darken image slightly using gamma correction (gamma=1.2)."""
+
+    label = "LI_GAMMA_1.2"
+    description = "Darken image slightly with gamma correction (1.2)"
+
+    def transform(self, image: ndarray) -> ndarray:
+        """Apply gamma correction with gamma=1.2 to darken."""
+        # Build lookup table for gamma correction
+        inv_gamma = 1.0 / 1.2
+        table = np.array([((i / 255.0) ** inv_gamma) * 255 for i in range(256)]).astype(np.uint8)
+
+        # Apply gamma correction using lookup table
+        return cv2.LUT(image, table)
