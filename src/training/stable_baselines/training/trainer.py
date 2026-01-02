@@ -18,6 +18,7 @@ from training.stable_baselines.callbacks.performance_callback import MlflowPerfo
 from training.stable_baselines.callbacks.rollout_success_callback import RolloutSuccessCallback
 from training.stable_baselines.environment.environment_factory import ImageTransformEnvFactory
 from training.stable_baselines.environment.samplers import SequentialCocoDatasetSampler, RandomCocoDatasetSampler
+from training.stable_baselines.environment.welldefined_environments import WellDefinedEnvironment
 from training.stable_baselines.models.learning_rate_schedules import linear_schedule
 from training.stable_baselines.models.model_factory import PpoModelFactory
 from training.stable_baselines.training.hyper_params import TrainingParams, DataParams, GeneralParams
@@ -70,7 +71,6 @@ class StableBaselineTrainer(AbstractTrainer):
         self.reward_shaping = self.training_params["multi_step_reward_shaping"]
 
         self._register_mlflow_params()
-
 
     def _register_mlflow_params(self):
         """

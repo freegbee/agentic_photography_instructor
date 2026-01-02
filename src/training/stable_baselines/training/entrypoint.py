@@ -111,7 +111,7 @@ def main():
         "render_save_dir": "./renders/",
 
         # === MULTI-STEP WRAPPER CONFIGURATION ===
-        "use_multi_step_wrapper": True,  # Enable multi-step wrapper
+        "use_multi_step_wrapper": False,  # Enable multi-step wrapper
         "steps_per_episode": 2,  # Agent must take 2 actions per episode
         "multi_step_intermediate_reward": False,  # No reward for intermediate steps (default)
         "multi_step_reward_shaping": False,  # No shaped rewards (default)
