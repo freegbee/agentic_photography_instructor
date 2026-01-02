@@ -25,6 +25,7 @@ def main():
     general_processing_params.set({"batch_size": 64, "random_seed": 67})
 
     image_preprocessing_params = HyperparameterRegistry.get_store(ImagePreprocessingParams)
+    # image_preprocessing_params.set({"batch_size": 64, "resize_max_size": 1000, "max_images": 4000})
     image_preprocessing_params.set({"batch_size": 64, "resize_max_size": 384})
 
     transform_preprocessing_params = HyperparameterRegistry.get_store(TransformPreprocessingParams)

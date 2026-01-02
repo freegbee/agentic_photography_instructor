@@ -1,5 +1,6 @@
 import logging
 import os
+import random
 from pathlib import Path
 from typing import Optional
 
@@ -34,6 +35,7 @@ class CopyAndResizePreprocessor(AbstractPreprocessor[CopyAndResizeResult]):
         self.destination_path = destination_path
         self.target_max_size = image_preprocessing_params["resize_max_size"]
         self.batch_size = image_preprocessing_params["batch_size"]
+        self.max_images = image_preprocessing_params.get("max_images", None)
 
     def _preprocess_impl(self):
         self.effective_destination_path = self.image_volume_path / "copyandresize" / mlflow.active_run().info.experiment_id / mlflow.active_run().info.run_id / self.destination_path
@@ -47,6 +49,12 @@ class CopyAndResizePreprocessor(AbstractPreprocessor[CopyAndResizeResult]):
         logger.info("Copying and resizing images from %s to %s", effective_source_path, self.effective_images_path)
 
         dataset: ImagePathDataset = ImagePathDataset(effective_source_path)
+
+        if self.max_images is not None and 0 < self.max_images < len(dataset):
+            logger.info(f"Randomly sampling {self.max_images} images from {len(dataset)} available images.")
+            indices = random.sample(range(len(dataset)), self.max_images)
+            dataset.image_files = [dataset.image_files[i] for i in indices]
+
         dataloader = DataLoader(dataset, batch_size=self.batch_size, collate_fn=Utils.collate_keep_size)
 
         os.makedirs(self.effective_images_path, exist_ok=True)
@@ -68,5 +76,3 @@ class CopyAndResizePreprocessor(AbstractPreprocessor[CopyAndResizeResult]):
 
     def get_preprocessing_result(self) -> CopyAndResizeResult:
         return CopyAndResizeResult(self.effective_destination_path, self.effective_images_path)
-
-

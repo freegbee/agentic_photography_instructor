@@ -1,4 +1,4 @@
-from typing import TypedDict
+from typing import TypedDict, Optional
 
 from training.split_ratios import SplitRatios
 
@@ -8,9 +8,10 @@ class GeneralPreprocessingParams(TypedDict):
     random_seed: int
 
 
-class ImagePreprocessingParams(TypedDict):
+class ImagePreprocessingParams(TypedDict, total=False):
     batch_size: int
     resize_max_size: int
+    max_images: Optional[int]
 
 
 class TransformPreprocessingParams(TypedDict, total=False):

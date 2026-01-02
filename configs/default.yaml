@@ -82,11 +82,36 @@ image_acquisition:
     target_hash: 58de0874bec269e5d035046fc9d9757507c4eefeb132fc8bbe64866810c9f5a2
   flickr8k:
     type: zip
-    source_url: "https://release-assets.githubusercontent.com/github-production-release-asset/124585957/47f52b80-3501-11e9-8f49-4515a2a3339b?sp=r&sv=2018-11-09&sr=b&spr=https&se=2025-11-16T16%3A15%3A11Z&rscd=attachment%3B+filename%3DFlickr8k_Dataset.zip&rsct=application%2Foctet-stream&skoid=96c2d410-5711-43a1-aedd-ab1947aa7ab0&sktid=398a6654-997b-47e9-b12b-9515b896b4de&skt=2025-11-16T15%3A15%3A00Z&ske=2025-11-16T16%3A15%3A11Z&sks=b&skv=2018-11-09&sig=7ynFkAL33vWnZxqNpUb9YqZADLxGZ5A4yJw2meo%2FrSI%3D&jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmVsZWFzZS1hc3NldHMuZ2l0aHVidXNlcmNvbnRlbnQuY29tIiwia2V5Ijoia2V5MSIsImV4cCI6MTc2MzMxMDgwNSwibmJmIjoxNzYzMzA3MjA1LCJwYXRoIjoicmVsZWFzZWFzc2V0cHJvZHVjdGlvbi5ibG9iLmNvcmUud2luZG93cy5uZXQifQ.Wf-kvx-6-Dn-8TrBSjcOtqYmJBwWquYARxEnalPxHMs&response-content-disposition=attachment%3B%20filename%3DFlickr8k_Dataset.zip&response-content-type=application%2Foctet-stream"
+    source_url: https://release-assets.githubusercontent.com/github-production-release-asset/124585957/47f52b80-3501-11e9-8f49-4515a2a3339b
     destination_dir: flickr8k
     archive_root: Flicker8k_Dataset
     extraction_path: images
     target_hash: edf9608720a8308c122a26caf9cfaa66cdf7d5c4545af946fe7fa7a758061251
+    description: "Originaldatensatz mit 8091 .jpg Bildern mit maximal 500 Pixel. Inhaltlich sind es Alltagsfotos mit Menschen oder Tieren im Fokus"
+  flickr2k_big:
+    type: kaggle
+    kaggle_dataset: "daehoyang/flickr2k"
+    destination_dir: flickr2k_big
+    archive_root: Flickr2K
+    extraction_path: images
+    target_hash: 7a2ce8315d248a356628c0a22428a61c664024aa2ec8a38c04221bd289bd6fff
+    description: "12GB grosser Originaldatensatz mit 2650 .png Bildern mit maximal 2040 Pixel in einer Dimension. Inhaltlich breit gestreute Themen."
+  flickr2k_big_original_split_amd-win:
+    # 540MB, 2650 max 384x384 (scored on that size on AMD and windows), split into 3 sets with annotation files, no transformation
+    type: zip
+    source_url: "https://casml4se-artifacts.fra1.digitaloceanspaces.com/manual/flickr2k_big_original_split_amd-win.zip"
+    destination_dir: flickr2k_big_original_split_amd-win
+    archive_root: flickr2k_big_original_split_amd-win
+    target_hash: f0031ef6ce3a496bbd868bc94c44bfd9414b632a1927a6f8eaa904345d09b2cf
+    description: "540MB grosser Datensatz mit 2650 .png Bildern mit maximal 1000 Pixel in einer Dimension. Inhaltlich breit gestreute Themen. Basiert auf flickr2k_big"
+  flickr2k_big_original_HQ_split_amd-win:
+    # 3.2GB, 2650 images max 1000 pixel (scored on that size on AMD and windows), split into 3 sets with annotation files, no transformation
+    type: zip
+    source_url: "https://casml4se-artifacts.fra1.digitaloceanspaces.com/manual/flickr2k_big_original_HQ_split_amd-win.zip"
+    destination_dir: flickr2k_big_original_HQ_split_amd-win
+    archive_root: flickr2k_big_original_HQ_split_amd-win
+    target_hash: 3c96b9be58f5ec382513e9ecdd2720f95cb06d4c5ac32864ab50dd8407271b0a
+    description: "3.2GB grosser Datensatz mit 2650 .png Bildern mit maximal 1000 Pixel in einer Dimension. Inhaltlich breit gestreute Themen. Basiert auf flickr2k_big"
   single_image:
     type: local_resource
     resource_file_path: div2k_single_image.tar
