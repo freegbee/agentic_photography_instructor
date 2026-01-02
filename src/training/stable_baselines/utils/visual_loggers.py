@@ -293,8 +293,8 @@ class VisualTrainingLogger:
                     # Wenn Bild kleiner als Max, mit Schwarz auffüllen (zentrieren)
                     if h < max_h or w < max_w:
                         canvas = np.zeros((max_h, max_w, 3), dtype=np.uint8)
-                        y_off = (max_h - h) // 2
-                        x_off = (max_w - w) // 2
+                        y_off = 0
+                        x_off = 0
                         canvas[y_off:y_off + h, x_off:x_off + w] = img
                         out.write(canvas)
                     else:
