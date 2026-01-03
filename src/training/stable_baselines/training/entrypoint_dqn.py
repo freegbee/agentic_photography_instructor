@@ -1,10 +1,39 @@
+import os
 import time
 
 from utils.LoggingUtils import configure_logging
 
-# DQN profitiert in der Regel nicht von Multiprocessing (Sample Efficiency vs Wall Clock Time).
-# Zudem vereinfacht Single-Processing das Debugging.
-NUM_VECTOR_ENVS = 1
+# Konfiguration: Auch für DQN nutzen wir Multiprocessing, da unser Environment (Juror + Bild-Trafo)
+# rechenintensiv ist. Wir wollen die GPU mit Batches füttern, statt sie warten zu lassen.
+OPTIMIZE_FOR_MULTIPROCESSING = True
+NUM_VECTOR_ENVS = 8 if OPTIMIZE_FOR_MULTIPROCESSING else 1
+
+if OPTIMIZE_FOR_MULTIPROCESSING:
+    os.environ["OMP_NUM_THREADS"] = "1"
+    os.environ["OPENBLAS_NUM_THREADS"] = "1"
+    os.environ["MKL_NUM_THREADS"] = "1"
+    os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+    os.environ["NUMEXPR_NUM_THREADS"] = "1"
+
+# Fix for MLflow system metrics crash on Windows (psutil disk_usage)
+if os.name == 'nt':
+    try:
+        import psutil
+        # Monkey-patch psutil.disk_usage to suppress SystemError (bad format char)
+        _original_disk_usage = psutil.disk_usage
+
+        class _DummyUsage:
+            total = 0; used = 0; free = 0; percent = 0
+
+        def _robust_disk_usage(path):
+            try:
+                return _original_disk_usage(path)
+            except Exception:
+                return _DummyUsage()
+
+        psutil.disk_usage = _robust_disk_usage
+    except ImportError:
+        pass
 
 from training.stable_baselines.environment.welldefined_environments import WellDefinedEnvironment
 from training.hyperparameter_registry import HyperparameterRegistry
@@ -33,10 +62,13 @@ def main():
     experiment_name = "SB3_POC_DQN_IMAGE_OPTIMIZATION"
     run_description = "DQN, Landscapes, Sensible"
 
-    dataset_id = "twenty_original_split_amd-win"
+    dataset_id = "lhq_landscapes_original_split_amd-win"
+    # dataset_id = "twenty_original_split_amd-win"
     image_size = (384, 384)
     # Für debug wird 1/10 verwendet. Definiert die Grösse des replay buffers
     # Siehe training.stable_baselines.hyperparameter.dqn_params_builder.DqnParamsBuilder.calculate_buffer_size
+    # WICHTIG: Das ist der GESAMT-Speicher für den Buffer. Nicht durch NUM_VECTOR_ENVS teilen!
+    # Der Buffer ist zentralisiert. Mehr Envs füllen ihn nur schneller.
     target_memory_mb=8_000
     core_env = WellDefinedEnvironment.IMAGE_OPTIMIZATION
     transformer_labels = SENSIBLE_TRANSFORMERS
@@ -60,6 +92,7 @@ def main():
         total_training_steps = 2000
         evaluation_interval = 500
         run_name_prefix = f"DEBUG - {run_description}"
+        store_models = False
     else:
         buffer_size = DqnParamsBuilder.calculate_buffer_size(image_size, target_memory_mb=target_memory_mb)
         batch_size = 32
@@ -67,13 +100,15 @@ def main():
         total_training_steps = 300_000
         evaluation_interval = 5000
         run_name_prefix = run_description
+        store_models = True
 
     # ========================================================================================
     # 3. CALCULATION & ASSEMBLY
     # Berechnung abgeleiteter Werte und Befüllen der Builder.
     # ========================================================================================
     print(f"Calculated buffer_size: {buffer_size} transitions based on image size {image_size}")
-    run_name = f"{time.strftime('%Y%m%d-%H%M%S')} - {run_name_prefix}, {model_variant.value}"
+    opt_str = "MultiProc" if OPTIMIZE_FOR_MULTIPROCESSING else "SingleProc"
+    run_name = f"{time.strftime('%Y%m%d-%H%M%S')} - {run_name_prefix}, {model_variant.value} ({opt_str})"
 
     # 3.1 DQN Model Parameters
     dqn_params = HyperparameterRegistry.get_store(DqnModelParams)
@@ -82,9 +117,11 @@ def main():
                                    batch_size=batch_size,
                                    learning_rate=learning_rate)
                   # train_freq=1: Update nach jedem Schritt (wichtig bei kurzen Episoden von nur 10 Steps)
+                  # gradient_steps: Da wir NUM_VECTOR_ENVS Schritte gleichzeitig sammeln, müssen wir auch
+                  # entsprechend öfter trainieren, um das Verhältnis beizubehalten.
                   .with_training_schedule(learning_starts=learning_starts,
                                           train_freq=1,
-                                          gradient_steps=1,
+                                          gradient_steps=1 * NUM_VECTOR_ENVS,
                                           target_update_interval=1000)
                   .with_exploration(fraction=0.1, initial_eps=1.0, final_eps=0.05)
                   .build())
@@ -105,10 +142,13 @@ def main():
                                            run_name=run_name,
                                            total_training_steps=total_training_steps,
                                            num_vector_envs=NUM_VECTOR_ENVS)
-                      .with_resource_settings(use_worker_pool=False,
-                                              num_juror_workers=0,
-                                              vec_env_cls="DummyVecEnv")
+                      .with_resource_settings(use_worker_pool=OPTIMIZE_FOR_MULTIPROCESSING,
+                                              num_juror_workers=5 if OPTIMIZE_FOR_MULTIPROCESSING else 0,
+                                              vec_env_cls="SubprocVecEnv" if OPTIMIZE_FOR_MULTIPROCESSING else "DummyVecEnv",
+                                              # WICHTIG: Bei Multiprocessing Juror NICHT lokal laden, sonst explodiert der RAM (8x Modell)
+                                              use_local_juror=not OPTIMIZE_FOR_MULTIPROCESSING)
                       .with_evaluation(interval=evaluation_interval, visual_history=True)
+                      .with_model_storage(store_best_model=store_models, store_final_model=store_models)
                       .build())
     runtime_params.set(runtime_config)
 

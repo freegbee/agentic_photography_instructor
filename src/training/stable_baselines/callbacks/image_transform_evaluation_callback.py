@@ -195,7 +195,8 @@ class ImageTransformEvaluationCallback(EvalCallback):
             if current_mean_reward is not None and (self.best_mean_reward is None or current_mean_reward > self.best_mean_reward):
                 self.best_mean_reward = current_mean_reward
                 if self.best_model_save_path is not None:
-                    self.model.save(f"{self.best_model_save_path}/best_model")
+                    save_path = f"{self.best_model_save_path}/best_model"
+                    self.model.save(save_path)
 
             # Nächster Step merken
             self.evaluation_idx += 1

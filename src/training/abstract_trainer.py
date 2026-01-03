@@ -59,6 +59,7 @@ class AbstractTrainer(ABC):
         self.preprocess()
         self.train()
         self.evaluate()
+        self.postprocess()
 
     @mlflow_logging("perf/load_data_duration_seconds")
     def load_data(self):
@@ -75,6 +76,10 @@ class AbstractTrainer(ABC):
     @mlflow_logging("perf/evaluate_duration_seconds")
     def evaluate(self):
         self._evaluate_impl()
+
+    @mlflow_logging("perf/postprocess_duration_seconds")
+    def postprocess(self):
+        self._postprocess_impl()
 
     def log_metric(self, key: str, value, step: Optional[int] = None):
         if step is None:
@@ -113,4 +118,7 @@ class AbstractTrainer(ABC):
 
     @abstractmethod
     def _evaluate_impl(self):
+        pass
+
+    def _postprocess_impl(self):
         pass

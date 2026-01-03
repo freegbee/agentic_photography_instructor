@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 class StableBaselineTrainer(AbstractTrainer):
+
     def __init__(self,
                  model_factory: AbstractModelFactory,
                  model_params_class: Type):
@@ -53,8 +54,12 @@ class StableBaselineTrainer(AbstractTrainer):
         self.training_source_path: Optional[Path] = None
         self.dataset_info: Dict[str, AnnotationFileAndImagePath] = {}
 
+        # Pfade für das Speichern von Artefakten isolieren (pro Run), um Überschreiben zu verhindern
+        # Wir nutzen den run_name, bereinigen ihn aber für das Dateisystem
+        safe_run_name = "".join([c if c.isalnum() or c in "._- " else "_" for c in self.runtime_params["run_name"]]).strip()
+
         self.render_mode = self.runtime_params["render_mode"]
-        self.render_save_dir = Path(os.environ["IMAGE_VOLUME_PATH"]) / self.runtime_params["render_save_dir"]
+        self.render_save_dir = Path(os.environ["IMAGE_VOLUME_PATH"]) / self.runtime_params["render_save_dir"] / safe_run_name
 
         # Evaluation parameters
         self.evaluation_seed = self.runtime_params["evaluation_seed"]
@@ -64,11 +69,9 @@ class StableBaselineTrainer(AbstractTrainer):
         self.evaluation_visual_history_max_images = self.runtime_params["evaluation_visual_history_max_images"]
         self.evaluation_visual_history_max_size = self.runtime_params["evaluation_visual_history_max_size"]
         self.evaluation_render_mode = self.runtime_params["evaluation_render_mode"]
-        self.evaluation_render_save_dir = Path(os.environ["IMAGE_VOLUME_PATH"]) / self.runtime_params[
-            "evaluation_render_save_dir"]
-        self.evaluation_model_save_dir = Path(os.environ["IMAGE_VOLUME_PATH"]) / self.runtime_params[
-            "evaluation_model_save_dir"]
-        self.evaluation_log_path = Path(os.environ["IMAGE_VOLUME_PATH"]) / self.runtime_params["evaluation_log_path"]
+        self.evaluation_render_save_dir = Path(os.environ["IMAGE_VOLUME_PATH"]) / self.runtime_params["evaluation_render_save_dir"] / safe_run_name
+        self.evaluation_model_save_dir = Path(os.environ["IMAGE_VOLUME_PATH"]) / self.runtime_params["evaluation_model_save_dir"] / safe_run_name
+        self.evaluation_log_path = Path(os.environ["IMAGE_VOLUME_PATH"]) / self.runtime_params["evaluation_log_path"] / safe_run_name
 
         # Multy step degredation parameters
         self.use_multi_step = self.task_params["use_multi_step_wrapper"]
@@ -109,9 +112,17 @@ class StableBaselineTrainer(AbstractTrainer):
     def _preprocess_impl(self):
         os.makedirs(str(self.render_save_dir), exist_ok=True)
         os.makedirs(str(self.evaluation_render_save_dir), exist_ok=True)
+        os.makedirs(str(self.evaluation_model_save_dir), exist_ok=True)
 
     def _train_impl(self):
         logger.info(f"Training started for {self.experiment_name} with images at: {self.training_source_path}")
+
+        # Log datasets to MLflow (Datasets tab)
+        for context, info in self.dataset_info.items():
+            mlflow_helper.log_dataset(dataset_id=self.data_params["dataset_id"],
+                                      annotations_file=str(info.annotation_file),
+                                      images_source_path=str(info.images_path),
+                                      context=context)
 
         # Create training environment
         training_annotations = self.dataset_info["train"]
@@ -227,7 +238,7 @@ class StableBaselineTrainer(AbstractTrainer):
                 num_images_to_log=self.evaluation_visual_history_max_images,
                 tile_max_size=self.evaluation_visual_history_max_size,
                 eval_env=evaluation_vec_env,
-                best_model_save_path=str(self.evaluation_model_save_dir),
+                best_model_save_path=str(self.evaluation_model_save_dir) if self.runtime_params["store_best_model"] else None,
                 log_path=str(self.evaluation_log_path),
                 eval_freq=self.evaluation_interval,
                 n_eval_episodes=len(evaluation_coco_dataset),
@@ -253,6 +264,11 @@ class StableBaselineTrainer(AbstractTrainer):
                         callback=callbacks,
                         progress_bar=False)
 
+            # Save and log final model
+            if self.runtime_params["store_final_model"]:
+                final_model_path = self.evaluation_model_save_dir / "final_model"
+                model.save(final_model_path)
+
             logger.info(f"Training ended for {self.experiment_name}")
 
         finally:
@@ -264,3 +280,28 @@ class StableBaselineTrainer(AbstractTrainer):
         logger.info(f"Evaluation started for {self.experiment_name} with images at: {self.training_source_path}")
         # noop
         logger.info(f"Evaluation ended for {self.experiment_name}")
+        
+    def _postprocess_impl(self):
+        logger.info("Post-processing started: Uploading models to MLflow if configured.")
+
+        # Upload final model
+        if self.runtime_params["store_final_model"]:
+            final_model_path = self.evaluation_model_save_dir / "final_model.zip"
+            if final_model_path.exists():
+                mlflow_helper.log_artifact(str(final_model_path), artifact_path="models")
+                try:
+                    os.remove(final_model_path)
+                    logger.info(f"Deleted local final model: {final_model_path}")
+                except OSError as e:
+                    logger.warning(f"Could not delete local final model: {e}")
+
+        # Upload best model
+        if self.runtime_params["store_best_model"]:
+            best_model_path = self.evaluation_model_save_dir / "best_model.zip"
+            if best_model_path.exists():
+                mlflow_helper.log_artifact(str(best_model_path), artifact_path="models")
+                try:
+                    os.remove(best_model_path)
+                    logger.info(f"Deleted local best model: {best_model_path}")
+                except OSError as e:
+                    logger.warning(f"Could not delete local best model: {e}")

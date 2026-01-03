@@ -15,6 +15,26 @@ if OPTIMIZE_FOR_MULTIPROCESSING:
     os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
     os.environ["NUMEXPR_NUM_THREADS"] = "1"
 
+# Fix for MLflow system metrics crash on Windows (psutil disk_usage)
+if os.name == 'nt':
+    try:
+        import psutil
+        # Monkey-patch psutil.disk_usage to suppress SystemError (bad format char)
+        _original_disk_usage = psutil.disk_usage
+
+        class _DummyUsage:
+            total = 0; used = 0; free = 0; percent = 0
+
+        def _robust_disk_usage(path):
+            try:
+                return _original_disk_usage(path)
+            except Exception:
+                return _DummyUsage()
+
+        psutil.disk_usage = _robust_disk_usage
+    except ImportError:
+        pass
+
 from training.stable_baselines.environment.welldefined_environments import WellDefinedEnvironment
 from training.hyperparameter_registry import HyperparameterRegistry
 from training.stable_baselines.models.model_variants import PpoModelVariant
@@ -66,12 +86,14 @@ def main():
         total_training_steps = 2000  # Nur kurz anlaufen lassen
         n_epochs = 2  # Weniger Epochen für Speed
         run_name_prefix = f"DEBUG - {run_description}"
+        store_models = False
     else:
         target_rollout_size = 4000  # Standard PPO Größe für stabiles Lernen
         batch_size = 100
         total_training_steps = 300_000
         n_epochs = 4
         run_name_prefix = run_description
+        store_models = True
 
     # ========================================================================================
     # 3. CALCULATION & ASSEMBLY
@@ -117,6 +139,7 @@ def main():
                                               vec_env_cls="SubprocVecEnv" if OPTIMIZE_FOR_MULTIPROCESSING else "DummyVecEnv")
                       # Evaluation immer genau nach einem vollen Rollout
                       .with_evaluation(interval=rollout_size, visual_history=True)
+                      .with_model_storage(store_best_model=store_models, store_final_model=store_models)
                       .build())
     runtime_params.set(runtime_config)
 

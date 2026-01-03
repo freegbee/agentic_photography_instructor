@@ -91,3 +91,23 @@ class MlflowHelper:
             return
         except Exception as e:
             logger.warning("mlflow.log_artifact failed: %s", e)
+
+    def log_dataset(self, dataset_id: str, annotations_file: str, images_source_path: str, context: str = "training"):
+        if self.local_logging:
+            logger.info("log_dataset: dataset_id=%s, source_path=%s", dataset_id, images_source_path)
+        try:
+            import pandas as pd
+            from mlflow.data.sources import LocalArtifactDatasetSource
+
+            ds_meta = pd.DataFrame([{
+                "dataset_id": dataset_id,
+                "annotations_file": annotations_file,
+                "source_path": images_source_path,
+            }])
+            # Explicitly create source to avoid ambiguity warning
+            # WICHTIG: Dies lädt KEINE Daten hoch, sondern speichert nur den Pfad als Referenz.
+            source = LocalArtifactDatasetSource(images_source_path)
+            dataset = self.mlflow.data.from_pandas(ds_meta, source=source, name=dataset_id)
+            self.mlflow.log_input(dataset, context=context)
+        except Exception as e:
+            logger.warning("Failed to log dataset to MLflow: %s", e)

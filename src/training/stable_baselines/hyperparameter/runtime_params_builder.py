@@ -29,7 +29,9 @@ class RuntimeParamsBuilder:
             "evaluation_render_mode": "skip",
             "evaluation_render_save_dir": "./evaluation/renders/",
             "evaluation_model_save_dir": "./evaluation/models/",
-            "evaluation_log_path": "./evaluation/logs/"
+            "evaluation_log_path": "./evaluation/logs/",
+            "store_best_model": True,
+            "store_final_model": True
         }
 
     def with_random_seed(self, seed: int) -> "RuntimeParamsBuilder":
@@ -68,6 +70,11 @@ class RuntimeParamsBuilder:
         self._params["evaluation_visual_history_max_images"] = visual_history_max_images
         self._params["evaluation_visual_history_max_size"] = visual_history_max_size
         self._params["evaluation_seed"] = seed
+        return self
+
+    def with_model_storage(self, store_best_model: bool, store_final_model: bool) -> "RuntimeParamsBuilder":
+        self._params["store_best_model"] = store_best_model
+        self._params["store_final_model"] = store_final_model
         return self
 
     def build(self) -> RuntimeParams:

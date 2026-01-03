@@ -72,3 +72,8 @@ class RuntimeParams(TypedDict):
 
     # Pfad für Evaluations-Logs.
     evaluation_log_path: str
+
+    # Ob das beste Modell (basierend auf Evaluation) gespeichert/geloggt werden soll.
+    store_best_model: bool
+    # Ob das finale Modell nach dem Training gespeichert/geloggt werden soll.
+    store_final_model: bool
