@@ -1,7 +1,7 @@
 import logging
 import os
 from pathlib import Path
-from typing import Optional, Dict
+from typing import Optional, Dict, Type
 
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
@@ -19,8 +19,7 @@ from training.stable_baselines.callbacks.rollout_success_callback import Rollout
 from training.stable_baselines.environment.environment_factory import ImageTransformEnvFactory
 from training.stable_baselines.environment.samplers import SequentialCocoDatasetSampler, RandomCocoDatasetSampler
 from training.stable_baselines.environment.welldefined_environments import WellDefinedEnvironment
-from training.stable_baselines.hyperparameter.ppo_model_hyperparams import PpoModelParams
-from training.stable_baselines.models.model_factory import PpoModelFactory
+from training.stable_baselines.models.model_factory import AbstractModelFactory
 from training.stable_baselines.hyperparameter.runtime_hyperparams import RuntimeParams
 from training.stable_baselines.hyperparameter.task_hyperparams import TaskParams
 from training.stable_baselines.hyperparameter.data_hyperparams import DataParams
@@ -30,7 +29,12 @@ logger = logging.getLogger(__name__)
 
 
 class StableBaselineTrainer(AbstractTrainer):
-    def __init__(self):
+    def __init__(self,
+                 model_factory: AbstractModelFactory,
+                 model_params_class: Type):
+        self.model_factory = model_factory
+        self.model_params_class = model_params_class
+
         self.runtime_params: RuntimeParams = HyperparameterRegistry.get_store(RuntimeParams).get()
         self.task_params: TaskParams = HyperparameterRegistry.get_store(TaskParams).get()
         self.data_params: DataParams = HyperparameterRegistry.get_store(DataParams).get()
@@ -38,7 +42,7 @@ class StableBaselineTrainer(AbstractTrainer):
         super().__init__(experiment_name=self.runtime_params["experiment_name"],
                          source_dataset_id=self.data_params["dataset_id"])
         
-        self.pop_model_params: PpoModelParams = HyperparameterRegistry.get_store(PpoModelParams).get()
+        self.model_params = HyperparameterRegistry.get_store(self.model_params_class).get()
         self.training_seed = self.runtime_params["random_seed"]
         self.data_loader = DatasetLoadData(self.data_params["dataset_id"])
         self.transformers = get_consistent_transformers(self.task_params["transformer_labels"])
@@ -83,7 +87,7 @@ class StableBaselineTrainer(AbstractTrainer):
          .with_param_class(RuntimeParams)
          .with_param_class(TaskParams)
          .with_param_class(DataParams)
-         .with_param_class(PpoModelParams))
+         .with_param_class(self.model_params_class))
 
     def _load_data_impl(self):
         result = self.data_loader.load_data()
@@ -177,16 +181,8 @@ class StableBaselineTrainer(AbstractTrainer):
         training_vec_env = vec_env_cls(training_env_fns)
 
         try:
-            model = PpoModelFactory().create_model(vec_env=training_vec_env,
-                                                   params=self.pop_model_params)
-
-            # model = create_dqn_with_resnet_model(vec_env=training_vec_env,
-            #                                      learning_rate=model_learning_schedule,
-            #                                      buffer_size=2_000,
-            #                                      batch_size=self.training_params["mini_batch_size"],
-            #                                      learning_starts=1_000,
-            #                                      train_freq=4,
-            #                                      feature_dim=512)
+            model = self.model_factory.create_model(vec_env=training_vec_env,
+                                                    params=self.model_params)
 
             rollout_callback = RolloutSuccessCallback(training_episode_stats_key="episode_success",
                                                       evaluation_episode_stats_key="evaluation_episode_success")
@@ -251,8 +247,13 @@ class StableBaselineTrainer(AbstractTrainer):
             )
 
             logger.info("total_training_steps param: %d", self.runtime_params["total_training_steps"])
-            logger.info("ppo n_steps: %d, num_envs: %d, rollout_size: %d", model.n_steps, training_vec_env.num_envs,
-                        model.n_steps * training_vec_env.num_envs)
+            
+            # Logging spezifisch für PPO (n_steps) oder allgemein
+            if hasattr(model, "n_steps"):
+                logger.info("Model n_steps: %d, num_envs: %d, rollout_size: %d", model.n_steps, training_vec_env.num_envs,
+                            model.n_steps * training_vec_env.num_envs)
+            elif hasattr(model, "train_freq"):
+                logger.info("Model train_freq: %s, num_envs: %d", str(model.train_freq), training_vec_env.num_envs)
 
             callbacks = [eval_callback, rollout_callback, performance_callback]
 

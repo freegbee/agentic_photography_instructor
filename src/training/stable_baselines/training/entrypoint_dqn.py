@@ -1,102 +1,96 @@
-import os
 import time
 
 from utils.LoggingUtils import configure_logging
 
-# Konfiguration basierend auf Benchmark-Ergebnissen (8 Envs war am schnellsten auf 16 Cores)
-OPTIMIZE_FOR_MULTIPROCESSING = True
-NUM_VECTOR_ENVS = 8
-
-if OPTIMIZE_FOR_MULTIPROCESSING:
-    # WICHTIG: Threading-Limitierung VOR allen anderen Imports setzen.
-    os.environ["OMP_NUM_THREADS"] = "1"
-    os.environ["OPENBLAS_NUM_THREADS"] = "1"
-    os.environ["MKL_NUM_THREADS"] = "1"
-    os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
-    os.environ["NUMEXPR_NUM_THREADS"] = "1"
+# DQN profitiert in der Regel nicht von Multiprocessing (Sample Efficiency vs Wall Clock Time).
+# Zudem vereinfacht Single-Processing das Debugging.
+NUM_VECTOR_ENVS = 1
 
 from training.stable_baselines.environment.welldefined_environments import WellDefinedEnvironment
 from training.hyperparameter_registry import HyperparameterRegistry
-from training.stable_baselines.models.model_variants import PpoModelVariant
 from training.stable_baselines.hyperparameter.runtime_hyperparams import RuntimeParams
 from training.stable_baselines.hyperparameter.runtime_params_builder import RuntimeParamsBuilder
 from training.stable_baselines.hyperparameter.task_hyperparams import TaskParams
 from training.stable_baselines.hyperparameter.task_params_builder import TaskParamsBuilder
-from training.stable_baselines.hyperparameter.ppo_model_hyperparams import PpoModelParams
-from training.stable_baselines.hyperparameter.ppo_model_hyperparams_builder import PpoModelParamsBuilder
 from training.stable_baselines.hyperparameter.data_hyperparams import DataParams
-from training.stable_baselines.models.model_factory import PpoModelFactory
 from training.stable_baselines.training.trainer import StableBaselineTrainer
 from transformer import SENSIBLE_TRANSFORMERS
+
+# DQN Imports
+from training.stable_baselines.models.dqn_model_variants import DqnModelVariant
+from training.stable_baselines.hyperparameter.dqn_model_hyperparams import DqnModelParams
+from training.stable_baselines.hyperparameter.dqn_params_builder import DqnParamsBuilder
+from training.stable_baselines.models.dqn_model_factory import DqnModelFactory
 
 configure_logging()
 
 
 def main():
-    opt_str = "MultiProc" if OPTIMIZE_FOR_MULTIPROCESSING else "SingleProc"
-
     # ========================================================================================
     # 1. EXPERIMENT DEFINITION (THE "WHAT")
     # Hier definieren wir die fachlichen Parameter des Experiments.
     # ========================================================================================
-    experiment_name = "SB3_POC_IMAGE_OPTIMIZATION"
-    run_description = "Landscapes, Multi-Optimization, Sensible"
+    experiment_name = "SB3_POC_DQN_IMAGE_OPTIMIZATION"
+    run_description = "DQN, Landscapes, Sensible"
 
-    # Daten & Umgebung
     dataset_id = "twenty_original_split_amd-win"
     image_size = (384, 384)
+    # Für debug wird 1/10 verwendet. Definiert die Grösse des replay buffers
+    # Siehe training.stable_baselines.hyperparameter.dqn_params_builder.DqnParamsBuilder.calculate_buffer_size
+    target_memory_mb=8_000
     core_env = WellDefinedEnvironment.IMAGE_OPTIMIZATION
     transformer_labels = SENSIBLE_TRANSFORMERS
     max_transformations = 10
 
-    # Modell Konfiguration
-    model_variant = PpoModelVariant.PPO_WITHOUT_BACKBONE
-    learning_rate = 3e-4
+    # DQN Modell Konfiguration
+    model_variant = DqnModelVariant.DQN_WITHOUT_BACKBONE
+    learning_rate = 1e-4
 
     # ========================================================================================
     # 2. EXECUTION MODE (THE "HOW")
     # Hier steuern wir technische Parameter für Debugging vs. echtes Training.
     # ========================================================================================
-    IS_DEBUG_RUN = True  # <--- HIER UMSCHALTEN: True für schnellen Test, False für Training
+    IS_DEBUG_RUN = True
 
     if IS_DEBUG_RUN:
-        print("\n!!! RUNNING IN DEBUG MODE (Short Rollouts, Fast Updates) !!!\n")
-        target_rollout_size = 320  # Klein, aber durch batch_size teilbar
-        batch_size = 32  # Kleine Batches für schnelle Updates
-        total_training_steps = 2000  # Nur kurz anlaufen lassen
-        n_epochs = 2  # Weniger Epochen für Speed
+        print("\n!!! RUNNING IN DEBUG MODE !!!\n")
+        buffer_size = DqnParamsBuilder.calculate_buffer_size(image_size, target_memory_mb=int(target_memory_mb/10))
+        batch_size = 32
+        learning_starts = 100
+        total_training_steps = 2000
+        evaluation_interval = 500
         run_name_prefix = f"DEBUG - {run_description}"
     else:
-        target_rollout_size = 4000  # Standard PPO Größe für stabiles Lernen
-        batch_size = 100
+        buffer_size = DqnParamsBuilder.calculate_buffer_size(image_size, target_memory_mb=target_memory_mb)
+        batch_size = 32
+        learning_starts = 1000
         total_training_steps = 300_000
-        n_epochs = 4
+        evaluation_interval = 5000
         run_name_prefix = run_description
 
     # ========================================================================================
     # 3. CALCULATION & ASSEMBLY
     # Berechnung abgeleiteter Werte und Befüllen der Builder.
     # ========================================================================================
+    print(f"Calculated buffer_size: {buffer_size} transitions based on image size {image_size}")
+    run_name = f"{time.strftime('%Y%m%d-%H%M%S')} - {run_name_prefix}, {model_variant.value}"
 
-    # 3.1 Berechnungen
-    n_steps = PpoModelParamsBuilder.calculate_n_steps(NUM_VECTOR_ENVS, target_rollout_size, batch_size=batch_size)
-    rollout_size = n_steps * NUM_VECTOR_ENVS
-    run_name = f"{time.strftime('%Y%m%d-%H%M%S')} - {run_name_prefix}, {model_variant.value} ({opt_str})"
-
-    print(f"Configuration: Envs={NUM_VECTOR_ENVS}, n_steps={n_steps} (Total Rollout={rollout_size})")
-
-    # 3.2 PPO Model Parameters
-    ppo_params = HyperparameterRegistry.get_store(PpoModelParams)
-    ppo_config = (PpoModelParamsBuilder(variant=model_variant,
-                                        n_steps=n_steps,
-                                        batch_size=batch_size,
-                                        n_epochs=n_epochs,
-                                        learning_rate=learning_rate)
-                  .with_exploration_settings(ent_coef=0.01, clip_range=0.2)
+    # 3.1 DQN Model Parameters
+    dqn_params = HyperparameterRegistry.get_store(DqnModelParams)
+    dqn_config = (DqnParamsBuilder(variant=model_variant,
+                                   buffer_size=buffer_size,
+                                   batch_size=batch_size,
+                                   learning_rate=learning_rate)
+                  # train_freq=1: Update nach jedem Schritt (wichtig bei kurzen Episoden von nur 10 Steps)
+                  .with_training_schedule(learning_starts=learning_starts,
+                                          train_freq=1,
+                                          gradient_steps=1,
+                                          target_update_interval=1000)
+                  .with_exploration(fraction=0.1, initial_eps=1.0, final_eps=0.05)
                   .build())
-    ppo_params.set(ppo_config)
+    dqn_params.set(dqn_config)
 
-    # 3.3 Task Parameters
+    # 3.2 Task Parameters
     task_params = HyperparameterRegistry.get_store(TaskParams)
     task_config = (TaskParamsBuilder(core_env=core_env,
                                      transformer_labels=transformer_labels,
@@ -105,22 +99,20 @@ def main():
                    .build())
     task_params.set(task_config)
 
-    # 3.4 Runtime Parameters
+    # 3.3 Runtime Parameters
     runtime_params = HyperparameterRegistry.get_store(RuntimeParams)
     runtime_config = (RuntimeParamsBuilder(experiment_name=experiment_name,
                                            run_name=run_name,
                                            total_training_steps=total_training_steps,
                                            num_vector_envs=NUM_VECTOR_ENVS)
-                      .with_random_seed(42)
-                      .with_resource_settings(use_worker_pool=OPTIMIZE_FOR_MULTIPROCESSING,
-                                              num_juror_workers=5,
-                                              vec_env_cls="SubprocVecEnv" if OPTIMIZE_FOR_MULTIPROCESSING else "DummyVecEnv")
-                      # Evaluation immer genau nach einem vollen Rollout
-                      .with_evaluation(interval=rollout_size, visual_history=True)
+                      .with_resource_settings(use_worker_pool=False,
+                                              num_juror_workers=0,
+                                              vec_env_cls="DummyVecEnv")
+                      .with_evaluation(interval=evaluation_interval, visual_history=True)
                       .build())
     runtime_params.set(runtime_config)
 
-    # 3.5 Data Parameters
+    # 3.4 Data Parameters
     data_params = HyperparameterRegistry.get_store(DataParams)
     data_params.set({"dataset_id": dataset_id, "image_max_size": image_size})
 
@@ -128,10 +120,9 @@ def main():
     # 4. START
     # Berechnung abgeleiteter Werte und Befüllen der Builder.
     # ========================================================================================
-    trainer = StableBaselineTrainer(model_factory=PpoModelFactory(),
-                                    model_params_class=PpoModelParams)
+    trainer = StableBaselineTrainer(model_factory=DqnModelFactory(),
+                                    model_params_class=DqnModelParams)
     trainer.run_training(run_name=run_name)
-
 
 if __name__ == '__main__':
     main()
