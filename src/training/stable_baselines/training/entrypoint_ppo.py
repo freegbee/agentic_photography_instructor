@@ -18,9 +18,9 @@ from training.hyperparameter_registry import HyperparameterRegistry
 from training.stable_baselines.models.model_variants import PpoModelVariant
 from training.stable_baselines.hyperparameter.training_hyperparams import TrainingParams
 from training.stable_baselines.hyperparameter.ppo_model_hyperparams import PpoModelParams
+from training.stable_baselines.hyperparameter.ppo_model_hyperparams_builder import PpoModelParamsBuilder
 from training.stable_baselines.hyperparameter.general_hyperparams import GeneralParams
 from training.stable_baselines.hyperparameter.data_hyperparams import DataParams
-from training.stable_baselines.models.learning_rate_schedules import linear_schedule
 from training.stable_baselines.training.trainer import StableBaselineTrainer
 from transformer import SENSIBLE_TRANSFORMERS
 from utils.LoggingUtils import configure_logging
@@ -83,13 +83,18 @@ def main():
     })
 
     ppo_params = HyperparameterRegistry.get_store(PpoModelParams)
-    ppo_params.set({
-        "ppo_model_variant": model_variant,
-        "n_steps": n_steps,
-        "batch_size": 100,  # (n_steps * num_vector_env) % batch_size == 0
-        "n_epochs": 4,
-        "model_learning_schedule": linear_schedule(3e-4)
-    })
+    
+    # Verwendung des Builders für übersichtlichere Experiment-Konfiguration
+    ppo_config = (PpoModelParamsBuilder(variant=model_variant,
+                                        n_steps=n_steps,
+                                        batch_size=100,
+                                        n_epochs=4,
+                                        learning_rate=3e-4)
+                  .with_exploration_settings(ent_coef=0.01, clip_range=0.2)
+                  .build())
+
+    # noinspection PyTypeChecker
+    ppo_params.set(ppo_config)
 
     training_params = HyperparameterRegistry.get_store(TrainingParams)
     training_params.set({

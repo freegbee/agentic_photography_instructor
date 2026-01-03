@@ -27,22 +27,31 @@ class PpoModelFactory(AbstractModelFactory):
         batch_size = params["batch_size"]
         n_epochs = params["n_epochs"]
         learning_rate = params["model_learning_schedule"]
+        
+        # Optional parameters with SB3 defaults
+        kwargs = {
+            "ent_coef": params.get("ent_coef", 0.0),
+            "clip_range": params.get("clip_range", 0.2),
+            "gamma": params.get("gamma", 0.99),
+            "gae_lambda": params.get("gae_lambda", 0.95),
+            "max_grad_norm": params.get("max_grad_norm", 0.5),
+        }
 
         match params["ppo_model_variant"]:
             case PpoModelVariant.PPO_WITHOUT_BACKBONE:
-                return self._create_ppo_without_backbone(vec_env, n_steps, batch_size, n_epochs, learning_rate)
+                return self._create_ppo_without_backbone(vec_env, n_steps, batch_size, n_epochs, learning_rate, **kwargs)
             case PpoModelVariant.PPO_RESNET18_UNFROZEN:
                 return self._create_resnet_model(vec_env, n_steps, batch_size, n_epochs, False,
-                                                 ResNet18FeatureExtractor, learning_rate)
+                                                 ResNet18FeatureExtractor, learning_rate, **kwargs)
             case PpoModelVariant.PPO_RESNET18_FROZEN:
                 return self._create_resnet_model(vec_env, n_steps, batch_size, n_epochs, True, ResNet18FeatureExtractor,
-                                                 learning_rate)
+                                                 learning_rate, **kwargs)
             case PpoModelVariant.PPO_RESNET50_UNFROZEN:
                 return self._create_resnet_model(vec_env, n_steps, batch_size, n_epochs, False, ResNetFeatureExtractor,
-                                                 learning_rate)
+                                                 learning_rate, **kwargs)
             case PpoModelVariant.PPO_RESNET50_FROZEN:
                 return self._create_resnet_model(vec_env, n_steps, batch_size, n_epochs, True, ResNetFeatureExtractor,
-                                                 learning_rate)
+                                                 learning_rate, **kwargs)
             case _:
                 raise ValueError(f"Unknown PPO model variant: {params['ppo_model_variant']}")
 
@@ -52,6 +61,7 @@ class PpoModelFactory(AbstractModelFactory):
                                      batch_size: int,
                                      n_epochs: int,
                                      learning_rate: Union[float, Schedule],
+                                     **kwargs
                                      ) -> PPO:
         return PPO("CnnPolicy",
                    env=vec_env,
@@ -60,6 +70,7 @@ class PpoModelFactory(AbstractModelFactory):
                    batch_size=batch_size,
                    n_epochs=n_epochs,
                    policy_kwargs={"normalize_images": False},
+                   **kwargs,
                    verbose=1)
 
     def _create_resnet_model(self, vec_env: VecEnv,
@@ -70,6 +81,7 @@ class PpoModelFactory(AbstractModelFactory):
                              extractor_class: Type[Union[ResNetFeatureExtractor, ResNet18FeatureExtractor]],
                              learning_rate: Union[float, Schedule] = 3e-4,
                              feature_dim: int = 512,
+                             **kwargs
                              ) -> PPO:
         return PPO("CnnPolicy",
                    env=vec_env,
@@ -78,6 +90,7 @@ class PpoModelFactory(AbstractModelFactory):
                    batch_size=batch_size,
                    n_epochs=n_epochs,
                    policy_kwargs=self._create_resnet_extractor(extractor_class, feature_dim, freeze_backbone),
+                   **kwargs,
                    verbose=1)
 
     def _create_resnet_extractor(

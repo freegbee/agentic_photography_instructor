@@ -53,7 +53,7 @@ class MLflowParamBuilder:
             param_class_name = camelcase_to_snakecase_pattern.sub('_', param_class.__name__).lower()
             store = HyperparameterRegistry.get_store(param_class)
             for key, value in store.as_dict().items():
-                self.params[f"{param_class_name}/{key}"] = value
+                self.params[f"{param_class_name}/{key}"] = str(value)
         return self.params
 
 class MLflowTagsBuilder:
