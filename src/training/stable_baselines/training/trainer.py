@@ -269,7 +269,7 @@ class StableBaselineTrainer(AbstractTrainer):
                         callback=callbacks,
                         progress_bar=False)
 
-            # Save and log final model
+            # Save final model locally (upload happens in _postprocess_impl)
             if self.runtime_params["store_final_model"]:
                 final_model_path = self.evaluation_model_save_dir / "final_model"
                 model.save(final_model_path)
