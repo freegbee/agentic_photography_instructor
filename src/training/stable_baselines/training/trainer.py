@@ -117,6 +117,11 @@ class StableBaselineTrainer(AbstractTrainer):
     def _train_impl(self):
         logger.info(f"Training started for {self.experiment_name} with images at: {self.training_source_path}")
 
+        # Initialisierung der Ressourcen für sauberes Aufräumen im finally-Block
+        training_vec_env = None
+        evaluation_vec_env = None
+        eval_callback = None
+
         # Log datasets to MLflow (Datasets tab)
         for context, info in self.dataset_info.items():
             mlflow_helper.log_dataset(dataset_id=self.data_params["dataset_id"],
@@ -274,7 +279,22 @@ class StableBaselineTrainer(AbstractTrainer):
         finally:
             # Aufräumen
             if juror_worker_pool:
+                logger.info("Stopping JurorWorkerPool...")
                 juror_worker_pool.stop()
+            
+            if training_vec_env:
+                logger.info("Closing training environment...")
+                training_vec_env.close()
+
+            if evaluation_vec_env:
+                logger.info("Closing evaluation environment...")
+                evaluation_vec_env.close()
+
+            # Falls das Training crasht, wird _on_training_end nicht aufgerufen.
+            # Wir rufen es hier manuell auf (oder eine Cleanup-Methode), um temporäre Ordner zu löschen.
+            if eval_callback and hasattr(eval_callback, "_on_training_end"):
+                # Dies löscht den temporären Ordner für die Video-Frames
+                eval_callback._on_training_end()
 
     def _evaluate_impl(self):
         logger.info(f"Evaluation started for {self.experiment_name} with images at: {self.training_source_path}")

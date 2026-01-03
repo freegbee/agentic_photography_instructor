@@ -69,7 +69,7 @@ def main():
     # Siehe training.stable_baselines.hyperparameter.dqn_params_builder.DqnParamsBuilder.calculate_buffer_size
     # WICHTIG: Das ist der GESAMT-Speicher für den Buffer. Nicht durch NUM_VECTOR_ENVS teilen!
     # Der Buffer ist zentralisiert. Mehr Envs füllen ihn nur schneller.
-    target_memory_mb=8_000
+    target_memory_mb=5_000
     core_env = WellDefinedEnvironment.IMAGE_OPTIMIZATION
     transformer_labels = SENSIBLE_TRANSFORMERS
     max_transformations = 10

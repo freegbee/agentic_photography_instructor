@@ -11,7 +11,6 @@ from stable_baselines3.common.vec_env import SubprocVecEnv
 from juror_client import JurorClient
 from juror_client.juror_worker_pool import JurorQueueService
 from training.stable_baselines.environment.image_observation_wrapper import ImageObservationWrapper
-from training.stable_baselines.environment.image_render_wrapper import ImageRenderWrapper
 from training.stable_baselines.environment.image_transform_env import ImageTransformEnv
 from training.stable_baselines.environment.multi_step_wrapper import MultiStepTransformWrapper
 from training.stable_baselines.environment.samplers import CocoDatasetSampler
@@ -166,7 +165,6 @@ class ImageTransformEnvFactory(AbstractEnvFactory):
         Wendet die Standard-Wrapper (Observation, Render, Success) an.
         """
         if self.use_multi_step:
-
             logger.info(f"Using MultiStepTransformWrapper with {self.steps_per_episode} steps per episode")
             env = MultiStepTransformWrapper(
                 env,
@@ -177,12 +175,12 @@ class ImageTransformEnvFactory(AbstractEnvFactory):
 
         env = ImageObservationWrapper(env, image_max_size=self.image_max_size)
 
-        env = ImageRenderWrapper(
-            env,
-            render_mode=kwargs["render_mode"],
-            render_save_dir=kwargs["render_save_dir"],
-            keep_image_history=kwargs["keep_image_history"],
-            history_image_max_size=kwargs["history_image_max_size"]
-        )
+        # env = ImageRenderWrapper(
+        #     env,
+        #     render_mode=kwargs["render_mode"],
+        #     render_save_dir=kwargs["render_save_dir"],
+        #     keep_image_history=kwargs["keep_image_history"],
+        #     history_image_max_size=kwargs["history_image_max_size"]
+        # )
 
         return SuccessCountingWrapper(env, stats_key=kwargs["stats_key"])
