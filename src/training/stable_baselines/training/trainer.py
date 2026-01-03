@@ -18,11 +18,10 @@ from training.stable_baselines.callbacks.performance_callback import MlflowPerfo
 from training.stable_baselines.callbacks.rollout_success_callback import RolloutSuccessCallback
 from training.stable_baselines.environment.environment_factory import ImageTransformEnvFactory
 from training.stable_baselines.environment.samplers import SequentialCocoDatasetSampler, RandomCocoDatasetSampler
-from training.stable_baselines.environment.welldefined_environments import WellDefinedEnvironment
-from training.stable_baselines.models.model_factory import AbstractModelFactory
+from training.stable_baselines.hyperparameter.data_hyperparams import DataParams
 from training.stable_baselines.hyperparameter.runtime_hyperparams import RuntimeParams
 from training.stable_baselines.hyperparameter.task_hyperparams import TaskParams
-from training.stable_baselines.hyperparameter.data_hyperparams import DataParams
+from training.stable_baselines.models.model_factory import AbstractModelFactory
 from training.stable_baselines.utils.utils import get_consistent_transformers
 
 logger = logging.getLogger(__name__)
@@ -38,10 +37,10 @@ class StableBaselineTrainer(AbstractTrainer):
         self.runtime_params: RuntimeParams = HyperparameterRegistry.get_store(RuntimeParams).get()
         self.task_params: TaskParams = HyperparameterRegistry.get_store(TaskParams).get()
         self.data_params: DataParams = HyperparameterRegistry.get_store(DataParams).get()
-        
+
         super().__init__(experiment_name=self.runtime_params["experiment_name"],
                          source_dataset_id=self.data_params["dataset_id"])
-        
+
         self.model_params = HyperparameterRegistry.get_store(self.model_params_class).get()
         self.training_seed = self.runtime_params["random_seed"]
         self.data_loader = DatasetLoadData(self.data_params["dataset_id"])
@@ -221,17 +220,8 @@ class StableBaselineTrainer(AbstractTrainer):
                                               n_envs=1,
                                               seed=self.evaluation_seed,
                                               vec_env_cls=DummyVecEnv)
-            # eval_callback = EvaluationCallback(
-            #     eval_env=evaluation_vec_env,
-            #     best_model_save_path=str(self.evaluation_model_save_dir),
-            #     log_path=str(self.evaluation_log_path),
-            #     eval_freq=self.evaluation_interval,
-            #     n_eval_episodes=len(evaluation_coco_dataset),
-            #     deterministic=self.evaluation_deterministic,
-            #     # NICE: Render callback implementieren
-            #     render=False
-            # )
 
+            # Create evaluation callback
             eval_callback = ImageTransformEvaluationCallback(
                 stats_key="evaluation_episode_success",
                 num_images_to_log=self.evaluation_visual_history_max_images,
@@ -247,10 +237,11 @@ class StableBaselineTrainer(AbstractTrainer):
             )
 
             logger.info("total_training_steps param: %d", self.runtime_params["total_training_steps"])
-            
+
             # Logging spezifisch für PPO (n_steps) oder allgemein
             if hasattr(model, "n_steps"):
-                logger.info("Model n_steps: %d, num_envs: %d, rollout_size: %d", model.n_steps, training_vec_env.num_envs,
+                logger.info("Model n_steps: %d, num_envs: %d, rollout_size: %d", model.n_steps,
+                            training_vec_env.num_envs,
                             model.n_steps * training_vec_env.num_envs)
             elif hasattr(model, "train_freq"):
                 logger.info("Model train_freq: %s, num_envs: %d", str(model.train_freq), training_vec_env.num_envs)
