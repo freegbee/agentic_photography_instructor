@@ -1,4 +1,4 @@
-from typing import Union, Optional
+from typing import Union
 
 from stable_baselines3.common.type_aliases import Schedule
 
@@ -22,6 +22,11 @@ class PpoModelParamsBuilder:
                  learning_rate: Union[float, Schedule]):
         """
         Initialisiert den Builder mit den zwingend erforderlichen Parametern.
+         :param variant: Die Variante des PPO-Modells (z.B. Architektur des Feature Extractors).
+         :param n_steps: Anzahl der Schritte pro Environment, die gesammelt werden, bevor ein Update erfolgt.
+         :param batch_size: Größe der Minibatches für das Gradienten-Update.
+         :param n_epochs: Anzahl der Epochen, die über den gesammelten Buffer optimiert wird. Erst danach wird gelernt. Werte zwischen 1 (oberflächliches lernen) und 10 (overfitting-risiko). Für Bildlernen ist 4 gut.
+         :param learning_rate: Die Lernrate (float) oder ein Lernraten-Schedule.
         """
         # Falls learning_rate ein float ist, wandeln wir es direkt in einen Schedule um,
         # da PpoModelParams einen Schedule erwartet.

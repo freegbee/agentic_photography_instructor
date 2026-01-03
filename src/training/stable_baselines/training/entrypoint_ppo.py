@@ -69,7 +69,8 @@ def main():
 
     # Dynamische Berechnung von n_steps für konstante Batch-Größe (~4000)
     target_rollout_size = 4000
-    n_steps = calculate_n_steps(NUM_VECTOR_ENVS, target_rollout_size, batch_size=100)
+    batch_size = 100
+    n_steps = calculate_n_steps(NUM_VECTOR_ENVS, target_rollout_size, batch_size=batch_size)
 
     print(f"Configuration: Envs={NUM_VECTOR_ENVS}, n_steps={n_steps} (Total Rollout={n_steps * NUM_VECTOR_ENVS})")
 
@@ -78,7 +79,7 @@ def main():
     # Verwendung des Builders für übersichtlichere Experiment-Konfiguration
     ppo_config = (PpoModelParamsBuilder(variant=model_variant,
                                         n_steps=n_steps,
-                                        batch_size=100,
+                                        batch_size=batch_size,
                                         n_epochs=4,
                                         learning_rate=3e-4)
                   .with_exploration_settings(ent_coef=0.01, clip_range=0.2)

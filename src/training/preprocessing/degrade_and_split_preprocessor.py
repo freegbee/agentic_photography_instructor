@@ -84,7 +84,7 @@ class DegradeAndSplitPreprocessor(AbstractPreprocessor[DegradeAndSplitPreprocess
         self.degradation_function = degradation_function
         return self
 
-    @mlflow_logging("image_degradation_duration_seconds")
+    @mlflow_logging("perf/image_degradation_preprocessor_duration_seconds")
     def _preprocess_impl(self):
         self.effective_destination_root_path = self.image_volume_path / "degradeandsplit" / mlflow.active_run().info.experiment_id / mlflow.active_run().info.run_id / self.destination_root_path
         source_dataset: COCODataset = COCODataset(self.source_path, self.source_annotation_file)

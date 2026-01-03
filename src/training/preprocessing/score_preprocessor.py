@@ -12,6 +12,7 @@ from juror_client import JurorClient
 from juror_shared.models_v1 import ScoringResponsePayloadV1
 from training import mlflow_helper
 from training.hyperparameter_registry import HyperparameterRegistry
+from training.mlflow_utils import mlflow_logging
 from training.preprocessing.abstract_preprocessor import AbstractPreprocessor, RESULT
 from training.rl_training.training_params import GeneralPreprocessingParams, TrainingExecutionParams
 from utils.CocoBuilder import CocoBuilder
@@ -52,6 +53,7 @@ class ScorePreprocessor(AbstractPreprocessor[ScorePreprocessorResult]):
         self.image_path = image_path
         return self
 
+    @mlflow_logging("perf/score_preprocessor_duration_seconds")
     def _preprocess_impl(self):
         self.coco_builder = CocoBuilder(source_path=self.source_path)
         self._score_images()

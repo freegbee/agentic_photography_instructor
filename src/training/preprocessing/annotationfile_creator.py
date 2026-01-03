@@ -9,6 +9,7 @@ from dataset.Utils import Utils
 from image_acquisition.AbsolutePathImageDataset import AbsolutePathImageDataset
 from training import mlflow_helper
 from training.hyperparameter_registry import HyperparameterRegistry
+from training.mlflow_utils import mlflow_logging
 from training.preprocessing.abstract_preprocessor import AbstractPreprocessor
 from training.rl_training.training_params import GeneralPreprocessingParams
 from utils.CocoBuilder import CocoBuilder
@@ -41,6 +42,7 @@ class AnnotationFileCreator(AbstractPreprocessor[AnnotationFileCreatorResponse])
         self.images_path = images_path
         return self
 
+    @mlflow_logging("perf/annotationfile_creator_preprocessor_duration_seconds")
     def _preprocess_impl(self):
         self.coco_builder = CocoBuilder(source_path=self.source_path)
         self._ingest_files()
