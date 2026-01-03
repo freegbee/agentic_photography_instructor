@@ -16,10 +16,12 @@ if OPTIMIZE_FOR_MULTIPROCESSING:
 from training.stable_baselines.environment.welldefined_environments import WellDefinedEnvironment
 from training.hyperparameter_registry import HyperparameterRegistry
 from training.stable_baselines.models.model_variants import PpoModelVariant
-from training.stable_baselines.hyperparameter.training_hyperparams import TrainingParams
+from training.stable_baselines.hyperparameter.runtime_hyperparams import RuntimeParams
+from training.stable_baselines.hyperparameter.runtime_params_builder import RuntimeParamsBuilder
+from training.stable_baselines.hyperparameter.task_hyperparams import TaskParams
+from training.stable_baselines.hyperparameter.task_params_builder import TaskParamsBuilder
 from training.stable_baselines.hyperparameter.ppo_model_hyperparams import PpoModelParams
 from training.stable_baselines.hyperparameter.ppo_model_hyperparams_builder import PpoModelParamsBuilder
-from training.stable_baselines.hyperparameter.general_hyperparams import GeneralParams
 from training.stable_baselines.hyperparameter.data_hyperparams import DataParams
 from training.stable_baselines.training.trainer import StableBaselineTrainer
 from transformer import SENSIBLE_TRANSFORMERS
@@ -71,17 +73,6 @@ def main():
 
     print(f"Configuration: Envs={NUM_VECTOR_ENVS}, n_steps={n_steps} (Total Rollout={n_steps * NUM_VECTOR_ENVS})")
 
-    general_params = HyperparameterRegistry.get_store(GeneralParams)
-    general_params.set({
-        "success_bonus": 1.0,
-        "learning_rate": 3e-4,
-        "transformer_labels": transformer_labels,
-        "image_max_size": (384, 384),
-        "vec_env_cls": "SubprocVecEnv" if OPTIMIZE_FOR_MULTIPROCESSING else "DummyVecEnv",
-        "use_worker_pool": True if OPTIMIZE_FOR_MULTIPROCESSING else False,
-        "num_juror_workers": 5  # NEU: Anzahl GPU-Worker (VRAM Limit)
-    })
-
     ppo_params = HyperparameterRegistry.get_store(PpoModelParams)
     
     # Verwendung des Builders für übersichtlichere Experiment-Konfiguration
@@ -96,41 +87,32 @@ def main():
     # noinspection PyTypeChecker
     ppo_params.set(ppo_config)
 
-    training_params = HyperparameterRegistry.get_store(TrainingParams)
-    training_params.set({
-        "experiment_name": "SB3_POC_IMAGE_OPTIMIZATION",
-        "run_name": run_name,
-        "use_local_juror": True,
-        "random_seed": 42,
-        "core_env": core_env,
-        "num_vector_envs": NUM_VECTOR_ENVS,
-        "max_transformations": max_transformations,
-        "total_training_steps": 300_000,
-        "render_mode": "skip",  # "save",
-        "render_save_dir": "./renders/",
+    # --- TASK CONFIGURATION ---
+    task_params = HyperparameterRegistry.get_store(TaskParams)
+    task_config = (TaskParamsBuilder(core_env=core_env,
+                                     transformer_labels=transformer_labels,
+                                     max_transformations=max_transformations)
+                   .with_rewards(success_bonus=1.0)
+                   # .with_multi_step_logic(steps_per_episode=2) # Optional
+                   .build())
+    task_params.set(task_config)
 
-        # === MULTI-STEP WRAPPER CONFIGURATION ===
-        "use_multi_step_wrapper": False,  # Enable multi-step wrapper
-        "steps_per_episode": 2,  # Agent must take 2 actions per episode
-        "multi_step_intermediate_reward": False,  # No reward for intermediate steps (default)
-        "multi_step_reward_shaping": False,  # No shaped rewards (default)
-        # =========================================
-
-        # evaluation parameters
-        "evaluation_seed": 67,
-        "evaluation_interval": n_steps * NUM_VECTOR_ENVS,  # num_vector_envs * n_steps -> Nach jedem Rollout validieren
-        "evaluation_deterministic": True,
-        "evaluation_visual_history": True,
-        "evaluation_visual_history_max_images": 20,
-        "evaluation_visual_history_max_size": 200,
-        "evaluation_render_mode": "skip",
-        "evaluation_render_save_dir": "./evaluation/renders/",
-        "evaluation_log_path": "./evaluation/logs/",
-        "evaluation_model_save_dir": "./evaluation/models/"
-    })
+    # --- RUNTIME CONFIGURATION ---
+    runtime_params = HyperparameterRegistry.get_store(RuntimeParams)
+    runtime_config = (RuntimeParamsBuilder(experiment_name="SB3_POC_IMAGE_OPTIMIZATION",
+                                           run_name=run_name,
+                                           total_training_steps=300_000,
+                                           num_vector_envs=NUM_VECTOR_ENVS)
+                      .with_random_seed(42)
+                      .with_resource_settings(use_worker_pool=OPTIMIZE_FOR_MULTIPROCESSING,
+                                              num_juror_workers=5,
+                                              vec_env_cls="SubprocVecEnv" if OPTIMIZE_FOR_MULTIPROCESSING else "DummyVecEnv")
+                      .with_evaluation(interval=n_steps * NUM_VECTOR_ENVS, visual_history=True)
+                      .build())
+    runtime_params.set(runtime_config)
 
     data_params = HyperparameterRegistry.get_store(DataParams)
-    data_params.set({"dataset_id": dataset_id})
+    data_params.set({"dataset_id": dataset_id, "image_max_size": (384, 384)})
 
     trainer = StableBaselineTrainer()
     trainer.run_training(run_name=run_name)

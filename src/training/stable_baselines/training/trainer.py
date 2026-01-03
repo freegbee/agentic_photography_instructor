@@ -21,8 +21,8 @@ from training.stable_baselines.environment.samplers import SequentialCocoDataset
 from training.stable_baselines.environment.welldefined_environments import WellDefinedEnvironment
 from training.stable_baselines.hyperparameter.ppo_model_hyperparams import PpoModelParams
 from training.stable_baselines.models.model_factory import PpoModelFactory
-from training.stable_baselines.hyperparameter.training_hyperparams import TrainingParams
-from training.stable_baselines.hyperparameter.general_hyperparams import GeneralParams
+from training.stable_baselines.hyperparameter.runtime_hyperparams import RuntimeParams
+from training.stable_baselines.hyperparameter.task_hyperparams import TaskParams
 from training.stable_baselines.hyperparameter.data_hyperparams import DataParams
 from training.stable_baselines.utils.utils import get_consistent_transformers
 
@@ -31,46 +31,47 @@ logger = logging.getLogger(__name__)
 
 class StableBaselineTrainer(AbstractTrainer):
     def __init__(self):
-        self.training_params: TrainingParams = HyperparameterRegistry.get_store(TrainingParams).get()
+        self.runtime_params: RuntimeParams = HyperparameterRegistry.get_store(RuntimeParams).get()
+        self.task_params: TaskParams = HyperparameterRegistry.get_store(TaskParams).get()
         self.data_params: DataParams = HyperparameterRegistry.get_store(DataParams).get()
-        super().__init__(experiment_name=self.training_params["experiment_name"],
+        
+        super().__init__(experiment_name=self.runtime_params["experiment_name"],
                          source_dataset_id=self.data_params["dataset_id"])
-        general_params: GeneralParams = HyperparameterRegistry.get_store(GeneralParams).get()
+        
         self.pop_model_params: PpoModelParams = HyperparameterRegistry.get_store(PpoModelParams).get()
-        self.training_seed = self.training_params["random_seed"]
+        self.training_seed = self.runtime_params["random_seed"]
         self.data_loader = DatasetLoadData(self.data_params["dataset_id"])
-        self.transformers = get_consistent_transformers(general_params["transformer_labels"])
-        self.learning_rate = general_params["learning_rate"]
-        self.success_bonus = general_params["success_bonus"]
-        self.image_max_size = general_params["image_max_size"]
-        self.vec_env_cls = general_params["vec_env_cls"]
-        self.use_worker_pool = general_params["use_worker_pool"]
-        self.num_juror_workers = general_params["num_juror_workers"]
+        self.transformers = get_consistent_transformers(self.task_params["transformer_labels"])
+        self.success_bonus = self.task_params["success_bonus"]
+        self.image_max_size = self.data_params["image_max_size"]
+        self.vec_env_cls = self.runtime_params["vec_env_cls"]
+        self.use_worker_pool = self.runtime_params["use_worker_pool"]
+        self.num_juror_workers = self.runtime_params["num_juror_workers"]
         self.training_source_path: Optional[Path] = None
         self.dataset_info: Dict[str, AnnotationFileAndImagePath] = {}
 
-        self.render_mode = self.training_params["render_mode"]
-        self.render_save_dir = Path(os.environ["IMAGE_VOLUME_PATH"]) / self.training_params["render_save_dir"]
+        self.render_mode = self.runtime_params["render_mode"]
+        self.render_save_dir = Path(os.environ["IMAGE_VOLUME_PATH"]) / self.runtime_params["render_save_dir"]
 
         # Evaluation parameters
-        self.evaluation_seed = self.training_params["evaluation_seed"]
-        self.evaluation_interval = self.training_params["evaluation_interval"]
-        self.evaluation_deterministic = self.training_params["evaluation_deterministic"]
-        self.evaluation_visual_history = self.training_params["evaluation_visual_history"]
-        self.evaluation_visual_history_max_images = self.training_params["evaluation_visual_history_max_images"]
-        self.evaluation_visual_history_max_size = self.training_params["evaluation_visual_history_max_size"]
-        self.evaluation_render_mode = self.training_params["evaluation_render_mode"]
-        self.evaluation_render_save_dir = Path(os.environ["IMAGE_VOLUME_PATH"]) / self.training_params[
+        self.evaluation_seed = self.runtime_params["evaluation_seed"]
+        self.evaluation_interval = self.runtime_params["evaluation_interval"]
+        self.evaluation_deterministic = self.runtime_params["evaluation_deterministic"]
+        self.evaluation_visual_history = self.runtime_params["evaluation_visual_history"]
+        self.evaluation_visual_history_max_images = self.runtime_params["evaluation_visual_history_max_images"]
+        self.evaluation_visual_history_max_size = self.runtime_params["evaluation_visual_history_max_size"]
+        self.evaluation_render_mode = self.runtime_params["evaluation_render_mode"]
+        self.evaluation_render_save_dir = Path(os.environ["IMAGE_VOLUME_PATH"]) / self.runtime_params[
             "evaluation_render_save_dir"]
-        self.evaluation_model_save_dir = Path(os.environ["IMAGE_VOLUME_PATH"]) / self.training_params[
+        self.evaluation_model_save_dir = Path(os.environ["IMAGE_VOLUME_PATH"]) / self.runtime_params[
             "evaluation_model_save_dir"]
-        self.evaluation_log_path = Path(os.environ["IMAGE_VOLUME_PATH"]) / self.training_params["evaluation_log_path"]
+        self.evaluation_log_path = Path(os.environ["IMAGE_VOLUME_PATH"]) / self.runtime_params["evaluation_log_path"]
 
         # Multy step degredation parameters
-        self.use_multi_step = self.training_params["use_multi_step_wrapper"]
-        self.steps_per_episode = self.training_params["steps_per_episode"]
-        self.intermediate_reward = self.training_params["multi_step_intermediate_reward"]
-        self.reward_shaping = self.training_params["multi_step_reward_shaping"]
+        self.use_multi_step = self.task_params["use_multi_step_wrapper"]
+        self.steps_per_episode = self.task_params["steps_per_episode"]
+        self.intermediate_reward = self.task_params["multi_step_intermediate_reward"]
+        self.reward_shaping = self.task_params["multi_step_reward_shaping"]
 
         self._register_mlflow_params()
 
@@ -79,9 +80,9 @@ class StableBaselineTrainer(AbstractTrainer):
         Register hyperparameter classes for MLflow tracking.
         """
         (self.ml_flow_param_builder
-         .with_param_class(TrainingParams)
+         .with_param_class(RuntimeParams)
+         .with_param_class(TaskParams)
          .with_param_class(DataParams)
-         .with_param_class(GeneralParams)
          .with_param_class(PpoModelParams))
 
     def _load_data_impl(self):
@@ -129,16 +130,16 @@ class StableBaselineTrainer(AbstractTrainer):
 
         # Bestimmen der Core-Environment Klasse
         # Standard ist ImageTransformEnv, kann via GeneralParams überschrieben werden
-        core_env_cls = self.training_params.get("core_env", WellDefinedEnvironment.IMAGE_DEDEGRATION).env_class
+        core_env_cls = self.task_params["core_env"].env_class
 
         # Factory initialisieren
         # Hier wird definiert, WELCHES Environment wir nutzen.
         env_factory = ImageTransformEnvFactory(
             transformers=self.transformers,
             image_max_size=self.image_max_size,
-            max_transformations=self.training_params["max_transformations"],
+            max_transformations=self.task_params["max_transformations"],
             success_bonus=self.success_bonus,
-            juror_use_local=self.training_params["use_local_juror"],
+            juror_use_local=self.runtime_params["use_local_juror"],
             vec_env_cls=vec_env_cls,
             core_env_cls=core_env_cls,
             use_multi_step=self.use_multi_step,
@@ -150,7 +151,7 @@ class StableBaselineTrainer(AbstractTrainer):
         # WICHTIG: Wir erstellen eine Liste von Funktionen, damit jedes Environment einen EIGENEN Seed bekommt.
         # Sonst nutzen alle 12 Envs den gleichen Seed und liefern exakt die gleichen Bilder -> Verschwendung.
         training_env_fns = []
-        for i in range(self.training_params["num_vector_envs"]):
+        for i in range(self.runtime_params["num_vector_envs"]):
             # Seed inkrementieren pro Environment
             env_seed = self.training_seed + i
             # Lambda muss den aktuellen Wert von env_seed binden (s=env_seed)
@@ -249,14 +250,14 @@ class StableBaselineTrainer(AbstractTrainer):
                 render=False
             )
 
-            logger.info("total_training_steps param: %d", self.training_params["total_training_steps"])
+            logger.info("total_training_steps param: %d", self.runtime_params["total_training_steps"])
             logger.info("ppo n_steps: %d, num_envs: %d, rollout_size: %d", model.n_steps, training_vec_env.num_envs,
                         model.n_steps * training_vec_env.num_envs)
 
             callbacks = [eval_callback, rollout_callback, performance_callback]
 
             # Start training
-            model.learn(total_timesteps=self.training_params["total_training_steps"],
+            model.learn(total_timesteps=self.runtime_params["total_training_steps"],
                         callback=callbacks,
                         progress_bar=False)
 
