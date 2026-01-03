@@ -1,6 +1,8 @@
 import os
 import time
 
+from utils.LoggingUtils import configure_logging
+
 # Konfiguration basierend auf Benchmark-Ergebnissen (8 Envs war am schnellsten auf 16 Cores)
 OPTIMIZE_FOR_MULTIPROCESSING = True
 NUM_VECTOR_ENVS = 8
@@ -25,96 +27,103 @@ from training.stable_baselines.hyperparameter.ppo_model_hyperparams_builder impo
 from training.stable_baselines.hyperparameter.data_hyperparams import DataParams
 from training.stable_baselines.training.trainer import StableBaselineTrainer
 from transformer import SENSIBLE_TRANSFORMERS
-from utils.LoggingUtils import configure_logging
 
-
-def calculate_n_steps(num_envs, target_total=4000, batch_size=100):
-    """
-    Berechnet n_steps so, dass die totale Anzahl Steps (n_steps * num_envs)
-    nahe am target_total liegt UND durch batch_size teilbar ist (wichtig für PPO).
-    """
-    ideal_n = target_total // num_envs
-
-    # Suche nach dem nächsten passenden Wert (aufwärts und abwärts)
-    for i in range(1000):
-        # Check up
-        n = ideal_n + i
-        if (n * num_envs) % batch_size == 0:
-            return n
-        # Check down
-        n = ideal_n - i
-        if n > 0 and (n * num_envs) % batch_size == 0:
-            return n
-    return ideal_n
+configure_logging()
 
 
 def main():
-    configure_logging()
-    model_variant = PpoModelVariant.PPO_WITHOUT_BACKBONE
-
     opt_str = "MultiProc" if OPTIMIZE_FOR_MULTIPROCESSING else "SingleProc"
 
-    # Setup basierend auf Modus
-    # Beispiel für das neue Setup
-    run_name_prefix = "Landscapes, Multi-Optimization, Sensible"
+    # ========================================================================================
+    # 1. EXPERIMENT DEFINITION (THE "WHAT")
+    # Hier definieren wir die fachlichen Parameter des Experiments.
+    # ========================================================================================
+    experiment_name = "SB3_POC_IMAGE_OPTIMIZATION"
+    run_description = "Landscapes, Multi-Optimization, Sensible"
+
+    # Daten & Umgebung
+    dataset_id = "twenty_original_split_amd-win"
+    image_size = (384, 384)
     core_env = WellDefinedEnvironment.IMAGE_OPTIMIZATION
     transformer_labels = SENSIBLE_TRANSFORMERS
-    dataset_id = "twenty_original_split_amd-win"
-    # dataset_id = "flickr2k_big_original_split_amd-win"
-    # dataset_id = "lhq_landscapes_original_split_amd-win"
     max_transformations = 10
-    # core_env_cls_name = "ImageTransformEnvVariant"
 
+    # Modell Konfiguration
+    model_variant = PpoModelVariant.PPO_WITHOUT_BACKBONE
+    learning_rate = 3e-4
+
+    # ========================================================================================
+    # 2. EXECUTION MODE (THE "HOW")
+    # Hier steuern wir technische Parameter für Debugging vs. echtes Training.
+    # ========================================================================================
+    IS_DEBUG_RUN = True  # <--- HIER UMSCHALTEN: True für schnellen Test, False für Training
+
+    if IS_DEBUG_RUN:
+        print("\n!!! RUNNING IN DEBUG MODE (Short Rollouts, Fast Updates) !!!\n")
+        target_rollout_size = 320  # Klein, aber durch batch_size teilbar
+        batch_size = 32  # Kleine Batches für schnelle Updates
+        total_training_steps = 2000  # Nur kurz anlaufen lassen
+        n_epochs = 2  # Weniger Epochen für Speed
+        run_name_prefix = f"DEBUG - {run_description}"
+    else:
+        target_rollout_size = 4000  # Standard PPO Größe für stabiles Lernen
+        batch_size = 100
+        total_training_steps = 300_000
+        n_epochs = 4
+        run_name_prefix = run_description
+
+    # ========================================================================================
+    # 3. CALCULATION & ASSEMBLY
+    # Berechnung abgeleiteter Werte und Befüllen der Builder.
+    # ========================================================================================
+
+    # 3.1 Berechnungen
+    n_steps = PpoModelParamsBuilder.calculate_n_steps(NUM_VECTOR_ENVS, target_rollout_size, batch_size=batch_size)
+    rollout_size = n_steps * NUM_VECTOR_ENVS
     run_name = f"{time.strftime('%Y%m%d-%H%M%S')} - {run_name_prefix}, {model_variant.value} ({opt_str})"
 
-    # Dynamische Berechnung von n_steps für konstante Batch-Größe (~4000)
-    target_rollout_size = 4000
-    batch_size = 100
-    n_steps = calculate_n_steps(NUM_VECTOR_ENVS, target_rollout_size, batch_size=batch_size)
+    print(f"Configuration: Envs={NUM_VECTOR_ENVS}, n_steps={n_steps} (Total Rollout={rollout_size})")
 
-    print(f"Configuration: Envs={NUM_VECTOR_ENVS}, n_steps={n_steps} (Total Rollout={n_steps * NUM_VECTOR_ENVS})")
-
+    # 3.2 PPO Model Parameters
     ppo_params = HyperparameterRegistry.get_store(PpoModelParams)
-    
-    # Verwendung des Builders für übersichtlichere Experiment-Konfiguration
     ppo_config = (PpoModelParamsBuilder(variant=model_variant,
                                         n_steps=n_steps,
                                         batch_size=batch_size,
-                                        n_epochs=4,
-                                        learning_rate=3e-4)
+                                        n_epochs=n_epochs,
+                                        learning_rate=learning_rate)
                   .with_exploration_settings(ent_coef=0.01, clip_range=0.2)
                   .build())
-
-    # noinspection PyTypeChecker
     ppo_params.set(ppo_config)
 
-    # --- TASK CONFIGURATION ---
+    # 3.3 Task Parameters
     task_params = HyperparameterRegistry.get_store(TaskParams)
     task_config = (TaskParamsBuilder(core_env=core_env,
                                      transformer_labels=transformer_labels,
                                      max_transformations=max_transformations)
                    .with_rewards(success_bonus=1.0)
-                   # .with_multi_step_logic(steps_per_episode=2) # Optional
                    .build())
     task_params.set(task_config)
 
-    # --- RUNTIME CONFIGURATION ---
+    # 3.4 Runtime Parameters
     runtime_params = HyperparameterRegistry.get_store(RuntimeParams)
-    runtime_config = (RuntimeParamsBuilder(experiment_name="SB3_POC_IMAGE_OPTIMIZATION",
+    runtime_config = (RuntimeParamsBuilder(experiment_name=experiment_name,
                                            run_name=run_name,
-                                           total_training_steps=300_000,
+                                           total_training_steps=total_training_steps,
                                            num_vector_envs=NUM_VECTOR_ENVS)
                       .with_random_seed(42)
                       .with_resource_settings(use_worker_pool=OPTIMIZE_FOR_MULTIPROCESSING,
                                               num_juror_workers=5,
                                               vec_env_cls="SubprocVecEnv" if OPTIMIZE_FOR_MULTIPROCESSING else "DummyVecEnv")
-                      .with_evaluation(interval=n_steps * NUM_VECTOR_ENVS, visual_history=True)
+                      # Evaluation immer genau nach einem vollen Rollout
+                      .with_evaluation(interval=rollout_size, visual_history=True)
                       .build())
     runtime_params.set(runtime_config)
 
+    # 3.5 Data Parameters
     data_params = HyperparameterRegistry.get_store(DataParams)
-    data_params.set({"dataset_id": dataset_id, "image_max_size": (384, 384)})
+    data_params.set({"dataset_id": dataset_id, "image_max_size": image_size})
 
+    # 4. START
     trainer = StableBaselineTrainer()
     trainer.run_training(run_name=run_name)
 

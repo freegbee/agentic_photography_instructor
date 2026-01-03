@@ -93,3 +93,23 @@ class PpoModelParamsBuilder:
             # Hinweis: Wir kennen num_envs hier nicht zwingend, daher nur Warnung oder einfacher Check
             pass
         return self._params
+
+    @staticmethod
+    def calculate_n_steps(num_envs: int, target_total: int = 4000, batch_size: int = 100) -> int:
+        """
+        Berechnet n_steps so, dass die totale Anzahl Steps (n_steps * num_envs)
+        nahe am target_total liegt UND durch batch_size teilbar ist (wichtig für PPO).
+        """
+        ideal_n = target_total // num_envs
+
+        # Suche nach dem nächsten passenden Wert (aufwärts und abwärts)
+        for i in range(1000):
+            # Check up
+            n = ideal_n + i
+            if (n * num_envs) % batch_size == 0:
+                return n
+            # Check down
+            n = ideal_n - i
+            if n > 0 and (n * num_envs) % batch_size == 0:
+                return n
+        return ideal_n
