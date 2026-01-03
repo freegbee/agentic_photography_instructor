@@ -15,14 +15,15 @@ if OPTIMIZE_FOR_MULTIPROCESSING:
 
 from training.stable_baselines.environment.welldefined_environments import WellDefinedEnvironment
 from training.hyperparameter_registry import HyperparameterRegistry
-from training.stable_baselines.models.model_factory import PpoModelVariant
+from training.stable_baselines.models.model_variants import PpoModelVariant
 from training.stable_baselines.hyperparameter.training_hyperparams import TrainingParams
+from training.stable_baselines.hyperparameter.ppo_model_hyperparams import PpoModelParams
 from training.stable_baselines.hyperparameter.general_hyperparams import GeneralParams
 from training.stable_baselines.hyperparameter.data_hyperparams import DataParams
+from training.stable_baselines.models.learning_rate_schedules import linear_schedule
 from training.stable_baselines.training.trainer import StableBaselineTrainer
-from transformer import POC_MULTI_ONE_STEP_TRANSFORMERS, SENSIBLE_TRANSFORMERS
+from transformer import SENSIBLE_TRANSFORMERS
 from utils.LoggingUtils import configure_logging
-from utils.Registries import TRANSFORMER_REGISTRY
 
 
 def calculate_n_steps(num_envs, target_total=4000, batch_size=100):
@@ -47,36 +48,20 @@ def calculate_n_steps(num_envs, target_total=4000, batch_size=100):
 
 def main():
     configure_logging()
-
-    # --- EXPERIMENT CONFIGURATION SWITCH ---
-    training_modus = "Optimization"
-    # ---------------------------------------
-
     model_variant = PpoModelVariant.PPO_WITHOUT_BACKBONE
 
     opt_str = "MultiProc" if OPTIMIZE_FOR_MULTIPROCESSING else "SingleProc"
 
     # Setup basierend auf Modus
-    if training_modus == "Optimization":
-        # Beispiel für das neue Setup
-        run_name_prefix = "Landscapes, Multi-Optimization, Sensible"
-        core_env = WellDefinedEnvironment.IMAGE_OPTIMIZATION
-        transformer_labels = SENSIBLE_TRANSFORMERS
-        dataset_id = "twenty_original_split_amd-win"
-        # dataset_id = "flickr2k_big_original_split_amd-win"
-        # dataset_id = "lhq_landscapes_original_split_amd-win"
-        # max_transformations = 10
-        # core_env_cls_name = "ImageTransformEnvVariant"
-    else:
-        # Default Setup
-        run_name_prefix = "Landscapes, One-of-Six, Juror Scores"
-        source_transformer_labels = POC_MULTI_ONE_STEP_TRANSFORMERS
-        core_env = WellDefinedEnvironment.IMAGE_DEDEGRATION
-        transformer_labels = [TRANSFORMER_REGISTRY.get(l).get_reverse_transformer_label() for l in
-                              source_transformer_labels]
-        dataset_id = "lhq_landscapes_multi_one_step_actions_amd-win"
-        max_transformations = 1
-        # core_env_cls_name = "ImageTransformEnv"
+    # Beispiel für das neue Setup
+    run_name_prefix = "Landscapes, Multi-Optimization, Sensible"
+    core_env = WellDefinedEnvironment.IMAGE_OPTIMIZATION
+    transformer_labels = SENSIBLE_TRANSFORMERS
+    dataset_id = "twenty_original_split_amd-win"
+    # dataset_id = "flickr2k_big_original_split_amd-win"
+    # dataset_id = "lhq_landscapes_original_split_amd-win"
+    max_transformations = 10
+    # core_env_cls_name = "ImageTransformEnvVariant"
 
     run_name = f"{time.strftime('%Y%m%d-%H%M%S')} - {run_name_prefix}, {model_variant.value} ({opt_str})"
 
@@ -97,6 +82,15 @@ def main():
         "num_juror_workers": 5  # NEU: Anzahl GPU-Worker (VRAM Limit)
     })
 
+    ppo_params = HyperparameterRegistry.get_store(PpoModelParams)
+    ppo_params.set({
+        "ppo_model_variant": model_variant,
+        "n_steps": n_steps,
+        "batch_size": 100,  # (n_steps * num_vector_env) % batch_size == 0
+        "n_epochs": 4,
+        "model_learning_schedule": linear_schedule(3e-4)
+    })
+
     training_params = HyperparameterRegistry.get_store(TrainingParams)
     training_params.set({
         "experiment_name": "SB3_POC_IMAGE_OPTIMIZATION",
@@ -104,11 +98,7 @@ def main():
         "use_local_juror": True,
         "random_seed": 42,
         "core_env": core_env,
-        "ppo_model_variant": model_variant,
         "num_vector_envs": NUM_VECTOR_ENVS,
-        "n_steps": n_steps,
-        "mini_batch_size": 100,  # (n_steps * num_vector_env) % mini_batch_size == 0, also
-        "n_epochs": 4,
         "max_transformations": max_transformations,
         "total_training_steps": 300_000,
         "render_mode": "skip",  # "save",

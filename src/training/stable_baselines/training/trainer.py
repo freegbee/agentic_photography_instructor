@@ -19,9 +19,11 @@ from training.stable_baselines.callbacks.rollout_success_callback import Rollout
 from training.stable_baselines.environment.environment_factory import ImageTransformEnvFactory
 from training.stable_baselines.environment.samplers import SequentialCocoDatasetSampler, RandomCocoDatasetSampler
 from training.stable_baselines.environment.welldefined_environments import WellDefinedEnvironment
-from training.stable_baselines.models.learning_rate_schedules import linear_schedule
+from training.stable_baselines.hyperparameter.ppo_model_hyperparams import PpoModelParams
 from training.stable_baselines.models.model_factory import PpoModelFactory
-from training.stable_baselines.training.hyper_params import TrainingParams, DataParams, GeneralParams
+from training.stable_baselines.hyperparameter.training_hyperparams import TrainingParams
+from training.stable_baselines.hyperparameter.general_hyperparams import GeneralParams
+from training.stable_baselines.hyperparameter.data_hyperparams import DataParams
 from training.stable_baselines.utils.utils import get_consistent_transformers
 
 logger = logging.getLogger(__name__)
@@ -34,8 +36,8 @@ class StableBaselineTrainer(AbstractTrainer):
         super().__init__(experiment_name=self.training_params["experiment_name"],
                          source_dataset_id=self.data_params["dataset_id"])
         general_params: GeneralParams = HyperparameterRegistry.get_store(GeneralParams).get()
+        self.pop_model_params: PpoModelParams = HyperparameterRegistry.get_store(PpoModelParams).get()
         self.training_seed = self.training_params["random_seed"]
-
         self.data_loader = DatasetLoadData(self.data_params["dataset_id"])
         self.transformers = get_consistent_transformers(general_params["transformer_labels"])
         self.learning_rate = general_params["learning_rate"]
@@ -79,7 +81,8 @@ class StableBaselineTrainer(AbstractTrainer):
         (self.ml_flow_param_builder
          .with_param_class(TrainingParams)
          .with_param_class(DataParams)
-         .with_param_class(GeneralParams))
+         .with_param_class(GeneralParams)
+         .with_param_class(PpoModelParams))
 
     def _load_data_impl(self):
         result = self.data_loader.load_data()
@@ -172,15 +175,9 @@ class StableBaselineTrainer(AbstractTrainer):
 
         training_vec_env = vec_env_cls(training_env_fns)
 
-        model_learning_schedule = linear_schedule(self.learning_rate)
-
         try:
-            model = (PpoModelFactory(self.training_params["ppo_model_variant"])
-                     .create_model(vec_env=training_vec_env,
-                                   learning_rate=model_learning_schedule,
-                                   n_steps=self.training_params["n_steps"],
-                                   batch_size=self.training_params["mini_batch_size"],
-                                   n_epochs=self.training_params["n_epochs"]))
+            model = PpoModelFactory().create_model(vec_env=training_vec_env,
+                                                   params=self.pop_model_params)
 
             # model = create_dqn_with_resnet_model(vec_env=training_vec_env,
             #                                      learning_rate=model_learning_schedule,
