@@ -203,6 +203,12 @@ image_acquisition:
     destination_dir: lhq_landscapes_original_HQ_split_amd-win
     archive_root: lhq_landscapes_original_HQ_split_amd-win
     target_hash: 4cacdb0a0900539185d1fe19e9135bbd1a0eaeb90ce0d7ba56cbddce28e22437
+  lhq_landscapes_original_HQ_split_mac:
+    type: zip
+    source_url: "https://casml4se-artifacts.fra1.digitaloceanspaces.com/manual/lhq_landscapes_original_HQ_split_mac.zip"
+    destination_dir: lhq_landscapes_original_HQ_split_mac
+    archive_root: lhq_landscapes_original_HQ_split_mac
+    target_hash: fdd927922f9b694d955cc4047c395ab2321270e9d6ea3ea0914c8c9e0e4374c1
   lhq_landscapes:
     type: kaggle
     kaggle_dataset: "arnaud58/landscape-pictures"

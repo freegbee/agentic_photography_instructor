@@ -6,7 +6,7 @@ from typing import Dict
 from numpy import ndarray
 
 from transformer.color_adjustment.GrayscaleTransformer import GrayscaleTransformer
-from transformer.cropping.CenterSquareCropTransformer import CenterSquareCropTransformer
+from transformer.cropping.center_square_crop_transformer import CenterSquareCropTransformer
 from utils.ConfigLoader import ConfigLoader
 from utils.TestingUtils import TestingUtils
 

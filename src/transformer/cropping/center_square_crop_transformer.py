@@ -1,6 +1,6 @@
 from numpy import ndarray
 
-from transformer.cropping.AbstractCroppingTransformer import AbstractCroppingTransformer
+from transformer.cropping.abstract_cropping_transformer import AbstractCroppingTransformer
 
 
 class CenterSquareCropTransformer(AbstractCroppingTransformer):
