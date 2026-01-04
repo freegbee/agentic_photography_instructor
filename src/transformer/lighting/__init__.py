@@ -43,7 +43,7 @@ __all__ = [
 ]
 
 SENSIBLE_LIGHTING_TRANSFORMERS = [
-    ContrastIncreaseTransformerWeak.label, ContrastDecreaseTransformerWeak.label,
+    # ContrastIncreaseTransformerWeak.label, ContrastDecreaseTransformerWeak.label,
     LightnessIncreaseTransformerWeak.label, LightnessDecreaseTransformerWeak.label,
     AutoGammaCorrectionTransformer.label,
     GammaBrightenTransformer.label, GammaDarkenTransformer.label,

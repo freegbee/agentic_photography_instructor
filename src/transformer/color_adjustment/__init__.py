@@ -46,7 +46,7 @@ __all__ = [
 ]
 
 SENSIBLE_CA_TRANSFORMERS = [
-    GrayscaleTransformer.label, GrayscaleAverageTransformer.label, InvertColorChannelTransformerAll.label,
+    GrayscaleTransformer.label, # GrayscaleAverageTransformer.label, InvertColorChannelTransformerAll.label,
     SaturationIncreaseTransformerWeak.label, SaturationDecreaseTransformerWeak.label,
     VibranceTransformer.label,
     WarmthTransformer.label, CoolnessTransformer.label,

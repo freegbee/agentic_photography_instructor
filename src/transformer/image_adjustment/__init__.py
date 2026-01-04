@@ -71,8 +71,8 @@ __all__ = [
 ]
 
 SENSIBLE_IA_TRANSFORMERS = [
-    FlipHorizontalTransformer.label, FlipVerticalTransformer.label,
-    MedianBlurTransformer3.label, MedianBlurTransformer7.label,
-    SharpenTransformerWeak.label,
+    # FlipHorizontalTransformer.label, FlipVerticalTransformer.label,
+    # MedianBlurTransformer3.label, MedianBlurTransformer7.label,
+    SharpenTransformerWeak.label, SharpenTransformerStrong.label,
     UnsharpMaskLightTransformer.label, ClarityTransformer.label
 ]
