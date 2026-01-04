@@ -6,6 +6,7 @@ import optuna
 from optuna.pruners import MedianPruner
 from optuna.samplers import TPESampler
 
+from image_acquisition.acquisition_client.dummy_acquisition_client import DummyAcquisitionClient
 from training import mlflow_helper
 from training.hyperparameter_registry import HyperparameterRegistry
 from training.stable_baselines.environment.welldefined_environments import WellDefinedEnvironment
@@ -47,6 +48,11 @@ def objective(trial: optuna.Trial):
     """
     Die Optimierungs-Funktion für Optuna.
     """
+
+    # ==========================================
+    # Perforance
+    # ==========================================
+    dummy_acquisition_client = DummyAcquisitionClient()
 
     # ==========================================
     # 1. HYPERPARAMETER SAMPLING
@@ -148,7 +154,8 @@ def objective(trial: optuna.Trial):
 
         trainer = StableBaselineTrainer(model_factory=PpoModelFactory(),
                                         model_params_class=PpoModelParams,
-                                        additional_callbacks=[pruning_callback])
+                                        additional_callbacks=[pruning_callback],
+                                        acquisition_client=dummy_acquisition_client)
 
         # Start Training
         trainer.run_training(run_name=run_name)

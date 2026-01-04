@@ -32,7 +32,8 @@ class StableBaselineTrainer(AbstractTrainer):
     def __init__(self,
                  model_factory: AbstractModelFactory,
                  model_params_class: Type,
-                 additional_callbacks: List = None):
+                 additional_callbacks: List = None,
+                 acquisition_client=None):
         self.model_factory = model_factory
         self.model_params_class = model_params_class
         self.additional_callbacks = additional_callbacks if additional_callbacks is not None else []
@@ -47,7 +48,7 @@ class StableBaselineTrainer(AbstractTrainer):
 
         self.model_params = HyperparameterRegistry.get_store(self.model_params_class).get()
         self.training_seed = self.runtime_params["random_seed"]
-        self.data_loader = DatasetLoadData(self.data_params["dataset_id"])
+        self.data_loader = DatasetLoadData(self.data_params["dataset_id"], acquisition_client=acquisition_client)
         self.transformers = get_consistent_transformers(self.task_params["transformer_labels"])
         self.success_bonus = self.task_params["success_bonus"]
         self.image_max_size = self.data_params["image_max_size"]
