@@ -10,7 +10,7 @@ from transformer.AbstractTransformer import TRANSFORMER_REGISTRY
 def test_generate_transformer_mosaic():
     # Path to resources
     resource_dir = os.path.join(os.path.dirname(__file__), "resources")
-    image_path = os.path.join(resource_dir, "test_landscape.png")
+    image_path = os.path.join(resource_dir, "test_flickr2k_HQ.png")
     output_path = os.path.join(resource_dir, "transformer_mosaic.jpg")
 
     # Load image
@@ -42,12 +42,24 @@ def test_generate_transformer_mosaic():
     for t in transformers:
         try:
             # Apply transform
-            transformed = t.transform(small_image.copy())
+            transformed = t.transform(original_image.copy())
             
             # Ensure result has same dimensions (some might crop)
             # If size changed, resize back to tile size to fit mosaic
             if transformed.shape[0] != tile_height or transformed.shape[1] != tile_width:
-                transformed = cv2.resize(transformed, (tile_width, tile_height))
+                # Resize maintaining aspect ratio
+                h, w = transformed.shape[:2]
+                scale = min(tile_width / w, tile_height / h)
+                new_w = int(w * scale)
+                new_h = int(h * scale)
+                resized = cv2.resize(transformed, (new_w, new_h))
+
+                # Create white canvas and center image
+                canvas = np.ones((tile_height, tile_width, 3), dtype=np.uint8) * 255
+                y_off = (tile_height - new_h) // 2
+                x_off = (tile_width - new_w) // 2
+                canvas[y_off:y_off+new_h, x_off:x_off+new_w] = resized
+                transformed = canvas
             
             results.append((t.label, transformed))
         except Exception as e:
