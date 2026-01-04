@@ -313,14 +313,9 @@ class StableBaselineTrainer(AbstractTrainer):
                 except Exception:
                     logger.warning("Error closing evaluation environment", exc_info=True)
 
-            # Falls das Training crasht, wird _on_training_end nicht aufgerufen.
-            # Wir rufen es hier manuell auf (oder eine Cleanup-Methode), um temporäre Ordner zu löschen.
-            if eval_callback and hasattr(eval_callback, "_on_training_end"):
-                # Dies löscht den temporären Ordner für die Video-Frames
-                try:
-                    eval_callback._on_training_end()
-                except Exception:
-                    logger.warning("Error in eval_callback cleanup", exc_info=True)
+            # HINWEIS: SB3 ruft _on_training_end() automatisch auf (auch bei Exceptions).
+            # Ein manueller Aufruf hier führt zur doppelten Ausführung (Video-Erstellung + Löschen der Bilder),
+            # was beim zweiten Mal fehlschlägt und das Video korrumpieren kann.
 
     def _evaluate_impl(self):
         logger.info(f"Evaluation started for {self.experiment_name} with images at: {self.training_source_path}")

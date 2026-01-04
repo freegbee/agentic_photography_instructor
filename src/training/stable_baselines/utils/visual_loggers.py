@@ -281,20 +281,36 @@ class VisualTrainingLogger:
             if not images:
                 return
 
+            # Dimensionen müssen für viele Codecs (z.B. H.264) gerade sein
+            if max_h % 2 != 0: max_h += 1
+            if max_w % 2 != 0: max_w += 1
+
             # 2. Video Writer initialisieren
             with tempfile.TemporaryDirectory() as tmp_dir:
                 video_path = Path(tmp_dir) / "evaluation_timelapse.mp4"
-                # mp4v ist weit verbreitet, alternativ 'avc1'
-                fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                
+                # Versuch 1: avc1 (H.264) - Besser kompatibel, falls verfügbar
+                fourcc = cv2.VideoWriter_fourcc(*'avc1')
                 out = cv2.VideoWriter(str(video_path), fourcc, fps, (max_w, max_h))
+
+                # Versuch 2: mp4v (MPEG-4) - Fallback
+                if not out.isOpened():
+                    logger.warning("VideoWriter with 'avc1' failed, falling back to 'mp4v'")
+                    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                    out = cv2.VideoWriter(str(video_path), fourcc, fps, (max_w, max_h))
+
+                if not out.isOpened():
+                    logger.error("Failed to open VideoWriter. Video generation skipped.")
+                    return
 
                 for img in images:
                     h, w = img.shape[:2]
                     # Wenn Bild kleiner als Max, mit Schwarz auffüllen (zentrieren)
                     if h < max_h or w < max_w:
                         canvas = np.zeros((max_h, max_w, 3), dtype=np.uint8)
-                        y_off = 0
-                        x_off = 0
+                        # Zentrieren sieht besser aus und gleicht Padding für gerade Dimensionen aus
+                        y_off = (max_h - h) // 2
+                        x_off = (max_w - w) // 2
                         canvas[y_off:y_off + h, x_off:x_off + w] = img
                         out.write(canvas)
                     else:
