@@ -199,5 +199,13 @@ if __name__ == "__main__":
     print("--------------------------------------------------")
 
     # Speichern der besten Parameter in eine Datei
-    with open("best_hyperparams_ppo.txt", "w") as f:
-        f.write(str(study.best_params))
+    timestamp = time.strftime("%Y%m%d-%H%M%S")
+    filename = f"optimize_ppo_{study.study_name}_{timestamp}.optuna.txt"
+    output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
+
+    with open(output_path, "w") as f:
+        f.write(f"# Best Reward: {study.best_value}\n")
+        for key, value in study.best_params.items():
+            f.write(f"{key}: {value}\n")
+
+    print(f"Best hyperparameters saved to {output_path}")
