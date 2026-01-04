@@ -1,7 +1,7 @@
 import logging
 import os
 from pathlib import Path
-from typing import Optional, Dict, Type
+from typing import Optional, Dict, Type, List
 
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
@@ -31,9 +31,12 @@ class StableBaselineTrainer(AbstractTrainer):
 
     def __init__(self,
                  model_factory: AbstractModelFactory,
-                 model_params_class: Type):
+                 model_params_class: Type,
+                 additional_callbacks: List = None):
         self.model_factory = model_factory
         self.model_params_class = model_params_class
+        self.additional_callbacks = additional_callbacks if additional_callbacks is not None else []
+        self.best_mean_reward = -float('inf')
 
         self.runtime_params: RuntimeParams = HyperparameterRegistry.get_store(RuntimeParams).get()
         self.task_params: TaskParams = HyperparameterRegistry.get_store(TaskParams).get()
@@ -262,7 +265,13 @@ class StableBaselineTrainer(AbstractTrainer):
             elif hasattr(model, "train_freq"):
                 logger.info("Model train_freq: %s, num_envs: %d", str(model.train_freq), training_vec_env.num_envs)
 
+            # Allow additional callbacks to hook into the evaluator (e.g. for Optuna Pruning)
+            for cb in self.additional_callbacks:
+                if hasattr(cb, "set_eval_callback"):
+                    cb.set_eval_callback(eval_callback)
+
             callbacks = [eval_callback, rollout_callback, performance_callback]
+            callbacks.extend(self.additional_callbacks)
 
             # Start training
             model.learn(total_timesteps=self.runtime_params["total_training_steps"],
@@ -274,27 +283,43 @@ class StableBaselineTrainer(AbstractTrainer):
                 final_model_path = self.evaluation_model_save_dir / "final_model"
                 model.save(final_model_path)
 
+            # Capture best reward for external optimization (Optuna)
+            if hasattr(eval_callback, "best_mean_reward"):
+                self.best_mean_reward = eval_callback.best_mean_reward
+
             logger.info(f"Training ended for {self.experiment_name}")
 
         finally:
             # Aufräumen
             if juror_worker_pool:
-                logger.info("Stopping JurorWorkerPool...")
-                juror_worker_pool.stop()
+                try:
+                    logger.info("Stopping JurorWorkerPool...")
+                    juror_worker_pool.stop()
+                except Exception:
+                    logger.warning("Error stopping JurorWorkerPool", exc_info=True)
             
             if training_vec_env:
-                logger.info("Closing training environment...")
-                training_vec_env.close()
+                try:
+                    logger.info("Closing training environment...")
+                    training_vec_env.close()
+                except Exception:
+                    logger.warning("Error closing training environment", exc_info=True)
 
             if evaluation_vec_env:
-                logger.info("Closing evaluation environment...")
-                evaluation_vec_env.close()
+                try:
+                    logger.info("Closing evaluation environment...")
+                    evaluation_vec_env.close()
+                except Exception:
+                    logger.warning("Error closing evaluation environment", exc_info=True)
 
             # Falls das Training crasht, wird _on_training_end nicht aufgerufen.
             # Wir rufen es hier manuell auf (oder eine Cleanup-Methode), um temporäre Ordner zu löschen.
             if eval_callback and hasattr(eval_callback, "_on_training_end"):
                 # Dies löscht den temporären Ordner für die Video-Frames
-                eval_callback._on_training_end()
+                try:
+                    eval_callback._on_training_end()
+                except Exception:
+                    logger.warning("Error in eval_callback cleanup", exc_info=True)
 
     def _evaluate_impl(self):
         logger.info(f"Evaluation started for {self.experiment_name} with images at: {self.training_source_path}")

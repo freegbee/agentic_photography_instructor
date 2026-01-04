@@ -15,25 +15,9 @@ if OPTIMIZE_FOR_MULTIPROCESSING:
     os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
     os.environ["NUMEXPR_NUM_THREADS"] = "1"
 
-# Fix for MLflow system metrics crash on Windows (psutil disk_usage)
-if os.name == 'nt':
-    try:
-        import psutil
-        # Monkey-patch psutil.disk_usage to suppress SystemError (bad format char)
-        _original_disk_usage = psutil.disk_usage
-
-        class _DummyUsage:
-            total = 0; used = 0; free = 0; percent = 0
-
-        def _robust_disk_usage(path):
-            try:
-                return _original_disk_usage(path)
-            except Exception:
-                return _DummyUsage()
-
-        psutil.disk_usage = _robust_disk_usage
-    except ImportError:
-        pass
+# Fix for MLflow system metrics crash on Windows
+from training.stable_baselines.utils.utils import fix_psutil_disk_usage_on_windows
+fix_psutil_disk_usage_on_windows()
 
 from training.stable_baselines.environment.welldefined_environments import WellDefinedEnvironment
 from training.hyperparameter_registry import HyperparameterRegistry
@@ -60,10 +44,10 @@ def main():
     # Hier definieren wir die fachlichen Parameter des Experiments.
     # ========================================================================================
     experiment_name = "SB3_POC_IMAGE_OPTIMIZATION"
-    run_description = "Landscapes, Multi-Optimization, Sensible"
+    run_description = "Flickr2k, HQ, Sensible"
 
     # Daten & Umgebung
-    dataset_id = "twenty_original_split_amd-win"
+    dataset_id = "flickr2k_big_original_HQ_split_amd-win"
     image_size = (384, 384)
     core_env = WellDefinedEnvironment.IMAGE_OPTIMIZATION
     transformer_labels = SENSIBLE_TRANSFORMERS
@@ -77,7 +61,7 @@ def main():
     # 2. EXECUTION MODE (THE "HOW")
     # Hier steuern wir technische Parameter für Debugging vs. echtes Training.
     # ========================================================================================
-    IS_DEBUG_RUN = True  # <--- HIER UMSCHALTEN: True für schnellen Test, False für Training
+    IS_DEBUG_RUN = False  # <--- HIER UMSCHALTEN: True für schnellen Test, False für Training
 
     if IS_DEBUG_RUN:
         print("\n!!! RUNNING IN DEBUG MODE (Short Rollouts, Fast Updates) !!!\n")
