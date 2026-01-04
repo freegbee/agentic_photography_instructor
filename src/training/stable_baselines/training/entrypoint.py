@@ -16,7 +16,9 @@ if OPTIMIZE_FOR_MULTIPROCESSING:
 from training.stable_baselines.environment.welldefined_environments import WellDefinedEnvironment
 from training.hyperparameter_registry import HyperparameterRegistry
 from training.stable_baselines.models.model_factory import PpoModelVariant
-from training.stable_baselines.training.hyper_params import TrainingParams, DataParams, GeneralParams
+from training.stable_baselines.hyperparameter.training_hyperparams import TrainingParams
+from training.stable_baselines.hyperparameter.general_hyperparams import GeneralParams
+from training.stable_baselines.hyperparameter.data_hyperparams import DataParams
 from training.stable_baselines.training.trainer import StableBaselineTrainer
 from transformer import POC_MULTI_ONE_STEP_TRANSFORMERS, SENSIBLE_TRANSFORMERS
 from utils.LoggingUtils import configure_logging
@@ -61,7 +63,9 @@ def main():
         core_env = WellDefinedEnvironment.IMAGE_OPTIMIZATION
         transformer_labels = SENSIBLE_TRANSFORMERS
         dataset_id = "twenty_original_split_amd-win"
-        max_transformations = 5
+        # dataset_id = "flickr2k_big_original_split_amd-win"
+        # dataset_id = "lhq_landscapes_original_split_amd-win"
+        # max_transformations = 10
         # core_env_cls_name = "ImageTransformEnvVariant"
     else:
         # Default Setup
@@ -106,7 +110,7 @@ def main():
         "mini_batch_size": 100,  # (n_steps * num_vector_env) % mini_batch_size == 0, also
         "n_epochs": 4,
         "max_transformations": max_transformations,
-        "total_training_steps": 16_000,
+        "total_training_steps": 300_000,
         "render_mode": "skip",  # "save",
         "render_save_dir": "./renders/",
 
@@ -119,11 +123,11 @@ def main():
 
         # evaluation parameters
         "evaluation_seed": 67,
-        "evaluation_interval": 4000,  # num_vector_envs * n_steps -> Nach jedem Rollout validieren
+        "evaluation_interval": n_steps * NUM_VECTOR_ENVS,  # num_vector_envs * n_steps -> Nach jedem Rollout validieren
         "evaluation_deterministic": True,
         "evaluation_visual_history": True,
-        "evaluation_visual_history_max_images": 15,
-        "evaluation_visual_history_max_size": 150,
+        "evaluation_visual_history_max_images": 20,
+        "evaluation_visual_history_max_size": 200,
         "evaluation_render_mode": "skip",
         "evaluation_render_save_dir": "./evaluation/renders/",
         "evaluation_log_path": "./evaluation/logs/",

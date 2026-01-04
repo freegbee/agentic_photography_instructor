@@ -19,15 +19,20 @@ class ImageTransformEvaluationCallback(EvalCallback):
     Erweiterung des EvalCallback, um eine benutzerdefinierte Evaluationsschleife zu implementieren.
     """
 
-    def __init__(self, stats_key: str, num_images_to_log: int = 5, tile_max_size: int = 150, *args, **kwargs):
+    def __init__(self, stats_key: str, num_images_to_log: int = 5, tile_max_size: int = 150,
+                 metric_key_prefix: str = "eval", metric_key_separator: str = "/", *args, **kwargs):
         """
         Erweiterung des EvalCallback, um eine benutzerdefinierte Evaluationsschleife zu implementieren.
         param stats_key: Schlüssel in den Infos des Environments, unter dem die Endwerte der Episode zu finden ist.
         param num_images_to_log: Anzahl der Episoden, für die ein visueller Verlauf (Mosaik) erstellt werden soll.
+        param metric_key_prefix: Prefix für die Metriken (z.B. "eval").
+        param metric_key_separator: Trennzeichen für die Metriken (z.B. "/" oder "_"). Muss mit ReportingUtils übereinstimmen.
         """
         super().__init__(*args, **kwargs)
         self._stats_key = stats_key
         self.num_images_to_log = num_images_to_log
+        self.metric_key_prefix = metric_key_prefix
+        self.metric_key_separator = metric_key_separator
         self.last_eval_step = 0
         self.evaluation_idx = 0
         self._snapshot_logger = VisualSnapshotLogger(max_tile_size=tile_max_size)
@@ -146,7 +151,7 @@ class ImageTransformEvaluationCallback(EvalCallback):
 
         return ReportingUtils.create_mlflow_metrics(rollout_idx=self.evaluation_idx,
                                                     metrics_collection=collected_evaluation_episode_infos,
-                                                    metric_key_prefix="eval")
+                                                    metric_key_prefix=self.metric_key_prefix)
 
     def _set_history_recording(self, env, enable: bool):
         try:
@@ -172,7 +177,11 @@ class ImageTransformEvaluationCallback(EvalCallback):
                          self.evaluation_idx, self.num_timesteps, id(self.model), model_checksum)
             self.last_eval_step = self.num_timesteps
             metrics = self._run_custom_evaluation()
-            metrics["eval_model_checksum"] = model_checksum
+            
+            checksum_key = f"{self.metric_key_prefix}{self.metric_key_separator}model_checksum"
+            mean_reward_key = f"{self.metric_key_prefix}{self.metric_key_separator}mean_reward"
+            
+            metrics[checksum_key] = model_checksum
             try:
                 mlflow_helper.log_batch_metrics(metrics, step=self.evaluation_idx)
             except Exception:
@@ -181,11 +190,13 @@ class ImageTransformEvaluationCallback(EvalCallback):
             # Beispiel: loggen über SB3 logger (oder mlflow, je nach Projekt)
             logger.info("Eval step for model with checksum %s : %d: %s", model_checksum, self.evaluation_idx, str(metrics))
 
+            current_mean_reward = metrics.get(mean_reward_key)
             # optional: save best model wie EvalCallback es tut
-            if self.best_mean_reward is None or metrics["eval_mean_reward"] > self.best_mean_reward:
-                self.best_mean_reward = metrics["eval_mean_reward"]
+            if current_mean_reward is not None and (self.best_mean_reward is None or current_mean_reward > self.best_mean_reward):
+                self.best_mean_reward = current_mean_reward
                 if self.best_model_save_path is not None:
-                    self.model.save(f"{self.best_model_save_path}/best_model")
+                    save_path = f"{self.best_model_save_path}/best_model"
+                    self.model.save(save_path)
 
             # Nächster Step merken
             self.evaluation_idx += 1

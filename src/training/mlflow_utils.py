@@ -2,6 +2,7 @@ import logging
 import os
 import re
 import time
+from enum import Enum
 from functools import wraps
 from typing import Callable, Any, Optional, List
 
@@ -53,8 +54,27 @@ class MLflowParamBuilder:
             param_class_name = camelcase_to_snakecase_pattern.sub('_', param_class.__name__).lower()
             store = HyperparameterRegistry.get_store(param_class)
             for key, value in store.as_dict().items():
-                self.params[f"{param_class_name}_{key}"] = value
+                self.params[f"{param_class_name}/{key}"] = self._format_value(value)
         return self.params
+
+    def _format_value(self, value: Any) -> str:
+        if isinstance(value, Enum):
+            # Wenn der Enum-Wert ein String ist (z.B. PpoModelVariant), nutzen wir diesen (lesbarer).
+            if isinstance(value.value, str):
+                return value.value
+            # Ansonsten den Namen (z.B. WellDefinedEnvironment), da der Wert oft ein komplexes Objekt ist.
+            return value.name
+
+        if callable(value):
+            # Versuch, den Initialwert aus einer Closure zu extrahieren (z.B. bei linear_schedule)
+            # Dies ist eine Heuristik, um den Wert aus der Funktion zurückzugewinnen.
+            if hasattr(value, "__closure__") and value.__closure__:
+                for cell in value.__closure__:
+                    if isinstance(cell.cell_contents, (int, float)) and not isinstance(cell.cell_contents, bool):
+                        return f"Schedule (initial={cell.cell_contents})"
+            return f"Function: {getattr(value, '__name__', 'callable')}"
+
+        return str(value)
 
 class MLflowTagsBuilder:
     def __init__(self):

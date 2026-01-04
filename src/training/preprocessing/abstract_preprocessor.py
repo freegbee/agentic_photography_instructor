@@ -32,7 +32,7 @@ class AbstractPreprocessor(Generic[RESULT], ABC):
     def _preprocess_impl(self):
         pass
 
-    @mlflow_logging("preprocessing_duration_seconds")
+    @mlflow_logging("perf/preprocessing_duration_seconds")
     def preprocess(self) -> RESULT:
         self._preprocess_impl()
         return self.get_preprocessing_result()

@@ -12,6 +12,9 @@ pydantic~=2.11.9
 compress_pickle~=2.1.0
 mlflow~=3.5.1
 pycocotools~=2.0.10
+# performance/system metrics
+psutil~=5.9.5
+nvidia-ml-py~=13.590.44
 
 
 # Torch and torchvision installation based on platform and CUDA version

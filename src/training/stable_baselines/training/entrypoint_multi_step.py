@@ -8,7 +8,9 @@ import time
 
 from training.hyperparameter_registry import HyperparameterRegistry
 from training.stable_baselines.models.model_factory import PpoModelVariant
-from training.stable_baselines.training.hyper_params import TrainingParams, DataParams, GeneralParams
+from training.stable_baselines.hyperparameter.training_hyperparams import TrainingParams
+from training.stable_baselines.hyperparameter.general_hyperparams import GeneralParams
+from training.stable_baselines.hyperparameter.data_hyperparams import DataParams
 from training.stable_baselines.training.trainer import StableBaselineTrainer
 from transformer import POC_MULTI_ONE_STEP_TRANSFORMERS, POC_MULTI_TWO_STEP_TRANSFORMERS
 from utils.LoggingUtils import configure_logging

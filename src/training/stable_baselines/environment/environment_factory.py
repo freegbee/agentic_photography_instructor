@@ -166,7 +166,6 @@ class ImageTransformEnvFactory(AbstractEnvFactory):
         Wendet die Standard-Wrapper (Observation, Render, Success) an.
         """
         if self.use_multi_step:
-
             logger.info(f"Using MultiStepTransformWrapper with {self.steps_per_episode} steps per episode")
             env = MultiStepTransformWrapper(
                 env,

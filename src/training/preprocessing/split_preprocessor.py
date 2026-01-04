@@ -63,7 +63,7 @@ class SplitPreprocessor(AbstractPreprocessor[SplitPreprocessorResult]):
         self.random_generator = random.Random(seed)
         return self
 
-    @mlflow_logging("image_split_duration_seconds")
+    @mlflow_logging("perf/image_split_preprocessor_duration_seconds")
     def _preprocess_impl(self):
         self.effective_destination_root_path = self.image_volume_path / "split" / mlflow.active_run().info.experiment_id / mlflow.active_run().info.run_id / self.destination_root_path
         source_dataset: COCODataset = COCODataset(self.source_path, self.source_annotation_file, include_transformations=False)

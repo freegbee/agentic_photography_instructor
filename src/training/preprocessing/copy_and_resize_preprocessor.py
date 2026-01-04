@@ -11,6 +11,7 @@ from torch.utils.data import DataLoader
 from dataset.ImagePathDataset import ImagePathDataset
 from dataset.Utils import Utils
 from training.hyperparameter_registry import HyperparameterRegistry
+from training.mlflow_utils import mlflow_logging
 from training.preprocessing.abstract_preprocessor import AbstractPreprocessor
 from training.rl_training.training_params import ImagePreprocessingParams
 
@@ -37,6 +38,7 @@ class CopyAndResizePreprocessor(AbstractPreprocessor[CopyAndResizeResult]):
         self.batch_size = image_preprocessing_params["batch_size"]
         self.max_images = image_preprocessing_params.get("max_images", None)
 
+    @mlflow_logging("perf/copy_and_resize_preprocessor_duration_seconds")
     def _preprocess_impl(self):
         self.effective_destination_path = self.image_volume_path / "copyandresize" / mlflow.active_run().info.experiment_id / mlflow.active_run().info.run_id / self.destination_path
         self.effective_images_path = self.effective_destination_path / "images"

@@ -14,6 +14,9 @@ pycocotools~=2.0.10
 kaggle~=1.8.2
 pytest~=9.0.1
 pyinstrument~=5.1.1
+# performance/system metrics
+psutil~=5.9.5
+nvidia-ml-py~=13.590.44
 xxhash
 
 # Only for mlflow

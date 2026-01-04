@@ -52,29 +52,34 @@ class AbstractTrainer(ABC):
             self.mlflow_helper.end_run()
             self._active_run = None
 
-    @mlflow_logging("total_training_duration_seconds")
+    @mlflow_logging("perf/total_training_duration_seconds")
     def _run_training_pipeline(self):
         logger.info("Start run %s for experiment %s", self.run_name, self.experiment_name)
         self.load_data()
         self.preprocess()
         self.train()
         self.evaluate()
+        self.postprocess()
 
-    @mlflow_logging("load_data_duration_seconds")
+    @mlflow_logging("perf/load_data_duration_seconds")
     def load_data(self):
         self._load_data_impl()
 
-    @mlflow_logging("preprocess_duration_seconds")
+    @mlflow_logging("perf/preprocess_duration_seconds")
     def preprocess(self):
         self._preprocess_impl()
 
-    @mlflow_logging("train_duration_seconds")
+    @mlflow_logging("perf/train_duration_seconds")
     def train(self):
         self._train_impl()
 
-    @mlflow_logging("evaluate_duration_seconds")
+    @mlflow_logging("perf/evaluate_duration_seconds")
     def evaluate(self):
         self._evaluate_impl()
+
+    @mlflow_logging("perf/postprocess_duration_seconds")
+    def postprocess(self):
+        self._postprocess_impl()
 
     def log_metric(self, key: str, value, step: Optional[int] = None):
         if step is None:
@@ -113,4 +118,7 @@ class AbstractTrainer(ABC):
 
     @abstractmethod
     def _evaluate_impl(self):
+        pass
+
+    def _postprocess_impl(self):
         pass
