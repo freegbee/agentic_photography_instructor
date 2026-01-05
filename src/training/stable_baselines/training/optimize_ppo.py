@@ -1,6 +1,8 @@
+import gc
 import os
 import time
 
+import torch
 import mlflow
 import optuna
 from optuna.pruners import MedianPruner
@@ -39,9 +41,9 @@ NUM_VECTOR_ENVS = 8
 
 # Technischer Test:
 # Für den Testlauf:
-N_TRIALS = 2
-N_STARTUP_TRIALS = 1
-TOTAL_TIMESTEPS_PER_TRIAL = 2048 # Sehr kurz, nur um zu sehen ob es durchläuft
+# N_TRIALS = 2
+# N_STARTUP_TRIALS = 1
+# TOTAL_TIMESTEPS_PER_TRIAL = 2048 # Sehr kurz, nur um zu sehen ob es durchläuft
 
 
 def objective(trial: optuna.Trial):
@@ -65,8 +67,8 @@ def objective(trial: optuna.Trial):
     ent_coef = trial.suggest_float("ent_coef", 0.00001, 0.1, log=True)
     clip_range = trial.suggest_float("clip_range", 0.1, 0.4)
     n_epochs = trial.suggest_int("n_epochs", 3, 10)
-    gae_lambda = trial.suggest_float("gae_lambda", 0.9, 0.99)
-    gamma = trial.suggest_float("gamma", 0.9, 0.9999)
+    # gae_lambda = trial.suggest_float("gae_lambda", 0.9, 0.99)
+    # gamma = trial.suggest_float("gamma", 0.9, 0.9999)
 
     # Batch Size & Steps
     # WICHTIG: PPO mag es, wenn batch_size ein Teiler von (n_steps * n_envs) ist.
@@ -148,6 +150,7 @@ def objective(trial: optuna.Trial):
     # 3. TRAINING & PRUNING
     # ==========================================
 
+    trainer = None
     try:
         # Pruning Callback erstellen
         pruning_callback = OptunaPruningCallback(trial)
@@ -174,6 +177,19 @@ def objective(trial: optuna.Trial):
         print(f"Trial failed with error: {e}")
         # Bei Fehlern (z.B. OOM) geben wir einen sehr schlechten Wert zurück
         return -1000.0
+    finally:
+        # ==========================================
+        # 4. CLEANUP (Memory Leaks verhindern)
+        # ==========================================
+        if trainer is not None:
+            del trainer
+        
+        # Zwinge Python, ungenutzte Objekte freizugeben
+        gc.collect()
+        
+        # Leere den PyTorch GPU Cache, damit VRAM für den nächsten Trial frei wird
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
 
 if __name__ == "__main__":
