@@ -37,7 +37,7 @@ N_TRIALS = 50  # Wie viele Versuche soll Optuna machen?
 N_STARTUP_TRIALS = 5  # Die ersten 5 Versuche nicht prunen (um Baseline zu haben)
 N_EVALUATIONS = 5  # Wie oft pro Training soll evaluiert werden?
 TOTAL_TIMESTEPS_PER_TRIAL = 50_000  # Kürzere Trainingszeit für Optimierung (statt 300k)
-NUM_VECTOR_ENVS = 8
+NUM_VECTOR_ENVS = 4
 
 # Technischer Test:
 # Für den Testlauf:
@@ -72,7 +72,7 @@ def objective(trial: optuna.Trial):
 
     # Batch Size & Steps
     # WICHTIG: PPO mag es, wenn batch_size ein Teiler von (n_steps * n_envs) ist.
-    batch_size = trial.suggest_categorical("batch_size", [64, 128, 256, 512])
+    batch_size = trial.suggest_categorical("batch_size", [32, 64, 128, 256])
 
     # Wir wählen n_steps so, dass der Rollout Buffer ein Vielfaches der Batch Size ist
     # n_steps ist die Anzahl der Schritte PRO Environment
@@ -84,11 +84,13 @@ def objective(trial: optuna.Trial):
     if n_steps < 16:
         n_steps = 16
 
+    # Memory Constraint: Max 512 steps um OOM zu verhindern
+    if n_steps > 512:
+        n_steps = 512
+
     # Sicherstellen, dass n_steps * NUM_VECTOR_ENVS durch batch_size teilbar ist (für SB3 PPO Logik)
-    buffer_size = n_steps * NUM_VECTOR_ENVS
-    if buffer_size % batch_size != 0:
-        # Korrektur: n_steps anpassen
-        n_steps = (batch_size * n_steps_factor) // NUM_VECTOR_ENVS
+    while (n_steps * NUM_VECTOR_ENVS) % batch_size != 0:
+        n_steps -= 1
 
     # ==========================================
     # 2. SETUP (Ähnlich wie in entrypoint_ppo.py)

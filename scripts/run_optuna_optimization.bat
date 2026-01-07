@@ -1,12 +1,15 @@
 @echo off
-REM Skript zum Starten der Optuna-Optimierung ausserhalb der IDE
-REM Annahme: Dieses Skript liegt im Ordner "scripts" im Repository-Root
-
-REM Wechselt in das Verzeichnis über dem Skript-Verzeichnis (Repository Root)
+REM Change working directory to project root (one level up from scripts folder)
 cd /d "%~dp0.."
 
-REM Setzt den PYTHONPATH auf den src Ordner, damit Python die Module findet
-set PYTHONPATH=%CD%\src
+REM Load environment variables from .env file if it exists
+if exist ".env" (
+    echo Loading environment variables from .env...
+    for /f "eol=# tokens=*" %%i in (.env) do set "%%i"
+)
+
+call .venv\Scripts\activate
+set PYTHONPATH=src
 
 echo Start Optuna Optimization...
 echo PYTHONPATH set to: %PYTHONPATH%
