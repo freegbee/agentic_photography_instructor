@@ -81,15 +81,17 @@ def objective(trial: optuna.Trial):
             model_variant = PpoModelVariant.PPO_RESNET50_UNFROZEN
 
     # PPO Spezifika
-    ent_coef = trial.suggest_float("ent_coef", 0.00001, 0.1, log=True)
-    clip_range = trial.suggest_float("clip_range", 0.1, 0.4)
+    # ent_coef = trial.suggest_float("ent_coef", 0.00001, 0.1, log=True)
+    ent_coef = 5.3e-05
+    # clip_range = trial.suggest_float("clip_range", 0.1, 0.4)
+    clip_range = 0.228
     n_epochs = trial.suggest_int("n_epochs", 3, 10)
     # gae_lambda = trial.suggest_float("gae_lambda", 0.9, 0.99)
     gamma = trial.suggest_categorical("gamma", [0.95, 0.98, 0.99, 0.995])
 
     # Batch Size & Steps
     # WICHTIG: PPO mag es, wenn batch_size ein Teiler von (n_steps * n_envs) ist.
-    batch_size = trial.suggest_categorical("batch_size", [32, 64, 128, 256])
+    # batch_size = trial.suggest_categorical("batch_size", [32, 64, 128, 256])
     batch_size =  trial.suggest_categorical("batch_size", [32, 64])
 
     # Wir wählen n_steps so, dass der Rollout Buffer ein Vielfaches der Batch Size ist
@@ -237,7 +239,7 @@ if __name__ == "__main__":
 
     print(f"Start Optuna Optimization with {N_TRIALS} trials...")
     try:
-        study.optimize(objective, n_trials=N_TRIALS, timeout=TRIALS_DURATION_SECONDS, n_startup_trials=N_STARTUP_TRIALS)
+        study.optimize(objective, n_trials=N_TRIALS, timeout=TRIALS_DURATION_SECONDS)
     except KeyboardInterrupt:
         print("Optimization interrupted by user.")
     except Exception as e:
