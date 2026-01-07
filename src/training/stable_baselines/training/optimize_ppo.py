@@ -5,6 +5,7 @@ import time
 import torch
 import mlflow
 import optuna
+from mlflow.types.type_hints import model_validate
 from optuna.pruners import MedianPruner
 from optuna.samplers import TPESampler
 
@@ -33,7 +34,8 @@ configure_logging()
 fix_psutil_disk_usage_on_windows()
 
 # Globale Konstanten für die Optimierung
-N_TRIALS = 50  # Wie viele Versuche soll Optuna machen?
+N_TRIALS = 200  # Wie viele Versuche soll Optuna machen? 
+TRIALS_DURATION_SECONDS = 36 * 60 * 60  # Abbruch nach 1.5 Tagen
 N_STARTUP_TRIALS = 5  # Die ersten 5 Versuche nicht prunen (um Baseline zu haben)
 N_EVALUATIONS = 5  # Wie oft pro Training soll evaluiert werden?
 TOTAL_TIMESTEPS_PER_TRIAL = 50_000  # Kürzere Trainingszeit für Optimierung (statt 300k)
@@ -63,16 +65,32 @@ def objective(trial: optuna.Trial):
     # Learning Rate: Logarithmische Skala ist hier wichtig
     learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-3, log=True)
 
+    # ResNet switch:
+    resnet_variant = trial.suggest_categorical("backbone", ["resnet18", "resnet50"])
+    resnet_frozen = trial.suggest_categorical("freeze_backbone", [True, False])
+    model_variant: PpoModelVariant
+    if resnet_variant == "resnet18":
+        if resnet_frozen:
+            model_variant = PpoModelVariant.PPO_RESNET18_FROZEN
+        else:
+            model_variant = PpoModelVariant.PPO_RESNET18_UNFROZEN
+    elif resnet_variant == "resnet50":
+        if resnet_frozen:
+            model_variant = PpoModelVariant.PPO_RESNET50_FROZEN
+        else:
+            model_variant = PpoModelVariant.PPO_RESNET50_UNFROZEN
+
     # PPO Spezifika
     ent_coef = trial.suggest_float("ent_coef", 0.00001, 0.1, log=True)
     clip_range = trial.suggest_float("clip_range", 0.1, 0.4)
     n_epochs = trial.suggest_int("n_epochs", 3, 10)
     # gae_lambda = trial.suggest_float("gae_lambda", 0.9, 0.99)
-    # gamma = trial.suggest_float("gamma", 0.9, 0.9999)
+    gamma = trial.suggest_categorical("gamma", [0.95, 0.98, 0.99, 0.995])
 
     # Batch Size & Steps
     # WICHTIG: PPO mag es, wenn batch_size ein Teiler von (n_steps * n_envs) ist.
     batch_size = trial.suggest_categorical("batch_size", [32, 64, 128, 256])
+    batch_size =  trial.suggest_categorical("batch_size", [32, 64])
 
     # Wir wählen n_steps so, dass der Rollout Buffer ein Vielfaches der Batch Size ist
     # n_steps ist die Anzahl der Schritte PRO Environment
@@ -96,17 +114,18 @@ def objective(trial: optuna.Trial):
     # 2. SETUP (Ähnlich wie in entrypoint_ppo.py)
     # ==========================================
 
-    experiment_name = "OPTUNA_PPO_OPTIMIZATION"
+    experiment_name = "OPTUNA_PPO_OPTIMIZATION_BACKBONE"
     run_name = f"trial_{trial.number}_{int(time.time())}"
 
     # PPO Params setzen
     ppo_params = HyperparameterRegistry.get_store(PpoModelParams)
-    ppo_config = (PpoModelParamsBuilder(variant=PpoModelVariant.PPO_WITHOUT_BACKBONE,
+    ppo_config = (PpoModelParamsBuilder(variant=model_variant,
                                         n_steps=n_steps,
                                         batch_size=batch_size,
                                         n_epochs=n_epochs,
-                                        learning_rate=learning_rate)
+                                        learning_rate=learning_rate,)
                   .with_exploration_settings(ent_coef=ent_coef, clip_range=clip_range)
+                  .with_net_arch([256, 256])
                   # Wir können hier auch gamma und gae_lambda setzen, falls dein Builder das unterstützt
                   # .with_gae_settings(gamma=gamma, gae_lambda=gae_lambda)
                   .build())
@@ -199,31 +218,82 @@ if __name__ == "__main__":
     if os.name == 'nt':
         os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
+    # Speicherort für die Datenbank definieren
+    # Wir legen einen Ordner 'optuna_studies' neben dem Skript an
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    storage_dir = os.path.join(script_dir, "optuna_studies")
+    os.makedirs(storage_dir, exist_ok=True)
+    storage_url = f"sqlite:///{os.path.join(storage_dir, 'ppo_optimization.db')}"
+
     # Studie erstellen
     study = optuna.create_study(
-        study_name="ppo_optimization_flickr",
+        study_name="ppo_optimization_flickr_backbone",
+        storage=storage_url,  # Persistierung in SQLite
+        load_if_exists=True,  # Studie laden, falls sie schon existiert (Resume)
         direction="maximize",  # Wir wollen den Reward maximieren
         sampler=TPESampler(seed=42),
-        pruner=MedianPruner(n_startup_trials=N_STARTUP_TRIALS, n_warmup_steps=TOTAL_TIMESTEPS_PER_TRIAL // 3)
+        pruner=optuna.pruners.HyperbandPruner(min_resource=5, max_resource=100, reduction_factor=3),
     )
 
     print(f"Start Optuna Optimization with {N_TRIALS} trials...")
-    study.optimize(objective, n_trials=N_TRIALS)
+    try:
+        study.optimize(objective, n_trials=N_TRIALS, timeout=TRIALS_DURATION_SECONDS, n_startup_trials=N_STARTUP_TRIALS)
+    except KeyboardInterrupt:
+        print("Optimization interrupted by user.")
+    except Exception as e:
+        print(f"Optimization stopped due to error: {e}")
 
     print("--------------------------------------------------")
-    print("Best hyperparameters found:")
-    print(study.best_params)
-    print(f"Best Reward: {study.best_value}")
-    print("--------------------------------------------------")
+    try:
+        print("Best hyperparameters found:")
+        print(study.best_params)
+        print(f"Best Reward: {study.best_value}")
+        print("--------------------------------------------------")
 
-    # Speichern der besten Parameter in eine Datei
-    timestamp = time.strftime("%Y%m%d-%H%M%S")
-    filename = f"optimize_ppo_{study.study_name}_{timestamp}.optuna.txt"
-    output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
+        # Speichern der besten Parameter in eine Datei
+        timestamp = time.strftime("%Y%m%d-%H%M%S")
+        filename = f"optimize_ppo_{study.study_name}_{timestamp}.optuna.txt"
+        output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
 
-    with open(output_path, "w") as f:
-        f.write(f"# Best Reward: {study.best_value}\n")
-        for key, value in study.best_params.items():
-            f.write(f"{key}: {value}\n")
+        with open(output_path, "w") as f:
+            f.write(f"# Best Reward: {study.best_value}\n")
+            for key, value in study.best_params.items():
+                f.write(f"{key}: {value}\n")
 
-    print(f"Best hyperparameters saved to {output_path}")
+        print(f"Best hyperparameters saved to {output_path}")
+
+        # Erstellen der Analyse-Grafiken
+        print("Generating analysis plots...")
+        try:
+            from optuna.visualization import plot_optimization_history, plot_param_importances, plot_slice, plot_parallel_coordinate
+            
+            plots_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "optuna_plots")
+            os.makedirs(plots_dir, exist_ok=True)
+            
+            # 1. Optimization History (Verlauf der Optimierung)
+            fig = plot_optimization_history(study)
+            fig.write_html(os.path.join(plots_dir, f"optimization_history_{timestamp}.html"))
+            
+            # 2. Parameter Importance (Welche Parameter haben den größten Einfluss?)
+            try:
+                fig = plot_param_importances(study)
+                fig.write_html(os.path.join(plots_dir, f"param_importance_{timestamp}.html"))
+            except Exception as e:
+                print(f"Skipping param importance plot: {e}")
+
+            # 3. Slice Plot (Scatterplot für jeden Parameter einzeln)
+            fig = plot_slice(study)
+            fig.write_html(os.path.join(plots_dir, f"slice_plot_{timestamp}.html"))
+            
+            # 4. Parallel Coordinate Plot (Zusammenhänge zwischen Parametern visualisieren)
+            fig = plot_parallel_coordinate(study)
+            fig.write_html(os.path.join(plots_dir, f"parallel_coordinate_{timestamp}.html"))
+            
+            print(f"Analysis plots saved to {plots_dir}")
+        except ImportError:
+            print("Plotly is not installed. Skipping plot generation. (pip install plotly)")
+        except Exception as e:
+            print(f"Error generating plots: {e}")
+
+    except ValueError:
+        print("No successful trials found. Cannot save best parameters.")
