@@ -19,6 +19,7 @@ from training.stable_baselines.hyperparameter.ppo_model_hyperparams_builder impo
 from training.stable_baselines.hyperparameter.runtime_hyperparams import RuntimeParams
 from training.stable_baselines.utils.utils import fix_psutil_disk_usage_on_windows
 from training.stable_baselines.callbacks.optuna_pruning_callback import OptunaPruningCallback
+from training.stable_baselines.callbacks.optuna_timeout_callback import OptunaTimeoutCallback
 from training.stable_baselines.hyperparameter.runtime_params_builder import RuntimeParamsBuilder
 from training.stable_baselines.hyperparameter.task_hyperparams import TaskParams
 from training.stable_baselines.hyperparameter.task_params_builder import TaskParamsBuilder
@@ -36,6 +37,7 @@ fix_psutil_disk_usage_on_windows()
 # Globale Konstanten für die Optimierung
 N_TRIALS = 200  # Wie viele Versuche soll Optuna machen? 
 TRIALS_DURATION_SECONDS = 36 * 60 * 60  # Abbruch nach 1.5 Tagen
+TRIAL_TIMEOUT_SECONDS = 2 * 60 * 60  # Abbruch eines einzelnen Trials nach 2 Stunden
 N_STARTUP_TRIALS = 5  # Die ersten 5 Versuche nicht prunen (um Baseline zu haben)
 N_EVALUATIONS = 5  # Wie oft pro Training soll evaluiert werden?
 TOTAL_TIMESTEPS_PER_TRIAL = 50_000  # Kürzere Trainingszeit für Optimierung (statt 300k)
@@ -177,10 +179,13 @@ def objective(trial: optuna.Trial):
     try:
         # Pruning Callback erstellen
         pruning_callback = OptunaPruningCallback(trial)
+        
+        # Timeout Callback erstellen
+        timeout_callback = OptunaTimeoutCallback(timeout_seconds=TRIAL_TIMEOUT_SECONDS, verbose=1)
 
         trainer = StableBaselineTrainer(model_factory=PpoModelFactory(),
                                         model_params_class=PpoModelParams,
-                                        additional_callbacks=[pruning_callback],
+                                        additional_callbacks=[pruning_callback, timeout_callback],
                                         acquisition_client=dummy_acquisition_client)
 
         # Start Training
