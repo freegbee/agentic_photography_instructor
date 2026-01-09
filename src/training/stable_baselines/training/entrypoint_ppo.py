@@ -44,7 +44,7 @@ def main():
     # Hier definieren wir die fachlichen Parameter des Experiments.
     # ========================================================================================
     experiment_name = "SB3_POC_IMAGE_OPTIMIZATION"
-    run_description = "Flickr2k, HQ, Sensible"
+    run_description = "Flickr2k, HQ, Optuna Optimized (ResNet18)"
 
     # Daten & Umgebung
     dataset_id = "flickr2k_big_original_HQ_split_amd-win"
@@ -54,8 +54,8 @@ def main():
     max_transformations = 10
 
     # Modell Konfiguration
-    model_variant = PpoModelVariant.PPO_WITHOUT_BACKBONE
-    learning_rate = 3e-4
+    model_variant = PpoModelVariant.PPO_RESNET18_UNFROZEN
+    learning_rate = 1.02e-4
 
     # ========================================================================================
     # 2. EXECUTION MODE (THE "HOW")
@@ -73,9 +73,9 @@ def main():
         store_models = False
     else:
         target_rollout_size = 4000  # Standard PPO Größe für stabiles Lernen
-        batch_size = 100
+        batch_size = 32
         total_training_steps = 300_000
-        n_epochs = 4
+        n_epochs = 7
         run_name_prefix = run_description
         store_models = True
 
@@ -98,7 +98,9 @@ def main():
                                         batch_size=batch_size,
                                         n_epochs=n_epochs,
                                         learning_rate=learning_rate)
-                  .with_exploration_settings(ent_coef=0.01, clip_range=0.2)
+                  .with_exploration_settings(ent_coef=5.3e-05, clip_range=0.228)
+                  .with_advantage_estimation(gamma=0.995, gae_lambda=0.95)
+                  .with_net_arch([256, 256])
                   .build())
     ppo_params.set(ppo_config)
 
