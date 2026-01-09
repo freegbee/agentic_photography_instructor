@@ -85,7 +85,7 @@ class ImageOptimizationEnv(ImageTransformEnv):
             "transformer_label": transformer_label
         }
 
-        return self.current_image, reward, terminated, truncated, info
+        return self.current_image, reward if transformer_label == "STOP" else 0 , terminated, truncated, info
 
     def _is_stop_action(self, action: int) -> bool:
         return action == len(self.transformers)  # letzte action ist die stop action

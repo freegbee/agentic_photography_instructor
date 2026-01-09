@@ -44,7 +44,7 @@ def main():
     # Hier definieren wir die fachlichen Parameter des Experiments.
     # ========================================================================================
     experiment_name = "SB3_POC_IMAGE_OPTIMIZATION"
-    run_description = "Flickr2k, HQ, Optuna Optimized (ResNet18)"
+    run_description = "Flickr2k, HQ, Optuna Optimized, Final Reward"
 
     # Daten & Umgebung
     dataset_id = "flickr2k_big_original_HQ_split_amd-win"
@@ -109,7 +109,7 @@ def main():
     task_config = (TaskParamsBuilder(core_env=core_env,
                                      transformer_labels=transformer_labels,
                                      max_transformations=max_transformations)
-                   .with_rewards(success_bonus=1.0)
+                   .with_rewards(success_bonus=0.0)
                    .build())
     task_params.set(task_config)
 
