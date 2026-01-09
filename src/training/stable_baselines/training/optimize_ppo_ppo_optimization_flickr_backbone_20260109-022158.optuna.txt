@@ -1,0 +1,8 @@
+# Best Reward: 1.9307110480542382
+learning_rate: 0.00010219474214358655
+backbone: resnet18
+freeze_backbone: False
+n_epochs: 7
+gamma: 0.995
+batch_size: 32
+n_steps_factor: 6
