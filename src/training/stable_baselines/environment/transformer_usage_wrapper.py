@@ -1,0 +1,68 @@
+import logging
+from collections import Counter
+from stable_baselines3.common.vec_env import VecEnvWrapper
+
+logger = logging.getLogger(__name__)
+
+
+class TransformerUsageVecEnvWrapper(VecEnvWrapper):
+    """
+    Ein Wrapper für VecEnvs, der die Nutzung von Transformern (basierend auf 'step_history' in info) mitzählt.
+    Dient primär dazu, die Nutzung während der Evaluation zu erfassen.
+    """
+    def __init__(self, venv):
+        super().__init__(venv)
+        self.buffer_usage = Counter()
+        self.crop_stats = {"attempts": 0, "changed": 0, "score_delta_sum": 0.0}
+        self.has_data = False
+        self._warned_missing_history = False
+
+    def reset(self):
+        return self.venv.reset()
+
+    def step_wait(self):
+        obs, rews, dones, infos = self.venv.step_wait()
+        for i, info in enumerate(infos):
+            # Wir prüfen, ob 'step_history' vorhanden ist (ImageTransformEnv)
+            if 'step_history' in info:
+                if info['step_history']:
+                    # Der letzte Eintrag ist der aktuell angewendete Transformer
+                    last_step = info['step_history'][-1]
+                    label = last_step.get('label')
+                    if label:
+                        self.buffer_usage[label] += 1
+                        self.has_data = True
+                        
+                        # Crop Statistics
+                        if last_step.get('transformer_type') == 'CROP':
+                            self.crop_stats['attempts'] += 1
+                            if last_step.get('dims_changed'):
+                                self.crop_stats['changed'] += 1
+                                self.crop_stats['score_delta_sum'] += last_step.get('score_delta', 0.0)
+                    else:
+                        # Debug: Label fehlt im step_history Eintrag
+                        logger.debug("TransformerUsageVecEnvWrapper: Entry in step_history has no 'label': %s", last_step)
+            # Fallback: Wenn step_history fehlt (z.B. durch Wrapper entfernt), prüfen wir auf 'transformer_label'
+            elif 'transformer_label' in info:
+                label = info['transformer_label']
+                if label:
+                    self.buffer_usage[label] += 1
+                    self.has_data = True
+            elif not self._warned_missing_history:
+                logger.warning(f"TransformerUsageVecEnvWrapper: 'step_history' and 'transformer_label' keys missing in info dict. Keys found: {list(info.keys())}. Usage tracking will fail.")
+                self._warned_missing_history = True
+        return obs, rews, dones, infos
+
+    def pop_usage(self):
+        if not self.has_data:
+            return None
+        data = self.buffer_usage.copy()
+        self.buffer_usage.clear()
+        self.has_data = False
+        return data
+
+    def pop_crop_stats(self):
+        # Return copy and reset
+        stats = self.crop_stats.copy()
+        self.crop_stats = {"attempts": 0, "changed": 0, "score_delta_sum": 0.0}
+        return stats

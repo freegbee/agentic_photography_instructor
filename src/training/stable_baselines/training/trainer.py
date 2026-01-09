@@ -1,7 +1,7 @@
 import logging
 import os
 from pathlib import Path
-from typing import Optional, Dict, Type
+from typing import Optional, Dict, Type, List
 
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
@@ -16,6 +16,7 @@ from training.hyperparameter_registry import HyperparameterRegistry
 from training.stable_baselines.callbacks.image_transform_evaluation_callback import ImageTransformEvaluationCallback
 from training.stable_baselines.callbacks.performance_callback import MlflowPerformanceCallback
 from training.stable_baselines.callbacks.rollout_success_callback import RolloutSuccessCallback
+from training.stable_baselines.callbacks.transformer_usage_callback import TransformerUsageCallback
 from training.stable_baselines.environment.environment_factory import ImageTransformEnvFactory
 from training.stable_baselines.environment.samplers import SequentialCocoDatasetSampler, RandomCocoDatasetSampler
 from training.stable_baselines.hyperparameter.data_hyperparams import DataParams
@@ -23,6 +24,7 @@ from training.stable_baselines.hyperparameter.runtime_hyperparams import Runtime
 from training.stable_baselines.hyperparameter.task_hyperparams import TaskParams
 from training.stable_baselines.models.model_factory import AbstractModelFactory
 from training.stable_baselines.utils.utils import get_consistent_transformers
+from training.stable_baselines.environment.transformer_usage_wrapper import TransformerUsageVecEnvWrapper
 
 logger = logging.getLogger(__name__)
 
@@ -31,9 +33,13 @@ class StableBaselineTrainer(AbstractTrainer):
 
     def __init__(self,
                  model_factory: AbstractModelFactory,
-                 model_params_class: Type):
+                 model_params_class: Type,
+                 additional_callbacks: List = None,
+                 acquisition_client=None):
         self.model_factory = model_factory
         self.model_params_class = model_params_class
+        self.additional_callbacks = additional_callbacks if additional_callbacks is not None else []
+        self.best_mean_reward = -float('inf')
 
         self.runtime_params: RuntimeParams = HyperparameterRegistry.get_store(RuntimeParams).get()
         self.task_params: TaskParams = HyperparameterRegistry.get_store(TaskParams).get()
@@ -44,7 +50,7 @@ class StableBaselineTrainer(AbstractTrainer):
 
         self.model_params = HyperparameterRegistry.get_store(self.model_params_class).get()
         self.training_seed = self.runtime_params["random_seed"]
-        self.data_loader = DatasetLoadData(self.data_params["dataset_id"])
+        self.data_loader = DatasetLoadData(self.data_params["dataset_id"], acquisition_client=acquisition_client)
         self.transformers = get_consistent_transformers(self.task_params["transformer_labels"])
         self.success_bonus = self.task_params["success_bonus"]
         self.image_max_size = self.data_params["image_max_size"]
@@ -195,6 +201,9 @@ class StableBaselineTrainer(AbstractTrainer):
 
         training_vec_env = vec_env_cls(training_env_fns)
 
+        # Wrap Training Env to track transformer usage (gleiche Logik wie bei Evaluation)
+        training_vec_env = TransformerUsageVecEnvWrapper(training_vec_env)
+
         try:
             model = self.model_factory.create_model(vec_env=training_vec_env,
                                                     params=self.model_params)
@@ -237,6 +246,9 @@ class StableBaselineTrainer(AbstractTrainer):
                                               seed=self.evaluation_seed,
                                               vec_env_cls=DummyVecEnv)
 
+            # Wrap Evaluation Env to track transformer usage
+            evaluation_vec_env = TransformerUsageVecEnvWrapper(evaluation_vec_env)
+
             # Create evaluation callback
             eval_callback = ImageTransformEvaluationCallback(
                 stats_key="evaluation_episode_success",
@@ -262,7 +274,18 @@ class StableBaselineTrainer(AbstractTrainer):
             elif hasattr(model, "train_freq"):
                 logger.info("Model train_freq: %s, num_envs: %d", str(model.train_freq), training_vec_env.num_envs)
 
-            callbacks = [eval_callback, rollout_callback, performance_callback]
+            # Allow additional callbacks to hook into the evaluator (e.g. for Optuna Pruning)
+            for cb in self.additional_callbacks:
+                if hasattr(cb, "set_eval_callback"):
+                    cb.set_eval_callback(eval_callback)
+
+            # Create Transformer Usage Callback (tracks training usage + reads from eval wrapper)
+            transformer_usage_callback = TransformerUsageCallback(
+                eval_env_wrapper=evaluation_vec_env,
+                train_env_wrapper=training_vec_env)
+
+            callbacks = [eval_callback, rollout_callback, performance_callback, transformer_usage_callback]
+            callbacks.extend(self.additional_callbacks)
 
             # Start training
             model.learn(total_timesteps=self.runtime_params["total_training_steps"],
@@ -274,27 +297,38 @@ class StableBaselineTrainer(AbstractTrainer):
                 final_model_path = self.evaluation_model_save_dir / "final_model"
                 model.save(final_model_path)
 
+            # Capture best reward for external optimization (Optuna)
+            if hasattr(eval_callback, "best_mean_reward"):
+                self.best_mean_reward = eval_callback.best_mean_reward
+
             logger.info(f"Training ended for {self.experiment_name}")
 
         finally:
             # Aufräumen
             if juror_worker_pool:
-                logger.info("Stopping JurorWorkerPool...")
-                juror_worker_pool.stop()
+                try:
+                    logger.info("Stopping JurorWorkerPool...")
+                    juror_worker_pool.stop()
+                except Exception:
+                    logger.warning("Error stopping JurorWorkerPool", exc_info=True)
             
             if training_vec_env:
-                logger.info("Closing training environment...")
-                training_vec_env.close()
+                try:
+                    logger.info("Closing training environment...")
+                    training_vec_env.close()
+                except Exception:
+                    logger.warning("Error closing training environment", exc_info=True)
 
             if evaluation_vec_env:
-                logger.info("Closing evaluation environment...")
-                evaluation_vec_env.close()
+                try:
+                    logger.info("Closing evaluation environment...")
+                    evaluation_vec_env.close()
+                except Exception:
+                    logger.warning("Error closing evaluation environment", exc_info=True)
 
-            # Falls das Training crasht, wird _on_training_end nicht aufgerufen.
-            # Wir rufen es hier manuell auf (oder eine Cleanup-Methode), um temporäre Ordner zu löschen.
-            if eval_callback and hasattr(eval_callback, "_on_training_end"):
-                # Dies löscht den temporären Ordner für die Video-Frames
-                eval_callback._on_training_end()
+            # HINWEIS: SB3 ruft _on_training_end() automatisch auf (auch bei Exceptions).
+            # Ein manueller Aufruf hier führt zur doppelten Ausführung (Video-Erstellung + Löschen der Bilder),
+            # was beim zweiten Mal fehlschlägt und das Video korrumpieren kann.
 
     def _evaluate_impl(self):
         logger.info(f"Evaluation started for {self.experiment_name} with images at: {self.training_source_path}")

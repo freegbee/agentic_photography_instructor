@@ -1,0 +1,7 @@
+# Best Reward: 2.4784663362323114
+learning_rate: 0.0004141740420848789
+ent_coef: 5.331541682254355e-05
+clip_range: 0.22826294382394774
+n_epochs: 9
+batch_size: 32
+n_steps_factor: 3

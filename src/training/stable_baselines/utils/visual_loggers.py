@@ -1,5 +1,6 @@
 import logging
 import tempfile
+from collections import Counter
 from pathlib import Path
 from typing import List, Optional
 
@@ -206,6 +207,14 @@ class VisualSnapshotLogger:
         else:
             lines.append("d: N/A")
 
+        # Transformer Stats hinzufügen
+        step_history = meta.get("step_history", [])
+        if step_history:
+            counts = Counter([s.get("label") for s in step_history if s.get("label")])
+            # Die 2 häufigsten anzeigen
+            for label, count in counts.most_common(2):
+                lines.append(f"{label[:9]}: {count}")
+
         font = cv2.FONT_HERSHEY_SIMPLEX
         font_scale = 0.45
         color = (255, 255, 255)
@@ -214,7 +223,7 @@ class VisualSnapshotLogger:
 
         # Vertikal zentrieren
         total_height = len(lines) * line_spacing
-        y_start = (self._max_tile_size - total_height) // 2 + 15
+        y_start = (self._max_tile_size - total_height) // 2 + 10
 
         for idx, line in enumerate(lines):
             y = y_start + idx * line_spacing
@@ -281,20 +290,49 @@ class VisualTrainingLogger:
             if not images:
                 return
 
+            # Dimensionen müssen für viele Codecs (z.B. H.264) gerade sein
+            if max_h % 2 != 0: max_h += 1
+            if max_w % 2 != 0: max_w += 1
+
             # 2. Video Writer initialisieren
             with tempfile.TemporaryDirectory() as tmp_dir:
-                video_path = Path(tmp_dir) / "evaluation_timelapse.mp4"
-                # mp4v ist weit verbreitet, alternativ 'avc1'
-                fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-                out = cv2.VideoWriter(str(video_path), fourcc, fps, (max_w, max_h))
+                out = None
+                video_path = None
+
+                # Versuche verschiedene Codecs für maximale Kompatibilität
+                # 1. H.264 (avc1) -> .mp4 (Bevorzugt, klein & kompatibel)
+                # 2. MPEG-4 (mp4v) -> .mp4 (Guter Fallback)
+                # 3. Motion JPEG (MJPG) -> .avi (Sehr robust, aber größere Dateien)
+                attempts = [('avc1', '.mp4'), ('mp4v', '.mp4'), ('MJPG', '.avi')]
+
+                for codec, ext in attempts:
+                    try:
+                        current_path = Path(tmp_dir) / f"evaluation_timelapse{ext}"
+                        fourcc = cv2.VideoWriter_fourcc(*codec)
+                        temp_out = cv2.VideoWriter(str(current_path), fourcc, fps, (max_w, max_h))
+
+                        if temp_out.isOpened():
+                            out = temp_out
+                            video_path = current_path
+                            logger.info(f"VideoWriter initialized with codec '{codec}'")
+                            break
+                        else:
+                            logger.warning(f"VideoWriter failed to open with codec '{codec}'")
+                    except Exception as e:
+                        logger.warning(f"Exception initializing VideoWriter with codec '{codec}': {e}")
+
+                if out is None or not out.isOpened():
+                    logger.error("Failed to open VideoWriter with any codec. Video generation skipped.")
+                    return
 
                 for img in images:
                     h, w = img.shape[:2]
                     # Wenn Bild kleiner als Max, mit Schwarz auffüllen (zentrieren)
                     if h < max_h or w < max_w:
                         canvas = np.zeros((max_h, max_w, 3), dtype=np.uint8)
-                        y_off = 0
-                        x_off = 0
+                        # Zentrieren sieht besser aus und gleicht Padding für gerade Dimensionen aus
+                        y_off = (max_h - h) // 2
+                        x_off = (max_w - w) // 2
                         canvas[y_off:y_off + h, x_off:x_off + w] = img
                         out.write(canvas)
                     else:
@@ -308,3 +346,91 @@ class VisualTrainingLogger:
 
         except Exception as e:
             logger.error(f"Failed to generate evaluation video: {e}", exc_info=True)
+
+
+class VisualStatisticsLogger:
+    """
+    Erstellt statistische Visualisierungen (z.B. Balkendiagramme) mittels OpenCV
+    und loggt diese als Artefakte nach MLflow.
+    Vermeidet Matplotlib-Abhängigkeiten für Thread-Safety und Performance.
+    """
+
+    def log_transformer_distribution(self, usage_counts: dict[str, int], step: int, prefix: str = "train"):
+        if not usage_counts:
+            return
+
+        try:
+            # Sortieren nach Häufigkeit
+            sorted_items = sorted(usage_counts.items(), key=lambda x: x[1], reverse=True)
+            labels = [k for k, v in sorted_items]
+            values = [v for k, v in sorted_items]
+            
+            if not values:
+                return
+
+            # Canvas Konfiguration
+            height_per_bar = 40
+            margin_top = 40
+            margin_bottom = 20
+            margin_left = 250  # Platz für Text
+            margin_right = 100 # Platz für Zahlen
+            bar_height = 25
+            
+            img_h = margin_top + margin_bottom + (len(labels) * height_per_bar)
+            img_w = 800
+            
+            # Weißer Hintergrund
+            canvas = np.ones((img_h, img_w, 3), dtype=np.uint8) * 255
+            
+            # Titel
+            cv2.putText(canvas, f"Transformer Usage ({prefix} @ step {step})", (20, 25), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (50, 50, 50), 2, cv2.LINE_AA)
+
+            max_val = max(values)
+            total = sum(values)
+            
+            # Zeichenbereich für Balken
+            chart_width = img_w - margin_left - margin_right
+
+            for i, (label, count) in enumerate(zip(labels, values)):
+                y_pos = margin_top + (i * height_per_bar)
+                
+                # 1. Label Text (linksbündig im Margin)
+                # Text kürzen falls zu lang
+                display_label = label if len(label) < 30 else label[:27] + "..."
+                cv2.putText(canvas, display_label, (10, y_pos + 20), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1, cv2.LINE_AA)
+
+                # 2. Balken
+                if max_val > 0:
+                    bar_w = int((count / max_val) * chart_width)
+                else:
+                    bar_w = 0
+                
+                # Farbe basierend auf Hash des Labels (damit sie konsistent bleiben)
+                # Einfacher Trick für "zufällige" aber stabile Pastellfarben
+                h_val = hash(label)
+                b = (h_val & 0xFF)
+                g = ((h_val >> 8) & 0xFF)
+                r = ((h_val >> 16) & 0xFF)
+                # Abdunkeln/Aufhellen für Pastell-Look
+                color = (int(b/2 + 100), int(g/2 + 100), int(r/2 + 100))
+
+                cv2.rectangle(canvas, (margin_left, y_pos + 5), (margin_left + bar_w, y_pos + 5 + bar_height), color, -1)
+                cv2.rectangle(canvas, (margin_left, y_pos + 5), (margin_left + bar_w, y_pos + 5 + bar_height), (200, 200, 200), 1)
+
+                # 3. Wert und Prozent (rechts neben Balken)
+                percent = (count / total) * 100 if total > 0 else 0
+                text_val = f"{count} ({percent:.1f}%)"
+                cv2.putText(canvas, text_val, (margin_left + bar_w + 10, y_pos + 20), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1, cv2.LINE_AA)
+
+            # Speichern und Hochladen
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                filename = f"dist_{prefix}_{step:07d}.jpg"
+                filepath = Path(tmp_dir) / filename
+                cv2.imwrite(str(filepath), canvas)
+                mlflow.log_artifact(str(filepath), artifact_path="transformer_stats")
+
+        except Exception as e:
+            logger.error(f"Failed to log visual statistics: {e}", exc_info=True)

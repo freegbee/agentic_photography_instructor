@@ -2,6 +2,7 @@ import logging
 from pathlib import Path
 from typing import SupportsFloat, Any, List, Tuple, Optional, Dict
 
+import cv2
 import gymnasium as gym
 import matplotlib.pyplot as plt
 import numpy as np
@@ -14,6 +15,7 @@ from data_types.AgenticImage import ImageData
 from juror_client import JurorClient
 from training.stable_baselines.environment.samplers import CocoDatasetSampler
 from transformer.AbstractTransformer import AbstractTransformer
+from transformer.TransformerTypes import TransformerTypeEnum
 from utils.ImageUtils import ImageUtils
 
 logger = logging.getLogger(__name__)
@@ -33,6 +35,8 @@ class ImageTransformEnv(gym.Env):
                  seed: int = 42,
                  render_mode: str = "imshow",  # | "save"
                  render_save_dir: Path = None,
+                 keep_image_history: bool = False,
+                 history_image_max_size: int = 150
                  ):
         """
         Initialize the Image Transformation Environment.
@@ -50,6 +54,8 @@ class ImageTransformEnv(gym.Env):
         self.image_max_size = image_max_size
         self.max_transformations = max_transformations
         self.max_action_param_dim = max_action_param_dim
+        self.keep_image_history = keep_image_history
+        self.history_image_max_size = history_image_max_size
 
         # Observation: normalisierte Float32-Bilder
         # h, w = image_max_size
@@ -72,6 +78,7 @@ class ImageTransformEnv(gym.Env):
         self.current_score = None
         self.current_image_id = None
         self.step_count = 0
+        self.step_history = []
         self._rng = np.random.RandomState(seed)
 
         # Rendering parameters
@@ -118,6 +125,7 @@ class ImageTransformEnv(gym.Env):
 
         self._reset_image_properties(image_data, random_index)
         self.step_count = 0
+        self.step_history = []
         return self.current_image, {"dataset_exhausted": exhausted}
 
     def _reset_image_properties(self, image_data: ImageData, random_index: int):
@@ -176,11 +184,16 @@ class ImageTransformEnv(gym.Env):
         transformer = self.transformers[transformer_index]
 
         # Wende den Transformer auf das aktuelle Bild an
+        prev_h, prev_w = self.current_image.shape[:2]
         transformed_img = transformer.transform(self.current_image)
+        new_h, new_w = transformed_img.shape[:2]
+        dims_changed = (prev_h != new_h) or (prev_w != new_w)
 
         # Berechne die neue Punktzahl mit dem Juror-Client
         scoring_response = self.juror_client.score_ndarray_bgr(transformed_img)
         new_score = scoring_response.score
+        
+        score_delta = new_score - self.current_score
 
         # Berechne die Belohnung als Differenz der Punktzahlen
         reward = new_score - self.current_score
@@ -210,13 +223,41 @@ class ImageTransformEnv(gym.Env):
         truncated = False  # Success oder Anzahl Steps gemacht, d.h. 2
         done = True  # Success oder truncated
 
+        # History recording
+        step_info = {
+            "step": self.step_count,
+            "label": transformer.label,
+            "transformer_label": transformer.label,
+            "score": new_score,
+            "reward": reward,
+            "action": action,
+            "transformer_type": transformer.transformer_type.name if hasattr(transformer, "transformer_type") else "UNKNOWN",
+            "dims_changed": dims_changed,
+            "score_delta": score_delta
+        }
+
+        if self.keep_image_history:
+            # Resize image for history to save RAM
+            h, w = self.current_image.shape[:2]
+            scale = min(self.history_image_max_size / h, self.history_image_max_size / w)
+            if scale < 1.0:
+                new_w, new_h = int(w * scale), int(h * scale)
+                img_small = cv2.resize(self.current_image, (new_w, new_h), interpolation=cv2.INTER_AREA)
+                step_info["image"] = img_small
+            else:
+                step_info["image"] = self.current_image.copy()
+
+        self.step_history.append(step_info)
+
         info = {
             "score": new_score,
             # "param_penalty": param_penalty,
             "steps": self.step_count,
             "success": bool(success),
             "initial_score": self.initial_score,
-            "transformer_label": transformer.label
+            "action": action,
+            "transformer_label": transformer.label,
+            "step_history": self.step_history
         }
 
         logger.debug(

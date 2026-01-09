@@ -13,27 +13,18 @@ class MlflowHelper:
     _instance: Optional["MlflowHelper"] = None
     _lock = threading.Lock()
 
-    def __new__(cls, active_run: Optional[Run] = None):
+    def __new__(cls):
         if cls._instance is None:
             with cls._lock:
                 if cls._instance is None:
                     cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self, active_run: Optional[Run] = None):
+    def __init__(self):
         logger.info(f"++++ MlflowHelper.__init__ called")
         self.mlflow = mlflow
         self.mlflow_client = mlflow.tracking.MlflowClient()
-        self.active_run: Optional[Run] = active_run
         self.local_logging = False
-
-    def with_active_run(self, active_run: Run) -> 'MlflowHelper':
-        if not active_run:
-            raise ValueError("active_run must not be None")
-        if self.active_run is not None:
-            raise ValueError("active_run is already set")
-        self.active_run = active_run
-        return self
 
     def without_local_logging(self) -> 'MlflowHelper':
         self.local_logging = False
@@ -46,14 +37,14 @@ class MlflowHelper:
     def start_run(self, experiment: Experiment, run_name: str, tags_builder:MLflowTagsBuilder) -> Run:
         if self.local_logging:
             logger.info("start_run: experiment_id=%s, run_name=%s, tags=%s", experiment.experiment_id, run_name, tags_builder.build())
-        run = self.mlflow.start_run(run_name=run_name, experiment_id=experiment.experiment_id, tags=tags_builder.build())
-        self.with_active_run(run)
-        return run
+        return self.mlflow.start_run(run_name=run_name, experiment_id=experiment.experiment_id, tags=tags_builder.build())
 
     def end_run(self):
+        # Wir prüfen direkt bei MLflow, ob ein Run aktiv ist
+        active_run = self.mlflow.active_run()
         if self.local_logging:
-            logger.info("end_run called for run_id=%s", self.active_run.info.run_id if self.active_run else "None")
-        if self.active_run is not None:
+            logger.info("end_run called for run_id=%s", active_run.info.run_id if active_run else "None")
+        if active_run:
             self.mlflow.end_run()
 
     def log_metric(self, key: str, value, step: Optional[int] = None):

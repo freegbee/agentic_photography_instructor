@@ -66,6 +66,10 @@ class PpoModelParamsBuilder:
         self._params["clip_range"] = clip_range
         return self
 
+    def with_net_arch(self, net_arch: Union[list[int], dict[str, list[int]]]) -> "PpoModelParamsBuilder":
+        self._params["net_arch"] = net_arch
+        return self
+
     def with_advantage_estimation(self, gamma: float, gae_lambda: float) -> "PpoModelParamsBuilder":
         """
         Setzt Parameter für die Berechnung der Belohnungsvorteile (Advantage).

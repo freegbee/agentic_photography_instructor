@@ -36,6 +36,12 @@ class AbstractTrainer(ABC):
         self.mlflow_helper = mlflow_helper
 
     def run_training(self, run_name: Optional[str] = None):
+        # Safety check: Falls noch ein Run aktiv ist (z.B. durch vorherigen Crash), beenden wir ihn hier.
+        if mlflow.active_run():
+            logger.warning("Found an active MLflow run. Closing it before starting a new one.")
+            # Da der Helper nun stateless ist, reicht ein einfacher Aufruf
+            self.mlflow_helper.end_run()
+
         self.run_name = run_name
         self._active_run = self.mlflow_helper.start_run(run_name=self.run_name, experiment=self.experiment,
                                                         tags_builder=self.ml_flow_tags_builder)
@@ -47,8 +53,12 @@ class AbstractTrainer(ABC):
         try:
             self._run_training_pipeline()
         finally:
-            logger.info("End run %s for experiment %s with duration  %.4f", self.run_name, self.experiment_name,
-                        time.perf_counter() - start_time)
+            try:
+                logger.info("End run %s for experiment %s with duration  %.4f", self.run_name, self.experiment_name,
+                            time.perf_counter() - start_time)
+            except Exception:
+                logger.warning("Error logging run duration", exc_info=True)
+
             self.mlflow_helper.end_run()
             self._active_run = None
 

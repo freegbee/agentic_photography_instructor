@@ -15,25 +15,9 @@ if OPTIMIZE_FOR_MULTIPROCESSING:
     os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
     os.environ["NUMEXPR_NUM_THREADS"] = "1"
 
-# Fix for MLflow system metrics crash on Windows (psutil disk_usage)
-if os.name == 'nt':
-    try:
-        import psutil
-        # Monkey-patch psutil.disk_usage to suppress SystemError (bad format char)
-        _original_disk_usage = psutil.disk_usage
-
-        class _DummyUsage:
-            total = 0; used = 0; free = 0; percent = 0
-
-        def _robust_disk_usage(path):
-            try:
-                return _original_disk_usage(path)
-            except Exception:
-                return _DummyUsage()
-
-        psutil.disk_usage = _robust_disk_usage
-    except ImportError:
-        pass
+# Fix for MLflow system metrics crash on Windows
+from training.stable_baselines.utils.utils import fix_psutil_disk_usage_on_windows
+fix_psutil_disk_usage_on_windows()
 
 from training.stable_baselines.environment.welldefined_environments import WellDefinedEnvironment
 from training.hyperparameter_registry import HyperparameterRegistry
@@ -60,24 +44,24 @@ def main():
     # Hier definieren wir die fachlichen Parameter des Experiments.
     # ========================================================================================
     experiment_name = "SB3_POC_IMAGE_OPTIMIZATION"
-    run_description = "Landscapes, Multi-Optimization, Sensible"
+    run_description = "Flickr2k, HQ, Optuna Optimized, Final Reward"
 
     # Daten & Umgebung
-    dataset_id = "twenty_original_split_amd-win"
+    dataset_id = "flickr2k_big_original_HQ_split_amd-win"
     image_size = (384, 384)
     core_env = WellDefinedEnvironment.IMAGE_OPTIMIZATION
     transformer_labels = SENSIBLE_TRANSFORMERS
     max_transformations = 10
 
     # Modell Konfiguration
-    model_variant = PpoModelVariant.PPO_WITHOUT_BACKBONE
-    learning_rate = 3e-4
+    model_variant = PpoModelVariant.PPO_RESNET18_UNFROZEN
+    learning_rate = 1.02e-4
 
     # ========================================================================================
     # 2. EXECUTION MODE (THE "HOW")
     # Hier steuern wir technische Parameter für Debugging vs. echtes Training.
     # ========================================================================================
-    IS_DEBUG_RUN = True  # <--- HIER UMSCHALTEN: True für schnellen Test, False für Training
+    IS_DEBUG_RUN = False  # <--- HIER UMSCHALTEN: True für schnellen Test, False für Training
 
     if IS_DEBUG_RUN:
         print("\n!!! RUNNING IN DEBUG MODE (Short Rollouts, Fast Updates) !!!\n")
@@ -89,9 +73,9 @@ def main():
         store_models = False
     else:
         target_rollout_size = 4000  # Standard PPO Größe für stabiles Lernen
-        batch_size = 100
+        batch_size = 32
         total_training_steps = 300_000
-        n_epochs = 4
+        n_epochs = 7
         run_name_prefix = run_description
         store_models = True
 
@@ -114,7 +98,9 @@ def main():
                                         batch_size=batch_size,
                                         n_epochs=n_epochs,
                                         learning_rate=learning_rate)
-                  .with_exploration_settings(ent_coef=0.01, clip_range=0.2)
+                  .with_exploration_settings(ent_coef=5.3e-05, clip_range=0.228)
+                  .with_advantage_estimation(gamma=0.995, gae_lambda=0.95)
+                  .with_net_arch([256, 256])
                   .build())
     ppo_params.set(ppo_config)
 
@@ -123,7 +109,7 @@ def main():
     task_config = (TaskParamsBuilder(core_env=core_env,
                                      transformer_labels=transformer_labels,
                                      max_transformations=max_transformations)
-                   .with_rewards(success_bonus=1.0)
+                   .with_rewards(success_bonus=0.0)
                    .build())
     task_params.set(task_config)
 

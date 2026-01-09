@@ -1,4 +1,4 @@
-from typing import TypedDict, Optional
+from typing import TypedDict, Optional, List, Dict, Union
 
 from stable_baselines3.common.type_aliases import Schedule
 
@@ -47,3 +47,6 @@ class PpoModelParams(TypedDict):
     # Max Grad Norm: Gradient Clipping. Verhindert "explodierende Gradienten",
     # die das Training destabilisieren können. (Standard: 0.5)
     max_grad_norm: Optional[float]
+
+    # Netzwerkarchitektur von PPO "hinter" dem backbone
+    net_arch: Optional[Union[List[int], Dict[str, List[int]]]]
