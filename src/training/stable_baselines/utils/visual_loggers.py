@@ -324,3 +324,91 @@ class VisualTrainingLogger:
 
         except Exception as e:
             logger.error(f"Failed to generate evaluation video: {e}", exc_info=True)
+
+
+class VisualStatisticsLogger:
+    """
+    Erstellt statistische Visualisierungen (z.B. Balkendiagramme) mittels OpenCV
+    und loggt diese als Artefakte nach MLflow.
+    Vermeidet Matplotlib-Abhängigkeiten für Thread-Safety und Performance.
+    """
+
+    def log_transformer_distribution(self, usage_counts: dict[str, int], step: int, prefix: str = "train"):
+        if not usage_counts:
+            return
+
+        try:
+            # Sortieren nach Häufigkeit
+            sorted_items = sorted(usage_counts.items(), key=lambda x: x[1], reverse=True)
+            labels = [k for k, v in sorted_items]
+            values = [v for k, v in sorted_items]
+            
+            if not values:
+                return
+
+            # Canvas Konfiguration
+            height_per_bar = 40
+            margin_top = 40
+            margin_bottom = 20
+            margin_left = 250  # Platz für Text
+            margin_right = 100 # Platz für Zahlen
+            bar_height = 25
+            
+            img_h = margin_top + margin_bottom + (len(labels) * height_per_bar)
+            img_w = 800
+            
+            # Weißer Hintergrund
+            canvas = np.ones((img_h, img_w, 3), dtype=np.uint8) * 255
+            
+            # Titel
+            cv2.putText(canvas, f"Transformer Usage ({prefix} @ step {step})", (20, 25), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (50, 50, 50), 2, cv2.LINE_AA)
+
+            max_val = max(values)
+            total = sum(values)
+            
+            # Zeichenbereich für Balken
+            chart_width = img_w - margin_left - margin_right
+
+            for i, (label, count) in enumerate(zip(labels, values)):
+                y_pos = margin_top + (i * height_per_bar)
+                
+                # 1. Label Text (linksbündig im Margin)
+                # Text kürzen falls zu lang
+                display_label = label if len(label) < 30 else label[:27] + "..."
+                cv2.putText(canvas, display_label, (10, y_pos + 20), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1, cv2.LINE_AA)
+
+                # 2. Balken
+                if max_val > 0:
+                    bar_w = int((count / max_val) * chart_width)
+                else:
+                    bar_w = 0
+                
+                # Farbe basierend auf Hash des Labels (damit sie konsistent bleiben)
+                # Einfacher Trick für "zufällige" aber stabile Pastellfarben
+                h_val = hash(label)
+                b = (h_val & 0xFF)
+                g = ((h_val >> 8) & 0xFF)
+                r = ((h_val >> 16) & 0xFF)
+                # Abdunkeln/Aufhellen für Pastell-Look
+                color = (int(b/2 + 100), int(g/2 + 100), int(r/2 + 100))
+
+                cv2.rectangle(canvas, (margin_left, y_pos + 5), (margin_left + bar_w, y_pos + 5 + bar_height), color, -1)
+                cv2.rectangle(canvas, (margin_left, y_pos + 5), (margin_left + bar_w, y_pos + 5 + bar_height), (200, 200, 200), 1)
+
+                # 3. Wert und Prozent (rechts neben Balken)
+                percent = (count / total) * 100 if total > 0 else 0
+                text_val = f"{count} ({percent:.1f}%)"
+                cv2.putText(canvas, text_val, (margin_left + bar_w + 10, y_pos + 20), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1, cv2.LINE_AA)
+
+            # Speichern und Hochladen
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                filename = f"dist_{prefix}_{step:07d}.jpg"
+                filepath = Path(tmp_dir) / filename
+                cv2.imwrite(str(filepath), canvas)
+                mlflow.log_artifact(str(filepath), artifact_path="transformer_stats")
+
+        except Exception as e:
+            logger.error(f"Failed to log visual statistics: {e}", exc_info=True)

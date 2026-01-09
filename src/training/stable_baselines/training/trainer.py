@@ -16,6 +16,7 @@ from training.hyperparameter_registry import HyperparameterRegistry
 from training.stable_baselines.callbacks.image_transform_evaluation_callback import ImageTransformEvaluationCallback
 from training.stable_baselines.callbacks.performance_callback import MlflowPerformanceCallback
 from training.stable_baselines.callbacks.rollout_success_callback import RolloutSuccessCallback
+from training.stable_baselines.callbacks.transformer_usage_callback import TransformerUsageCallback
 from training.stable_baselines.environment.environment_factory import ImageTransformEnvFactory
 from training.stable_baselines.environment.samplers import SequentialCocoDatasetSampler, RandomCocoDatasetSampler
 from training.stable_baselines.hyperparameter.data_hyperparams import DataParams
@@ -23,6 +24,7 @@ from training.stable_baselines.hyperparameter.runtime_hyperparams import Runtime
 from training.stable_baselines.hyperparameter.task_hyperparams import TaskParams
 from training.stable_baselines.models.model_factory import AbstractModelFactory
 from training.stable_baselines.utils.utils import get_consistent_transformers
+from training.stable_baselines.environment.transformer_usage_wrapper import TransformerUsageVecEnvWrapper
 
 logger = logging.getLogger(__name__)
 
@@ -199,6 +201,9 @@ class StableBaselineTrainer(AbstractTrainer):
 
         training_vec_env = vec_env_cls(training_env_fns)
 
+        # Wrap Training Env to track transformer usage (gleiche Logik wie bei Evaluation)
+        training_vec_env = TransformerUsageVecEnvWrapper(training_vec_env)
+
         try:
             model = self.model_factory.create_model(vec_env=training_vec_env,
                                                     params=self.model_params)
@@ -241,6 +246,9 @@ class StableBaselineTrainer(AbstractTrainer):
                                               seed=self.evaluation_seed,
                                               vec_env_cls=DummyVecEnv)
 
+            # Wrap Evaluation Env to track transformer usage
+            evaluation_vec_env = TransformerUsageVecEnvWrapper(evaluation_vec_env)
+
             # Create evaluation callback
             eval_callback = ImageTransformEvaluationCallback(
                 stats_key="evaluation_episode_success",
@@ -271,7 +279,10 @@ class StableBaselineTrainer(AbstractTrainer):
                 if hasattr(cb, "set_eval_callback"):
                     cb.set_eval_callback(eval_callback)
 
-            callbacks = [eval_callback, rollout_callback, performance_callback]
+            # Create Transformer Usage Callback (tracks training usage + reads from eval wrapper)
+            transformer_usage_callback = TransformerUsageCallback(eval_env_wrapper=evaluation_vec_env)
+
+            callbacks = [eval_callback, rollout_callback, performance_callback, transformer_usage_callback]
             callbacks.extend(self.additional_callbacks)
 
             # Start training
