@@ -13,6 +13,7 @@ class TransformerUsageVecEnvWrapper(VecEnvWrapper):
     def __init__(self, venv):
         super().__init__(venv)
         self.buffer_usage = Counter()
+        self.crop_stats = {"attempts": 0, "changed": 0, "score_delta_sum": 0.0}
         self.has_data = False
         self._warned_missing_history = False
 
@@ -31,6 +32,13 @@ class TransformerUsageVecEnvWrapper(VecEnvWrapper):
                     if label:
                         self.buffer_usage[label] += 1
                         self.has_data = True
+                        
+                        # Crop Statistics
+                        if last_step.get('transformer_type') == 'CROP':
+                            self.crop_stats['attempts'] += 1
+                            if last_step.get('dims_changed'):
+                                self.crop_stats['changed'] += 1
+                                self.crop_stats['score_delta_sum'] += last_step.get('score_delta', 0.0)
                     else:
                         # Debug: Label fehlt im step_history Eintrag
                         logger.debug("TransformerUsageVecEnvWrapper: Entry in step_history has no 'label': %s", last_step)
@@ -52,3 +60,9 @@ class TransformerUsageVecEnvWrapper(VecEnvWrapper):
         self.buffer_usage.clear()
         self.has_data = False
         return data
+
+    def pop_crop_stats(self):
+        # Return copy and reset
+        stats = self.crop_stats.copy()
+        self.crop_stats = {"attempts": 0, "changed": 0, "score_delta_sum": 0.0}
+        return stats

@@ -15,6 +15,7 @@ from data_types.AgenticImage import ImageData
 from juror_client import JurorClient
 from training.stable_baselines.environment.samplers import CocoDatasetSampler
 from transformer.AbstractTransformer import AbstractTransformer
+from transformer.TransformerTypes import TransformerTypeEnum
 from utils.ImageUtils import ImageUtils
 
 logger = logging.getLogger(__name__)
@@ -183,11 +184,16 @@ class ImageTransformEnv(gym.Env):
         transformer = self.transformers[transformer_index]
 
         # Wende den Transformer auf das aktuelle Bild an
+        prev_h, prev_w = self.current_image.shape[:2]
         transformed_img = transformer.transform(self.current_image)
+        new_h, new_w = transformed_img.shape[:2]
+        dims_changed = (prev_h != new_h) or (prev_w != new_w)
 
         # Berechne die neue Punktzahl mit dem Juror-Client
         scoring_response = self.juror_client.score_ndarray_bgr(transformed_img)
         new_score = scoring_response.score
+        
+        score_delta = new_score - self.current_score
 
         # Berechne die Belohnung als Differenz der Punktzahlen
         reward = new_score - self.current_score
@@ -224,7 +230,10 @@ class ImageTransformEnv(gym.Env):
             "transformer_label": transformer.label,
             "score": new_score,
             "reward": reward,
-            "action": action
+            "action": action,
+            "transformer_type": transformer.transformer_type.name if hasattr(transformer, "transformer_type") else "UNKNOWN",
+            "dims_changed": dims_changed,
+            "score_delta": score_delta
         }
 
         if self.keep_image_history:

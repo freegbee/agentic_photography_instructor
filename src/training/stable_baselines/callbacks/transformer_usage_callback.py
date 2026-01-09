@@ -35,6 +35,18 @@ class TransformerUsageCallback(BaseCallback):
                 
                 # Visualisierung erstellen
                 self.visual_logger.log_transformer_distribution(usage, self.num_timesteps, prefix="eval")
+            
+            # Crop Stats logging
+            if hasattr(self.eval_env_wrapper, "pop_crop_stats"):
+                crop_stats = self.eval_env_wrapper.pop_crop_stats()
+                if crop_stats and crop_stats['attempts'] > 0:
+                    attempts = crop_stats['attempts']
+                    changed = crop_stats['changed']
+                    mlflow_helper.log_metric("eval_crop/attempts", attempts, step=self.num_timesteps)
+                    mlflow_helper.log_metric("eval_crop/changed_ratio", changed / attempts, step=self.num_timesteps)
+                    if changed > 0:
+                        mlflow_helper.log_metric("eval_crop/avg_score_delta_on_change", crop_stats['score_delta_sum'] / changed, step=self.num_timesteps)
+
             elif self.eval_env_wrapper.has_data: # Sollte nicht passieren wenn usage None ist, aber zur Sicherheit
                 logger.warning("TransformerUsageCallback: Eval wrapper has data flag but returned empty usage.")
         
@@ -56,6 +68,18 @@ class TransformerUsageCallback(BaseCallback):
                 
                 # Visualisierung erstellen
                 self.visual_logger.log_transformer_distribution(usage, self.num_timesteps, prefix="train")
+            
+            # Crop Stats logging
+            if hasattr(env, "pop_crop_stats"):
+                crop_stats = env.pop_crop_stats()
+                if crop_stats and crop_stats['attempts'] > 0:
+                    attempts = crop_stats['attempts']
+                    changed = crop_stats['changed']
+                    mlflow_helper.log_metric("train_crop/attempts", attempts, step=self.num_timesteps)
+                    mlflow_helper.log_metric("train_crop/changed_ratio", changed / attempts, step=self.num_timesteps)
+                    if changed > 0:
+                        mlflow_helper.log_metric("train_crop/avg_score_delta_on_change", crop_stats['score_delta_sum'] / changed, step=self.num_timesteps)
+
             else:
                 logger.warning("TransformerUsageCallback: No usage data collected during rollout (usage is empty).")
         else:
