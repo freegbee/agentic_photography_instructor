@@ -287,20 +287,33 @@ class VisualTrainingLogger:
 
             # 2. Video Writer initialisieren
             with tempfile.TemporaryDirectory() as tmp_dir:
-                video_path = Path(tmp_dir) / "evaluation_timelapse.mp4"
-                
-                # Versuch 1: avc1 (H.264) - Besser kompatibel, falls verfügbar
-                fourcc = cv2.VideoWriter_fourcc(*'avc1')
-                out = cv2.VideoWriter(str(video_path), fourcc, fps, (max_w, max_h))
+                out = None
+                video_path = None
 
-                # Versuch 2: mp4v (MPEG-4) - Fallback
-                if not out.isOpened():
-                    logger.warning("VideoWriter with 'avc1' failed, falling back to 'mp4v'")
-                    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-                    out = cv2.VideoWriter(str(video_path), fourcc, fps, (max_w, max_h))
+                # Versuche verschiedene Codecs für maximale Kompatibilität
+                # 1. H.264 (avc1) -> .mp4 (Bevorzugt, klein & kompatibel)
+                # 2. MPEG-4 (mp4v) -> .mp4 (Guter Fallback)
+                # 3. Motion JPEG (MJPG) -> .avi (Sehr robust, aber größere Dateien)
+                attempts = [('avc1', '.mp4'), ('mp4v', '.mp4'), ('MJPG', '.avi')]
 
-                if not out.isOpened():
-                    logger.error("Failed to open VideoWriter. Video generation skipped.")
+                for codec, ext in attempts:
+                    try:
+                        current_path = Path(tmp_dir) / f"evaluation_timelapse{ext}"
+                        fourcc = cv2.VideoWriter_fourcc(*codec)
+                        temp_out = cv2.VideoWriter(str(current_path), fourcc, fps, (max_w, max_h))
+
+                        if temp_out.isOpened():
+                            out = temp_out
+                            video_path = current_path
+                            logger.info(f"VideoWriter initialized with codec '{codec}'")
+                            break
+                        else:
+                            logger.warning(f"VideoWriter failed to open with codec '{codec}'")
+                    except Exception as e:
+                        logger.warning(f"Exception initializing VideoWriter with codec '{codec}': {e}")
+
+                if out is None or not out.isOpened():
+                    logger.error("Failed to open VideoWriter with any codec. Video generation skipped.")
                     return
 
                 for img in images:
