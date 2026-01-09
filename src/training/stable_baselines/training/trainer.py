@@ -280,7 +280,9 @@ class StableBaselineTrainer(AbstractTrainer):
                     cb.set_eval_callback(eval_callback)
 
             # Create Transformer Usage Callback (tracks training usage + reads from eval wrapper)
-            transformer_usage_callback = TransformerUsageCallback(eval_env_wrapper=evaluation_vec_env)
+            transformer_usage_callback = TransformerUsageCallback(
+                eval_env_wrapper=evaluation_vec_env,
+                train_env_wrapper=training_vec_env)
 
             callbacks = [eval_callback, rollout_callback, performance_callback, transformer_usage_callback]
             callbacks.extend(self.additional_callbacks)

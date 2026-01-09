@@ -1,5 +1,8 @@
+import logging
 from collections import Counter
 from stable_baselines3.common.vec_env import VecEnvWrapper
+
+logger = logging.getLogger(__name__)
 
 
 class TransformerUsageVecEnvWrapper(VecEnvWrapper):
@@ -11,6 +14,7 @@ class TransformerUsageVecEnvWrapper(VecEnvWrapper):
         super().__init__(venv)
         self.buffer_usage = Counter()
         self.has_data = False
+        self._warned_missing_history = False
 
     def reset(self):
         return self.venv.reset()
@@ -19,13 +23,26 @@ class TransformerUsageVecEnvWrapper(VecEnvWrapper):
         obs, rews, dones, infos = self.venv.step_wait()
         for i, info in enumerate(infos):
             # Wir prüfen, ob 'step_history' vorhanden ist (ImageTransformEnv)
-            if 'step_history' in info and info['step_history']:
-                # Der letzte Eintrag ist der aktuell angewendete Transformer
-                last_step = info['step_history'][-1]
-                label = last_step.get('label')
+            if 'step_history' in info:
+                if info['step_history']:
+                    # Der letzte Eintrag ist der aktuell angewendete Transformer
+                    last_step = info['step_history'][-1]
+                    label = last_step.get('label')
+                    if label:
+                        self.buffer_usage[label] += 1
+                        self.has_data = True
+                    else:
+                        # Debug: Label fehlt im step_history Eintrag
+                        logger.debug("TransformerUsageVecEnvWrapper: Entry in step_history has no 'label': %s", last_step)
+            # Fallback: Wenn step_history fehlt (z.B. durch Wrapper entfernt), prüfen wir auf 'transformer_label'
+            elif 'transformer_label' in info:
+                label = info['transformer_label']
                 if label:
                     self.buffer_usage[label] += 1
                     self.has_data = True
+            elif not self._warned_missing_history:
+                logger.warning(f"TransformerUsageVecEnvWrapper: 'step_history' and 'transformer_label' keys missing in info dict. Keys found: {list(info.keys())}. Usage tracking will fail.")
+                self._warned_missing_history = True
         return obs, rews, dones, infos
 
     def pop_usage(self):

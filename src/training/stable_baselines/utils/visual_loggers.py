@@ -1,5 +1,6 @@
 import logging
 import tempfile
+from collections import Counter
 from pathlib import Path
 from typing import List, Optional
 
@@ -206,6 +207,14 @@ class VisualSnapshotLogger:
         else:
             lines.append("d: N/A")
 
+        # Transformer Stats hinzufügen
+        step_history = meta.get("step_history", [])
+        if step_history:
+            counts = Counter([s.get("label") for s in step_history if s.get("label")])
+            # Die 2 häufigsten anzeigen
+            for label, count in counts.most_common(2):
+                lines.append(f"{label[:9]}: {count}")
+
         font = cv2.FONT_HERSHEY_SIMPLEX
         font_scale = 0.45
         color = (255, 255, 255)
@@ -214,7 +223,7 @@ class VisualSnapshotLogger:
 
         # Vertikal zentrieren
         total_height = len(lines) * line_spacing
-        y_start = (self._max_tile_size - total_height) // 2 + 15
+        y_start = (self._max_tile_size - total_height) // 2 + 10
 
         for idx, line in enumerate(lines):
             y = y_start + idx * line_spacing
