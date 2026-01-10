@@ -17,7 +17,8 @@ from training.stable_baselines.environment.multi_step_wrapper import MultiStepTr
 from training.stable_baselines.environment.samplers import CocoDatasetSampler
 from training.stable_baselines.environment.success_counting_wrapper import SuccessCountingWrapper
 from training.stable_baselines.rewards.reward_strategies import RewardStrategyEnum, StopOnlyPlainReward, \
-    ScoreDifferenceStrategy, ClippedDifferenceStrategy, StepPenalizedStrategy, StopOnlyQuadraticReward
+    ScoreDifferenceStrategy, ClippedDifferenceStrategy, StepPenalizedStrategy, StopOnlyQuadraticReward, \
+    SuccessBonusStrategyEnum, FixedSuccessBonusStrategy
 from transformer.AbstractTransformer import AbstractTransformer
 
 logger = logging.getLogger(__name__)
@@ -84,6 +85,7 @@ class ImageTransformEnvFactory(AbstractEnvFactory):
                  image_max_size: Tuple[int, int],
                  max_transformations: int,
                  success_bonus: float,
+                 success_bonus_strategy: SuccessBonusStrategyEnum,
                  step_penalty: float,
                  reward_strategy_enum: RewardStrategyEnum.STOP_ONLY_PLAIN,
                  juror_use_local: bool,
@@ -101,6 +103,7 @@ class ImageTransformEnvFactory(AbstractEnvFactory):
         self.image_max_size = image_max_size
         self.max_transformations = max_transformations
         self.success_bonus = success_bonus
+        self.success_bonus_strategy = success_bonus_strategy
         self.step_penalty = step_penalty
         self.reward_strategy_enum = reward_strategy_enum
         self.juror_use_local = juror_use_local
@@ -167,18 +170,28 @@ class ImageTransformEnvFactory(AbstractEnvFactory):
             seed=seed
         )
 
+    def _create_bonus_strategy(self):
+        match self.success_bonus_strategy:
+            case SuccessBonusStrategyEnum.FIXED:
+                return FixedSuccessBonusStrategy(bonus_amount=self.success_bonus)
+            case SuccessBonusStrategyEnum.SIGMOID:
+                return FixedSuccessBonusStrategy(bonus_amount=self.success_bonus)
+            case _:
+                raise ValueError(f"Unknown success bonus strategy: {self.success_bonus_strategy}")
+
     def _create_reward_strategy(self):
+        bonus_strategy = self._create_bonus_strategy()
         match self.reward_strategy_enum:
             case RewardStrategyEnum.STOP_ONLY_PLAIN:
-                return StopOnlyPlainReward(success_bonus=self.success_bonus, step_penalty=self.step_penalty)
+                return StopOnlyPlainReward(success_bonus_strategy=bonus_strategy, step_penalty=self.step_penalty)
             case RewardStrategyEnum.STOP_ONLY_QUADRATIC:
-                return StopOnlyQuadraticReward(success_bonus=self.success_bonus, step_penalty=self.step_penalty)
+                return StopOnlyQuadraticReward(success_bonus_strategy=bonus_strategy, step_penalty=self.step_penalty)
             case RewardStrategyEnum.SCORE_DIFFERENCE:
-                return ScoreDifferenceStrategy(success_bonus=self.success_bonus, step_penalty=self.step_penalty)
+                return ScoreDifferenceStrategy(success_bonus_strategy=bonus_strategy, step_penalty=self.step_penalty)
             case RewardStrategyEnum.CLIPPED_DIFFERENCE:
-                return ClippedDifferenceStrategy(success_bonus=self.success_bonus, step_penalty=self.step_penalty)
+                return ClippedDifferenceStrategy(success_bonus_strategy=bonus_strategy, step_penalty=self.step_penalty)
             case RewardStrategyEnum.STEP_PENALIZED:
-                return StepPenalizedStrategy(success_bonus=self.success_bonus, step_penalty=self.step_penalty)
+                return StepPenalizedStrategy(success_bonus_strategy=bonus_strategy, step_penalty=self.step_penalty)
             case _:
                 raise ValueError(f"Unknown reward strategy: {self.reward_strategy_enum}")
 
