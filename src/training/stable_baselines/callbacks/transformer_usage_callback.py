@@ -47,6 +47,13 @@ class TransformerUsageCallback(BaseCallback):
                     if changed > 0:
                         mlflow_helper.log_metric("eval_crop/avg_score_delta_on_change", crop_stats['score_delta_sum'] / changed, step=self.num_timesteps)
 
+            # MDP Stats logging
+            if hasattr(self.eval_env_wrapper, "pop_mdp_stats"):
+                mdp_stats = self.eval_env_wrapper.pop_mdp_stats()
+                if mdp_stats["total"] > 0:
+                    mlflow_helper.log_metric("eval_mdp/count", mdp_stats["count"], step=self.num_timesteps)
+                    mlflow_helper.log_metric("eval_mdp/ratio", mdp_stats["count"] / mdp_stats["total"], step=self.num_timesteps)
+
             elif self.eval_env_wrapper.has_data: # Sollte nicht passieren wenn usage None ist, aber zur Sicherheit
                 logger.warning("TransformerUsageCallback: Eval wrapper has data flag but returned empty usage.")
         
@@ -79,6 +86,13 @@ class TransformerUsageCallback(BaseCallback):
                     mlflow_helper.log_metric("train_crop/changed_ratio", changed / attempts, step=self.num_timesteps)
                     if changed > 0:
                         mlflow_helper.log_metric("train_crop/avg_score_delta_on_change", crop_stats['score_delta_sum'] / changed, step=self.num_timesteps)
+
+            # MDP Stats logging
+            if hasattr(env, "pop_mdp_stats"):
+                mdp_stats = env.pop_mdp_stats()
+                if mdp_stats["total"] > 0:
+                    mlflow_helper.log_metric("train_mdp/count", mdp_stats["count"], step=self.num_timesteps)
+                    mlflow_helper.log_metric("train_mdp/ratio", mdp_stats["count"] / mdp_stats["total"], step=self.num_timesteps)
 
             else:
                 logger.warning("TransformerUsageCallback: No usage data collected during rollout (usage is empty).")

@@ -45,6 +45,8 @@ class ImageOptimizationEnv(ImageTransformEnv):
 
         # weitere Initialisierung
         self.stop_bonus: float = 0.0        # Bonus, wenn Agent "STOP" findet
+        self.has_score_decreased = False
+        self.mdp_active = False
 
     def _calculate_action_space(self) -> Discrete[integer[Any] | Any]:
         return Discrete(len(self.transformers) + 1)  # Die Stop-Action kommt noch dazu
@@ -54,6 +56,8 @@ class ImageOptimizationEnv(ImageTransformEnv):
         self.current_image_id = image_data.id
         self.initial_score = image_data.initial_score  # hier ist der initial score unser startpunkt für die Optimierung
         self.current_score = image_data.initial_score  # und dies ist dann auch der aktuelle score
+        self.has_score_decreased = False
+        self.mdp_active = False
 
     def step(self, action) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
         action_val = int(action)
@@ -69,6 +73,13 @@ class ImageOptimizationEnv(ImageTransformEnv):
             self.current_image, self.current_score = self._transform_and_score(self.current_image,
                                                                                self.transformers[action_val])
             transformer_label = self.transformers[action_val].label
+
+        # MDP (Markov Decision Process) Detection
+        # Check if score went down and then up again within the episode
+        if self.current_score < previous_score:
+            self.has_score_decreased = True
+        elif self.current_score > previous_score and self.has_score_decreased:
+            self.mdp_active = True
 
         reward = self.reward_strategy.calculate(
             transformer_label=transformer_label,
@@ -90,7 +101,8 @@ class ImageOptimizationEnv(ImageTransformEnv):
             "steps": self.step_count,
             "success": self.current_score > self.initial_score,
             "initial_score": self.initial_score,
-            "transformer_label": transformer_label
+            "transformer_label": transformer_label,
+            "mdp": self.mdp_active
         }
 
         # Ob der reward "zwischendrin" oder nur bei "STOP" vergeben wird, entscheidet die reward strategy selber

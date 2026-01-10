@@ -14,6 +14,7 @@ class TransformerUsageVecEnvWrapper(VecEnvWrapper):
         super().__init__(venv)
         self.buffer_usage = Counter()
         self.crop_stats = {"attempts": 0, "changed": 0, "score_delta_sum": 0.0}
+        self.mdp_stats = {"count": 0, "total": 0}
         self.has_data = False
         self._warned_missing_history = False
 
@@ -51,6 +52,12 @@ class TransformerUsageVecEnvWrapper(VecEnvWrapper):
             elif not self._warned_missing_history:
                 logger.warning(f"TransformerUsageVecEnvWrapper: 'step_history' and 'transformer_label' keys missing in info dict. Keys found: {list(info.keys())}. Usage tracking will fail.")
                 self._warned_missing_history = True
+            
+            # MDP Tracking at end of episode
+            if dones[i]:
+                self.mdp_stats["total"] += 1
+                if info.get("mdp", False):
+                    self.mdp_stats["count"] += 1
         return obs, rews, dones, infos
 
     def pop_usage(self):
@@ -65,4 +72,10 @@ class TransformerUsageVecEnvWrapper(VecEnvWrapper):
         # Return copy and reset
         stats = self.crop_stats.copy()
         self.crop_stats = {"attempts": 0, "changed": 0, "score_delta_sum": 0.0}
+        return stats
+
+    def pop_mdp_stats(self):
+        # Return copy and reset
+        stats = self.mdp_stats.copy()
+        self.mdp_stats = {"count": 0, "total": 0}
         return stats

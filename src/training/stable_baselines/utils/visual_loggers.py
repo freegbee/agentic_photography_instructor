@@ -75,7 +75,14 @@ class VisualSnapshotLogger:
         # Header Row: [Empty, A, B, C, ...]
         header_row = [empty_tile(half_s, half_s)]
         for i in range(num_episodes):
-            header_row.append(self._create_text_tile(chr(65 + (i % 26)), width=full_s, height=half_s))
+            meta = metadata[i] if metadata and i < len(metadata) else {}
+            text = chr(65 + (i % 26))
+            color = (255, 255, 255) # White
+            
+            if meta.get("mdp", False):
+                text += " MDP"
+                color = (0, 255, 0) # Green
+            header_row.append(self._create_text_tile(text, width=full_s, height=half_s, color=color))
         grid_rows.append(header_row)
 
         # Info Row: [Stats, Info(0), Info(1), ...]
@@ -231,7 +238,7 @@ class VisualSnapshotLogger:
 
         return canvas
 
-    def _create_text_tile(self, text: str, width: int = None, height: int = None) -> np.ndarray:
+    def _create_text_tile(self, text: str, width: int = None, height: int = None, color: tuple = (255, 255, 255)) -> np.ndarray:
         w = width if width is not None else self._max_tile_size
         h = height if height is not None else self._max_tile_size
         canvas = np.zeros((h, w, 3), dtype=np.uint8)
@@ -240,7 +247,6 @@ class VisualSnapshotLogger:
         font = cv2.FONT_HERSHEY_SIMPLEX
         font_scale = 0.8 if len(text) > 2 else 1.0
         thickness = 2
-        color = (255, 255, 255)
 
         text_size = cv2.getTextSize(text, font, font_scale, thickness)[0]
         text_x = (w - text_size[0]) // 2
