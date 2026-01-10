@@ -10,6 +10,7 @@ from data_types.AgenticImage import ImageData
 from juror_client import JurorClient
 from training.stable_baselines.environment.image_transform_env import ImageTransformEnv
 from training.stable_baselines.environment.samplers import CocoDatasetSampler
+from training.stable_baselines.rewards.reward_strategies import AbstractRewardStrategy
 from transformer.AbstractTransformer import AbstractTransformer
 
 logger = logging.getLogger(__name__)
@@ -24,7 +25,7 @@ class ImageOptimizationEnv(ImageTransformEnv):
                  transformers: List[AbstractTransformer],
                  coco_dataset_sampler: CocoDatasetSampler,
                  juror_client: JurorClient,
-                 success_bonus: float,
+                 reward_strategy: AbstractRewardStrategy,
                  image_max_size: Tuple[int, int],
                  max_transformations: int = 5,
                  max_action_param_dim: int = 1,
@@ -34,7 +35,7 @@ class ImageOptimizationEnv(ImageTransformEnv):
         super().__init__(transformers,
                          coco_dataset_sampler,
                          juror_client,
-                         success_bonus,
+                         reward_strategy,
                          image_max_size,
                          max_transformations,
                          max_action_param_dim,
@@ -62,14 +63,21 @@ class ImageOptimizationEnv(ImageTransformEnv):
         truncated = False
 
         if self._is_stop_action(action_val):
-            reward = self._calculate_stop_reward(previous_score)
             terminated = True
             transformer_label = "STOP"
         else:
             self.current_image, self.current_score = self._transform_and_score(self.current_image,
                                                                                self.transformers[action_val])
-            reward = self._calculate_reward(previous_score, self.current_score)
             transformer_label = self.transformers[action_val].label
+
+        reward = self.reward_strategy.calculate(
+            transformer_label=transformer_label,
+            current_score=self.current_score,
+            new_score=self.current_score,
+            initial_score=self.initial_score,
+            step_count=self.step_count,
+            max_steps=self.max_transformations
+        )
 
         self.step_count += 1
         
@@ -85,7 +93,8 @@ class ImageOptimizationEnv(ImageTransformEnv):
             "transformer_label": transformer_label
         }
 
-        return self.current_image, reward if transformer_label == "STOP" else 0 , terminated, truncated, info
+        # Ob der reward "zwischendrin" oder nur bei "STOP" vergeben wird, entscheidet die reward strategy selber
+        return self.current_image, reward , terminated, truncated, info
 
     def _is_stop_action(self, action: int) -> bool:
         return action == len(self.transformers)  # letzte action ist die stop action

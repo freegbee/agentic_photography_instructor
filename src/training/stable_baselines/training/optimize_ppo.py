@@ -17,6 +17,7 @@ from training.stable_baselines.hyperparameter.data_hyperparams import DataParams
 from training.stable_baselines.hyperparameter.ppo_model_hyperparams import PpoModelParams
 from training.stable_baselines.hyperparameter.ppo_model_hyperparams_builder import PpoModelParamsBuilder
 from training.stable_baselines.hyperparameter.runtime_hyperparams import RuntimeParams
+from training.stable_baselines.rewards.reward_strategies import RewardStrategyEnum
 from training.stable_baselines.utils.utils import fix_psutil_disk_usage_on_windows
 from training.stable_baselines.callbacks.optuna_pruning_callback import OptunaPruningCallback
 from training.stable_baselines.callbacks.optuna_timeout_callback import OptunaTimeoutCallback
@@ -118,7 +119,7 @@ def objective(trial: optuna.Trial):
     # 2. SETUP (Ähnlich wie in entrypoint_ppo.py)
     # ==========================================
 
-    experiment_name = "OPTUNA_PPO_OPTIMIZATION_BACKBONE"
+    experiment_name = "OPTUNA_PPO_OPTIMIZATION_REWARD"
     run_name = f"trial_{trial.number}_{int(time.time())}"
 
     # PPO Params setzen
@@ -144,7 +145,7 @@ def objective(trial: optuna.Trial):
     task_config = (TaskParamsBuilder(core_env=WellDefinedEnvironment.IMAGE_OPTIMIZATION,
                                      transformer_labels=SENSIBLE_TRANSFORMERS,
                                      max_transformations=10)
-                   .with_rewards(success_bonus=1.0)
+                   .with_rewards(strategy=RewardStrategyEnum.STOP_ONLY_QUADRATIC, success_bonus=0.0, step_penalty=-0.01)
                    .build())
     task_params.set(task_config)
 
@@ -234,7 +235,7 @@ if __name__ == "__main__":
 
     # Studie erstellen
     study = optuna.create_study(
-        study_name="ppo_optimization_flickr_backbone",
+        study_name="ppo_optimization_flickr_rewards",
         storage=storage_url,  # Persistierung in SQLite
         load_if_exists=True,  # Studie laden, falls sie schon existiert (Resume)
         direction="maximize",  # Wir wollen den Reward maximieren

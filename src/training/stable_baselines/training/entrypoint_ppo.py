@@ -1,6 +1,7 @@
 import os
 import time
 
+from training.stable_baselines.rewards.reward_strategies import RewardStrategyEnum
 from utils.LoggingUtils import configure_logging
 
 # Konfiguration basierend auf Benchmark-Ergebnissen (8 Envs war am schnellsten auf 16 Cores)
@@ -109,7 +110,7 @@ def main():
     task_config = (TaskParamsBuilder(core_env=core_env,
                                      transformer_labels=transformer_labels,
                                      max_transformations=max_transformations)
-                   .with_rewards(success_bonus=0.0)
+                   .with_rewards(strategy=RewardStrategyEnum.STOP_ONLY_QUADRATIC, success_bonus=0.0, step_penalty=-0.01)
                    .build())
     task_params.set(task_config)
 

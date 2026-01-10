@@ -14,6 +14,7 @@ from numpy import integer, ndarray
 from data_types.AgenticImage import ImageData
 from juror_client import JurorClient
 from training.stable_baselines.environment.samplers import CocoDatasetSampler
+from training.stable_baselines.rewards.reward_strategies import AbstractRewardStrategy
 from transformer.AbstractTransformer import AbstractTransformer
 from transformer.TransformerTypes import TransformerTypeEnum
 from utils.ImageUtils import ImageUtils
@@ -28,7 +29,7 @@ class ImageTransformEnv(gym.Env):
                  transformers: List[AbstractTransformer],
                  coco_dataset_sampler: CocoDatasetSampler,
                  juror_client: JurorClient,
-                 success_bonus: float,
+                 reward_strategy: AbstractRewardStrategy,
                  image_max_size: Tuple[int, int],
                  max_transformations: int = 5,
                  max_action_param_dim: int = 1,
@@ -50,7 +51,7 @@ class ImageTransformEnv(gym.Env):
         self.transformers = transformers
         self.coco_dataset_sampler = coco_dataset_sampler
         self.juror_client = juror_client
-        self.success_bonus = success_bonus
+        self.reward_strategy = reward_strategy
         self.image_max_size = image_max_size
         self.max_transformations = max_transformations
         self.max_action_param_dim = max_action_param_dim
@@ -195,21 +196,21 @@ class ImageTransformEnv(gym.Env):
         
         score_delta = new_score - self.current_score
 
-        # Berechne die Belohnung als Differenz der Punktzahlen
-        reward = new_score - self.current_score
-
-        # optional: Penalty für große params oder jeden Schritt
-        # param_penalty = 0.01 * float(np.linalg.norm(params))
-        # step_penalty = -0.001
-        # reward = reward - param_penalty + step_penalty
-
-        # Erfolg prüfen und Bonus vergeben
+        # Erfolg prüfen (wird für Info benötigt, Reward-Berechnung übernimmt die Strategy)
         success = (new_score >= self.initial_score) if (self.initial_score is not None) else False
         if not success and abs(new_score - self.initial_score) < 0.25:
             logger.warning(
                 f"Suspiciously small score change for image id {self.current_image_id}: initial={self.initial_score}, new={new_score}")
-        if success:
-            reward += self.success_bonus
+
+        # Strategie-basierte Reward Berechnung
+        reward = self.reward_strategy.calculate(
+            transformer_label=transformer.label,
+            current_score=self.current_score,
+            new_score=new_score,
+            initial_score=self.initial_score,
+            step_count=self.step_count,
+            max_steps=self.max_transformations
+        )
 
         # Aktualisiere den Zustand (bild ist wieder normalisiert im Bereich [0,1])
         # self.current_image = self._preprocess(transformed_img)
