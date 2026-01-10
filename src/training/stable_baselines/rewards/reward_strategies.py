@@ -13,7 +13,9 @@ class RewardStrategyEnum(Enum):
 
 class SuccessBonusStrategyEnum(Enum):
     FIXED = "fixed"  # Einfacher, fixer Bonus
+    FIXED_WITH_MDP = "fixed_with_mdp"  # Fixer Bonus + Zusatzbonus bei MDP
     SIGMOID = "sigmoid"  # Dynamischer Bonus basierend auf Bildqualität (Lob)
+    SIGMOID_WITH_MDP = "sigmoid_with_mdp"  # Dynamischer Bonus basierend auf Bildqualität (Lob)
 
 
 class AbstractSuccessBonusStrategy(ABC):
@@ -21,19 +23,19 @@ class AbstractSuccessBonusStrategy(ABC):
         self.bonus_amount = bonus_amount
 
     @abstractmethod
-    def calculate(self, initial_score: float, new_score: float) -> float:
+    def calculate(self, initial_score: float, new_score: float, mdp_active: bool = False) -> float:
         pass
 
 
 class FixedSuccessBonusStrategy(AbstractSuccessBonusStrategy):
-    def calculate(self, initial_score: float, new_score: float) -> float:
+    def calculate(self, initial_score: float, new_score: float, mdp_active: bool = False) -> float:
         if initial_score is not None and new_score >= initial_score:
             return self.bonus_amount
         return 0.0
 
 
 class SigmoidSuccessBonusStrategy(AbstractSuccessBonusStrategy):
-    def calculate(self, initial_score: float, new_score: float) -> float:
+    def calculate(self, initial_score: float, new_score: float, mdp_active: bool = False) -> float:
         if initial_score is None or new_score < initial_score:
             return 0.0
 
@@ -47,6 +49,28 @@ class SigmoidSuccessBonusStrategy(AbstractSuccessBonusStrategy):
             return self.bonus_amount * (1.5 if initial_score > 5 else 0.5)
 
 
+class FixedSuccessBonusStrategyWithMdp(AbstractSuccessBonusStrategy):
+    def __init__(self, bonus_amount):
+        super().__init__(bonus_amount)
+        self.wrapped = FixedSuccessBonusStrategy(bonus_amount)
+
+    def calculate(self, initial_score: float, new_score: float, mdp_active: bool = False) -> float:
+        reward = self.wrapped.calculate(initial_score, new_score, mdp_active)
+        if mdp_active:
+            return reward + 1.0
+        return reward
+
+class SigmoidSuccessBonusStrategyWithMdp(AbstractSuccessBonusStrategy):
+    def __init__(self, bonus_amount):
+        super().__init__(bonus_amount)
+        self.wrapped = SigmoidSuccessBonusStrategy(bonus_amount)
+
+    def calculate(self, initial_score: float, new_score: float, mdp_active: bool = False) -> float:
+        reward = self.wrapped.calculate(initial_score, new_score, mdp_active)
+        if mdp_active:
+            return reward + 1.0
+        return reward
+
 class AbstractRewardStrategy(ABC):
     """
     Basisklasse für Reward-Berechnungen.
@@ -59,8 +83,8 @@ class AbstractRewardStrategy(ABC):
     def is_success(self, initial_score: float, new_score: float) -> bool:
         return initial_score is not None and new_score >= initial_score
 
-    def calculate_success_bonus(self, initial_score: float, new_score: float) -> float:
-        return self.success_bonus_strategy.calculate(initial_score, new_score)
+    def calculate_success_bonus(self, initial_score: float, new_score: float, mdp_active: bool = False) -> float:
+        return self.success_bonus_strategy.calculate(initial_score, new_score, mdp_active)
 
     @abstractmethod
     def calculate(self,
@@ -69,7 +93,8 @@ class AbstractRewardStrategy(ABC):
                   new_score: float,
                   initial_score: float,
                   step_count: int,
-                  max_steps: int) -> float:
+                  max_steps: int,
+                  mdp_active: bool = False) -> float:
         pass
 
 class AbstractStopOnlyReward(AbstractRewardStrategy):
@@ -84,12 +109,13 @@ class AbstractStopOnlyReward(AbstractRewardStrategy):
                   new_score: float,
                   initial_score: float,
                   step_count: int,
-                  max_steps: int) -> float:
+                  max_steps: int,
+                  mdp_active: bool = False) -> float:
         if transformer_label != 'STOP':
             return 0
 
         reward = self._calc_reward(new_score, initial_score)
-        bonus = self.calculate_success_bonus(initial_score, new_score)
+        bonus = self.calculate_success_bonus(initial_score, new_score, mdp_active)
         penalty = self.step_penalty * step_count
         effective_reward = reward + bonus + penalty
         return effective_reward
@@ -122,11 +148,12 @@ class ScoreDifferenceStrategy(AbstractRewardStrategy):
                   new_score: float,
                   initial_score: float,
                   step_count: int,
-                  max_steps: int) -> float:
+                  max_steps: int,
+                  mdp_active: bool = False) -> float:
         reward = new_score - current_score
 
         # Success Check
-        reward += self.calculate_success_bonus(initial_score, new_score)
+        reward += self.calculate_success_bonus(initial_score, new_score, mdp_active)
 
         return reward
 
@@ -145,10 +172,11 @@ class StepPenalizedStrategy(AbstractRewardStrategy):
                   new_score: float,
                   initial_score: float,
                   step_count: int,
-                  max_steps: int) -> float:
+                  max_steps: int,
+                  mdp_active: bool = False) -> float:
         reward = new_score - current_score
 
-        reward += self.calculate_success_bonus(initial_score, new_score)
+        reward += self.calculate_success_bonus(initial_score, new_score, mdp_active)
 
         # Zeitstrafe
         reward += self.step_penalty
@@ -171,12 +199,13 @@ class ClippedDifferenceStrategy(AbstractRewardStrategy):
                   new_score: float,
                   initial_score: float,
                   step_count: int,
-                  max_steps: int) -> float:
+                  max_steps: int,
+                  mdp_active: bool = False) -> float:
         delta = new_score - current_score
 
         # Clipping des Deltas
         reward = max(self.min_clip, min(self.max_clip, delta))
 
-        reward += self.calculate_success_bonus(initial_score, new_score)
+        reward += self.calculate_success_bonus(initial_score, new_score, mdp_active)
 
         return reward

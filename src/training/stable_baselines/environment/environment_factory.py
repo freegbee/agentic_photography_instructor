@@ -18,7 +18,8 @@ from training.stable_baselines.environment.samplers import CocoDatasetSampler
 from training.stable_baselines.environment.success_counting_wrapper import SuccessCountingWrapper
 from training.stable_baselines.rewards.reward_strategies import RewardStrategyEnum, StopOnlyPlainReward, \
     ScoreDifferenceStrategy, ClippedDifferenceStrategy, StepPenalizedStrategy, StopOnlyQuadraticReward, \
-    SuccessBonusStrategyEnum, FixedSuccessBonusStrategy
+    SuccessBonusStrategyEnum, FixedSuccessBonusStrategy, SigmoidSuccessBonusStrategy, MdpFixedSuccessBonusStrategy, \
+    SigmoidSuccessBonusStrategyWithMdp, FixedSuccessBonusStrategyWithMdp
 from transformer.AbstractTransformer import AbstractTransformer
 
 logger = logging.getLogger(__name__)
@@ -174,8 +175,12 @@ class ImageTransformEnvFactory(AbstractEnvFactory):
         match self.success_bonus_strategy:
             case SuccessBonusStrategyEnum.FIXED:
                 return FixedSuccessBonusStrategy(bonus_amount=self.success_bonus)
+            case SuccessBonusStrategyEnum.FIXED_WITH_MDP:
+                return FixedSuccessBonusStrategyWithMdp(bonus_amount=self.success_bonus)
             case SuccessBonusStrategyEnum.SIGMOID:
-                return FixedSuccessBonusStrategy(bonus_amount=self.success_bonus)
+                return SigmoidSuccessBonusStrategy(bonus_amount=self.success_bonus)
+            case SuccessBonusStrategyEnum.SIGMOID_WITH_MDP:
+                return SigmoidSuccessBonusStrategyWithMdp(bonus_amount=self.success_bonus)
             case _:
                 raise ValueError(f"Unknown success bonus strategy: {self.success_bonus_strategy}")
 

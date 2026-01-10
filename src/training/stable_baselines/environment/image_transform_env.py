@@ -203,7 +203,8 @@ class ImageTransformEnv(gym.Env):
             new_score=new_score,
             initial_score=self.initial_score,
             step_count=self.step_count,
-            max_steps=self.max_transformations
+            max_steps=self.max_transformations,
+            mdp_active=False
         )
 
         # Aktualisiere den Zustand (bild ist wieder normalisiert im Bereich [0,1])

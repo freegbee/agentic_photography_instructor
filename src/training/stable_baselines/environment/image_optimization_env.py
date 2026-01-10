@@ -90,11 +90,12 @@ class ImageOptimizationEnv(ImageTransformEnv):
 
         reward = self.reward_strategy.calculate(
             transformer_label=transformer_label,
-            current_score=self.current_score,
+            current_score=previous_score,
             new_score=self.current_score,
             initial_score=self.initial_score,
             step_count=self.step_count,
-            max_steps=self.max_transformations
+            max_steps=self.max_transformations,
+            mdp_active=self.mdp_active
         )
 
         self.step_count += 1
