@@ -2,7 +2,6 @@ import logging
 from pathlib import Path
 from typing import SupportsFloat, Any, List, Tuple, Optional, Dict
 
-import cv2
 import gymnasium as gym
 import matplotlib.pyplot as plt
 import numpy as np
@@ -16,7 +15,6 @@ from juror_client import JurorClient
 from training.stable_baselines.environment.samplers import CocoDatasetSampler
 from training.stable_baselines.rewards.reward_strategies import AbstractRewardStrategy
 from transformer.AbstractTransformer import AbstractTransformer
-from transformer.TransformerTypes import TransformerTypeEnum
 from utils.ImageUtils import ImageUtils
 
 logger = logging.getLogger(__name__)
@@ -35,9 +33,7 @@ class ImageTransformEnv(gym.Env):
                  max_action_param_dim: int = 1,
                  seed: int = 42,
                  render_mode: str = "imshow",  # | "save"
-                 render_save_dir: Path = None,
-                 keep_image_history: bool = False,
-                 history_image_max_size: int = 150
+                 render_save_dir: Path = None
                  ):
         """
         Initialize the Image Transformation Environment.
@@ -55,8 +51,6 @@ class ImageTransformEnv(gym.Env):
         self.image_max_size = image_max_size
         self.max_transformations = max_transformations
         self.max_action_param_dim = max_action_param_dim
-        self.keep_image_history = keep_image_history
-        self.history_image_max_size = history_image_max_size
 
         # Observation: normalisierte Float32-Bilder
         # h, w = image_max_size
@@ -228,7 +222,6 @@ class ImageTransformEnv(gym.Env):
         step_info = {
             "step": self.step_count,
             "label": transformer.label,
-            "transformer_label": transformer.label,
             "score": new_score,
             "reward": reward,
             "action": action,
@@ -236,17 +229,6 @@ class ImageTransformEnv(gym.Env):
             "dims_changed": dims_changed,
             "score_delta": score_delta
         }
-
-        if self.keep_image_history:
-            # Resize image for history to save RAM
-            h, w = self.current_image.shape[:2]
-            scale = min(self.history_image_max_size / h, self.history_image_max_size / w)
-            if scale < 1.0:
-                new_w, new_h = int(w * scale), int(h * scale)
-                img_small = cv2.resize(self.current_image, (new_w, new_h), interpolation=cv2.INTER_AREA)
-                step_info["image"] = img_small
-            else:
-                step_info["image"] = self.current_image.copy()
 
         self.step_history.append(step_info)
 

@@ -26,9 +26,15 @@ class TransformerUsageCallback(BaseCallback):
         # Evaluation Usage prüfen (falls Wrapper vorhanden und Daten bereitliegen)
         # Da der EvalCallback innerhalb eines Steps läuft, können wir hier prüfen, ob er fertig ist.
         if self.eval_env_wrapper:
-            usage = self.eval_env_wrapper.pop_usage()
-            if usage:
+            result = self.eval_env_wrapper.pop_usage()
+            if result:
+                usage, deltas = result
                 metrics = {f"eval_transformer_usage/{label}": count for label, count in usage.items()}
+                
+                for label, count in usage.items():
+                    if count > 0:
+                        metrics[f"eval_transformer_avg_score_delta/{label}"] = deltas[label] / count
+
                 metrics["eval_transformer_usage/total"] = sum(usage.values())
                 mlflow_helper.log_batch_metrics(metrics, step=self.num_timesteps)
                 logger.info(f"TransformerUsageCallback: Logged evaluation usage: {usage}")
@@ -66,9 +72,15 @@ class TransformerUsageCallback(BaseCallback):
         
         # Prüfen, ob die Methode existiert (falls SB3 intern weitere Wrapper hinzufügt, werden Attribute meist durchgereicht)
         if hasattr(env, "pop_usage"):
-            usage = env.pop_usage()
-            if usage:
+            result = env.pop_usage()
+            if result:
+                usage, deltas = result
                 metrics = {f"train_transformer_usage/{label}": count for label, count in usage.items()}
+                
+                for label, count in usage.items():
+                    if count > 0:
+                        metrics[f"train_transformer_avg_score_delta/{label}"] = deltas[label] / count
+
                 metrics["train_transformer_usage/total"] = sum(usage.values())
                 mlflow_helper.log_batch_metrics(metrics, step=self.num_timesteps)
                 logger.info(f"TransformerUsageCallback: Logged training usage: {usage}")

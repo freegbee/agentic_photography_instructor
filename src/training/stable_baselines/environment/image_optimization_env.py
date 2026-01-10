@@ -62,17 +62,24 @@ class ImageOptimizationEnv(ImageTransformEnv):
     def step(self, action) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
         action_val = int(action)
         previous_score = self.current_score
+        # Wir brauchen das Bild vor der Transformation, um Dimensionsänderungen zu prüfen
+        previous_image = self.current_image
 
         terminated = False
         truncated = False
+        transformer = None
+        dims_changed = False
 
         if self._is_stop_action(action_val):
             terminated = True
             transformer_label = "STOP"
         else:
+            transformer = self.transformers[action_val]
             self.current_image, self.current_score = self._transform_and_score(self.current_image,
-                                                                               self.transformers[action_val])
-            transformer_label = self.transformers[action_val].label
+                                                                               transformer)
+            transformer_label = transformer.label
+            # Prüfen auf Dimensionsänderung (für Crop Stats)
+            dims_changed = (previous_image.shape[:2] != self.current_image.shape[:2])
 
         # MDP (Markov Decision Process) Detection
         # Check if score went down and then up again within the episode
@@ -96,12 +103,30 @@ class ImageOptimizationEnv(ImageTransformEnv):
         if self.step_count >= self.max_transformations and not terminated:
             truncated = True
 
+        # History recording (analog zu ImageTransformEnv)
+        score_delta = self.current_score - previous_score
+        
+        step_info = {
+            "step": self.step_count,
+            "label": transformer_label,
+            "score": self.current_score,
+            "reward": reward,
+            "action": action,
+            "transformer_type": transformer.transformer_type.name if transformer and hasattr(transformer, "transformer_type") else "UNKNOWN",
+            "dims_changed": dims_changed,
+            "score_delta": score_delta
+        }
+
+        self.step_history.append(step_info)
+
         info = {
             "score": self.current_score,
             "steps": self.step_count,
             "success": self.current_score > self.initial_score,
             "initial_score": self.initial_score,
+            "action": action,
             "transformer_label": transformer_label,
+            "step_history": self.step_history,
             "mdp": self.mdp_active
         }
 
