@@ -18,7 +18,7 @@ from training.stable_baselines.environment.samplers import CocoDatasetSampler
 from training.stable_baselines.environment.success_counting_wrapper import SuccessCountingWrapper
 from training.stable_baselines.rewards.reward_strategies import RewardStrategyEnum, StopOnlyPlainReward, \
     ScoreDifferenceStrategy, ClippedDifferenceStrategy, StepPenalizedStrategy, StopOnlyQuadraticReward, \
-    SuccessBonusStrategyEnum, FixedSuccessBonusStrategy, SigmoidSuccessBonusStrategy, MdpFixedSuccessBonusStrategy, \
+    SuccessBonusStrategyEnum, FixedSuccessBonusStrategy, SigmoidSuccessBonusStrategy, \
     SigmoidSuccessBonusStrategyWithMdp, FixedSuccessBonusStrategyWithMdp
 from transformer.AbstractTransformer import AbstractTransformer
 
@@ -199,7 +199,6 @@ class ImageTransformEnvFactory(AbstractEnvFactory):
                 return StepPenalizedStrategy(success_bonus_strategy=bonus_strategy, step_penalty=self.step_penalty)
             case _:
                 raise ValueError(f"Unknown reward strategy: {self.reward_strategy_enum}")
-
 
     def _apply_wrappers(self, env, **kwargs):
         """
