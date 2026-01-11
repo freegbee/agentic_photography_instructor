@@ -80,11 +80,8 @@ def objective(trial: optuna.Trial):
     gamma = trial.suggest_categorical("gamma", [0.95, 0.98, 0.99, 0.995])
 
     # reward shaping
-    reward_strategy = trial.suggest_categorical("reward_strategy", [RewardStrategyEnum.SCORE_DIFFERENCE.name,
-                                                                    RewardStrategyEnum.STOP_ONLY_QUADRATIC.name,
-                                                                    RewardStrategyEnum.STOP_ONLY_PLAIN.name,
-                                                                    RewardStrategyEnum.STEP_PENALIZED.name,
-                                                                    RewardStrategyEnum.CLIPPED_DIFFERENCE.name])
+    reward_strategy = trial.suggest_categorical("reward_strategy", [RewardStrategyEnum.STOP_ONLY_QUADRATIC.name,
+                                                                    RewardStrategyEnum.STOP_ONLY_PLAIN.name])
 
     # Conditional Sampling: Je nach Reward-Strategy erlauben wir unterschiedliche Bonus-Strategien.
     # WICHTIG: Unterschiedliche Parameternamen (_stop vs _step) verhindern "Dynamic Value Space" Fehler.
@@ -101,7 +98,7 @@ def objective(trial: optuna.Trial):
             SuccessBonusStrategyEnum.SIGMOID.name
         ])
 
-    success_bonus = trial.suggest_float("success_bonus", 0.0, 1.0)
+    success_bonus = trial.suggest_float("success_bonus", 0.0, 5.0)
     step_penalty = trial.suggest_float("step_penalty", -0.1, 0.0)
 
     # ==========================================
@@ -227,7 +224,7 @@ if __name__ == "__main__":
 
     # Studie erstellen
     study = optuna.create_study(
-        study_name="ppo_optimization_flickr_rewards",
+        study_name="ppo_optimization_flickr_stop_rewards",
         storage=storage_url,  # Persistierung in SQLite
         load_if_exists=True,  # Studie laden, falls sie schon existiert (Resume)
         direction="maximize",  # Wir wollen den Reward maximieren
