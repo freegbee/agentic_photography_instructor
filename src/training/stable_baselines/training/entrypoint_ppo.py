@@ -1,7 +1,7 @@
 import os
 import time
 
-from training.stable_baselines.rewards.reward_strategies import RewardStrategyEnum
+from training.stable_baselines.rewards.reward_strategies import RewardStrategyEnum, SuccessBonusStrategyEnum
 from utils.LoggingUtils import configure_logging
 
 # Konfiguration basierend auf Benchmark-Ergebnissen (8 Envs war am schnellsten auf 16 Cores)
@@ -45,7 +45,7 @@ def main():
     # Hier definieren wir die fachlichen Parameter des Experiments.
     # ========================================================================================
     experiment_name = "SB3_POC_IMAGE_OPTIMIZATION"
-    run_description = "Flickr2k, HQ, Optuna Optimized, Final Reward"
+    run_description = "Hhe4k, HQ, Optuna Optimized, Final Reward, fixed quadratic"
 
     # Daten & Umgebung
     dataset_id = "flickr2k_big_original_HQ_split_amd-win"
@@ -56,7 +56,12 @@ def main():
 
     # Modell Konfiguration
     model_variant = PpoModelVariant.PPO_RESNET18_UNFROZEN
-    learning_rate = 1.02e-4
+    learning_rate = 5.6115164153345e-05
+    gamma=0.95
+    reward_strategy = RewardStrategyEnum.SCORE_DIFFERENCE
+    success_bonus_strategy = SuccessBonusStrategyEnum.FIXED
+    success_bonus = 4.8495492608099715
+    step_penalty = -0.016755735919957826
 
     # ========================================================================================
     # 2. EXECUTION MODE (THE "HOW")
@@ -100,7 +105,7 @@ def main():
                                         n_epochs=n_epochs,
                                         learning_rate=learning_rate)
                   .with_exploration_settings(ent_coef=5.3e-05, clip_range=0.228)
-                  .with_advantage_estimation(gamma=0.995, gae_lambda=0.95)
+                  .with_advantage_estimation(gamma=gamma, gae_lambda=0.95)
                   .with_net_arch([256, 256])
                   .build())
     ppo_params.set(ppo_config)
@@ -110,7 +115,7 @@ def main():
     task_config = (TaskParamsBuilder(core_env=core_env,
                                      transformer_labels=transformer_labels,
                                      max_transformations=max_transformations)
-                   .with_rewards(strategy=RewardStrategyEnum.STOP_ONLY_QUADRATIC, success_bonus=0.0, step_penalty=-0.01)
+                   .with_rewards(strategy=reward_strategy, success_bonus_strategy=success_bonus_strategy, success_bonus=success_bonus, step_penalty=step_penalty)
                    .build())
     task_params.set(task_config)
 
