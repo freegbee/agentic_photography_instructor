@@ -42,6 +42,9 @@ torch; sys_platform == 'darwin'
 torchvision; sys_platform == 'darwin'
 
 fiftyone~=1.8.0
+fiftyone-brain~=0.21.4
+fiftyone_db~=1.4.1
+umap-learn==0.5.9.post2
 
 # HTTP client used by juror_client
 requests
