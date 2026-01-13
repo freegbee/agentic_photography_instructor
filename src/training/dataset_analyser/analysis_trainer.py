@@ -14,8 +14,9 @@ from training.stable_baselines.hyperparameter.data_hyperparams import DataParams
 logger = logging.getLogger(__name__)
 
 class AnalysisTrainer(AbstractTrainer):
-    def __init__(self, experiment_name: str, source_dataset_id: str, acquisition_client=None):
+    def __init__(self, experiment_name: str, source_dataset_id: str, fiftyone_analysis_name: str, acquisition_client=None):
         super().__init__(experiment_name, source_dataset_id)
+        self.fiftyone_analysis_name = fiftyone_analysis_name
         self.data_params: DataParams = HyperparameterRegistry.get_store(DataParams).get()
         self.data_loader = DatasetLoadData(self.data_params["dataset_id"], acquisition_client=acquisition_client)
 
@@ -45,7 +46,7 @@ class AnalysisTrainer(AbstractTrainer):
 
         # 1. FiftyOne Dataset initialisieren
         # Namen bereinigen, da FiftyOne keine Leerzeichen/Sonderzeichen mag
-        dataset_name = f"analysis_{self.experiment_name}".replace(" ", "_")
+        dataset_name = f"analysis_{self.fiftyone_analysis_name}".replace(" ", "_")
         
         if dataset_name in fo.list_datasets():
             logger.info(f"Dataset '{dataset_name}' already exists. Deleting old version.")
