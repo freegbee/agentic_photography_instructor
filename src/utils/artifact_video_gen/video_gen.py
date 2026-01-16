@@ -1,8 +1,9 @@
 import argparse
 import logging
 import tempfile
+from datetime import datetime
 from pathlib import Path
-from typing import List
+from typing import List, Dict, Optional
 
 import cv2
 import mlflow
@@ -14,7 +15,48 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 
-def create_video_from_images(image_paths: List[Path], output_path: Path, fps: int = 2):
+def create_intro_slide(info_data: Dict[str, str], width: int, height: int) -> np.ndarray:
+    """
+    Erstellt ein Bild mit Textinformationen (schwarzer Hintergrund, weißer Text).
+    """
+    # Schwarzer Hintergrund
+    canvas = np.zeros((height, width, 3), dtype=np.uint8)
+    
+    # Schriftart Einstellungen
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    # Dynamische Skalierung basierend auf der Bildhöhe (grobe Heuristik)
+    font_scale = max(0.5, height / 1500.0)
+    thickness = max(1, int(font_scale * 2))
+    line_spacing = int(40 * font_scale * 1.5)
+    
+    x_pos = int(50 * font_scale)
+    y_pos = int(80 * font_scale)
+    
+    # Titel
+    cv2.putText(canvas, "Evaluation Run Summary", (x_pos, y_pos), font, font_scale * 1.2, (0, 255, 0), thickness + 1, cv2.LINE_AA)
+    y_pos += line_spacing * 2
+
+    # Einträge schreiben
+    for key, value in info_data.items():
+        # Key in Grau, Value in Weiß
+        key_text = f"{key}: "
+        
+        # Größe des Keys berechnen, damit Value direkt dahinter steht
+        (text_w, _), _ = cv2.getTextSize(key_text, font, font_scale, thickness)
+        
+        cv2.putText(canvas, key_text, (x_pos, y_pos), font, font_scale, (180, 180, 180), thickness, cv2.LINE_AA)
+        cv2.putText(canvas, str(value), (x_pos + text_w, y_pos), font, font_scale, (255, 255, 255), thickness, cv2.LINE_AA)
+        
+        y_pos += line_spacing
+        
+        # Falls der Text unten rausläuft, abbrechen (Sicherheitsnetz)
+        if y_pos > height - 20:
+            break
+            
+    return canvas
+
+
+def create_video_from_images(image_paths: List[Path], output_path: Path, fps: int = 2, intro_info: Optional[Dict[str, str]] = None):
     """
     Erstellt ein Video aus einer Liste von Bildpfaden.
     Achtet auf gerade Dimensionen und zentriert Bilder, falls Größen variieren.
@@ -101,6 +143,14 @@ def create_video_from_images(image_paths: List[Path], output_path: Path, fps: in
         logger.error("Failed to open VideoWriter with any codec.")
         return
 
+    # Intro Slide erstellen und schreiben (5 Sekunden lang)
+    if intro_info:
+        logger.info("Generating intro slide...")
+        intro_frame = create_intro_slide(intro_info, max_w, max_h)
+        num_intro_frames = fps * 5
+        for _ in range(num_intro_frames):
+            out.write(intro_frame)
+
     # Frames schreiben
     for img in images:
         if scale_factor < 1.0:
@@ -161,6 +211,44 @@ def main():
 
     client = MlflowClient()
 
+    # Run-Daten abfragen für das Intro
+    intro_data = {}
+    try:
+        run = client.get_run(args.run_id)
+        
+        # 1. Run Info
+        intro_data["run_uuid"] = run.info.run_id
+        if run.info.end_time:
+            dt = datetime.fromtimestamp(run.info.end_time / 1000.0)
+            intro_data["end_time"] = dt.strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            intro_data["end_time"] = "Running / Unknown"
+
+        # 2. Parameter Liste
+        param_keys = [
+            "data_params/dataset_id",
+            "ppo_model_params/ppo_model_variant",
+            "ppo_model_params/net_arch",
+            "ppo_model_params/model_learning_schedule",
+            "ppo_model_params/gamma",
+            "ppo_model_params/clip_range",
+            "ppo_model_params/ent_coef",
+            "task_params/success_bonus_strategy",
+            "task_params/success_bonus",
+            "task_params/reward_strategy",
+            "task_params/step_penalty"
+        ]
+
+        for p_key in param_keys:
+            # Nur den Teil nach dem letzten Slash als Name verwenden
+            display_name = p_key.split('/')[-1]
+            # Wert holen, default "N/A" falls nicht vorhanden
+            val = run.data.params.get(p_key, "N/A")
+            intro_data[display_name] = val
+            
+    except Exception as e:
+        logger.warning(f"Could not fetch run details for intro: {e}")
+
     logger.info(f"Connecting to MLflow and downloading artifacts for run {args.run_id}...")
 
     with tempfile.TemporaryDirectory() as tmp_dir:
@@ -185,7 +273,7 @@ def main():
         logger.info(f"Found {len(image_paths)} images. Starting video generation...")
 
         output_path = Path(args.output).resolve()
-        create_video_from_images(image_paths, output_path, args.fps)
+        create_video_from_images(image_paths, output_path, args.fps, intro_info=intro_data)
 
 
 if __name__ == "__main__":
