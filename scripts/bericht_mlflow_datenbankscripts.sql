@@ -98,7 +98,7 @@ FROM
     generate_series(0, 74, 1) AS s(step)
 LEFT JOIN
     metrics m
-    ON m.key = 'eval_transformer_usage/CA_COOLNESS'
+    ON m.key = 'eval_transformer_usage/LI_LIGHTNESS_DEC_WEAK'
     AND m.run_uuid IN ('eefeb7e047784d5e9584276505d2f12c', '105c494bca5943cdbb78d7365291d505', '0a0deea790034af3bb521bbc61dbbcbe')
     -- HIER ist die korrigierte Logik:
     -- Wir schauen, ob der normalisierte Step aus der DB (1, 2, 3...) 
@@ -126,7 +126,7 @@ FROM
 LEFT JOIN
     metrics m
     ON ((s.step + 0) * 1) = m.step
-    AND key = 'eval/mean_episodes_len'
+    AND key = 'eval/mean_reward'
     AND run_uuid IN ('eefeb7e047784d5e9584276505d2f12c', '105c494bca5943cdbb78d7365291d505', '0a0deea790034af3bb521bbc61dbbcbe')
 GROUP BY
     s.step
