@@ -296,6 +296,16 @@ class VisualTrainingLogger:
             if not images:
                 return
 
+            # OpenH264 Limit Check
+            MAX_PIXELS = 3840 * 2160
+            current_pixels = max_w * max_h
+            scale_factor = 1.0
+            if current_pixels > MAX_PIXELS:
+                scale_factor = (MAX_PIXELS / current_pixels) ** 0.5
+                logger.warning(f"Video dimensions {max_w}x{max_h} too large. Scaling down by {scale_factor:.2f}.")
+                max_w = int(max_w * scale_factor)
+                max_h = int(max_h * scale_factor)
+
             # Dimensionen müssen für viele Codecs (z.B. H.264) gerade sein
             if max_h % 2 != 0: max_h += 1
             if max_w % 2 != 0: max_w += 1
@@ -306,10 +316,11 @@ class VisualTrainingLogger:
                 video_path = None
 
                 # Versuche verschiedene Codecs für maximale Kompatibilität
-                # 1. H.264 (avc1) -> .mp4 (Bevorzugt, klein & kompatibel)
-                # 2. MPEG-4 (mp4v) -> .mp4 (Guter Fallback)
-                # 3. Motion JPEG (MJPG) -> .avi (Sehr robust, aber größere Dateien)
-                attempts = [('avc1', '.mp4'), ('mp4v', '.mp4'), ('MJPG', '.avi')]
+                # 1. avc1 (H.264) -> .mp4
+                # 2. h264 (H.264) -> .mp4
+                # 3. XVID (MPEG-4) -> .avi
+                # 4. MJPG -> .avi
+                attempts = [('avc1', '.mp4'), ('h264', '.mp4'), ('XVID', '.avi'), ('mp4v', '.avi'), ('MJPG', '.avi')]
 
                 for codec, ext in attempts:
                     try:
@@ -324,6 +335,8 @@ class VisualTrainingLogger:
                             break
                         else:
                             logger.warning(f"VideoWriter failed to open with codec '{codec}'")
+                            if codec in ['avc1', 'h264']:
+                                logger.info("Hint: Missing 'openh264-1.8.0-win64.dll'? Falling back to other codecs.")
                     except Exception as e:
                         logger.warning(f"Exception initializing VideoWriter with codec '{codec}': {e}")
 
@@ -332,13 +345,17 @@ class VisualTrainingLogger:
                     return
 
                 for img in images:
+                    if scale_factor < 1.0:
+                        h_orig, w_orig = img.shape[:2]
+                        img = cv2.resize(img, (int(w_orig * scale_factor), int(h_orig * scale_factor)), interpolation=cv2.INTER_AREA)
+
                     h, w = img.shape[:2]
                     # Wenn Bild kleiner als Max, mit Schwarz auffüllen (zentrieren)
                     if h < max_h or w < max_w:
                         canvas = np.zeros((max_h, max_w, 3), dtype=np.uint8)
-                        # Zentrieren sieht besser aus und gleicht Padding für gerade Dimensionen aus
-                        y_off = (max_h - h) // 2
-                        x_off = (max_w - w) // 2
+                        # Links-Oben Ausrichtung, um Springen bei variabler Höhe zu vermeiden
+                        y_off = 0
+                        x_off = 0
                         canvas[y_off:y_off + h, x_off:x_off + w] = img
                         out.write(canvas)
                     else:
