@@ -38,7 +38,7 @@ JOIN metrics m_train
     -- Hier ist die geforderte Logik: Train Step = 4000 * Eval Step
     AND m_train.step = m_eval.step
 WHERE
-    m_eval.run_uuid = '105c494bca5943cdbb78d7365291d505'
+    m_eval.run_uuid = '0a0deea790034af3bb521bbc61dbbcbe'
     AND m_eval.key = 'eval/success_rate'
     AND m_train.key = 'train/success_rate'
 ORDER BY
@@ -58,7 +58,7 @@ JOIN metrics m_train
     -- Hier ist die geforderte Logik: Train Step = 4000 * Eval Step
     AND m_train.step = m_eval.step
 WHERE
-    m_eval.run_uuid = '105c494bca5943cdbb78d7365291d505'
+    m_eval.run_uuid = '0a0deea790034af3bb521bbc61dbbcbe'
     AND m_eval.key = 'eval/mean_reward'
     AND m_train.key = 'train/mean_reward'
 ORDER BY
@@ -98,7 +98,7 @@ FROM
     generate_series(0, 74, 1) AS s(step)
 LEFT JOIN
     metrics m
-    ON m.key = 'eval_transformer_usage/CA_COOLNESS'
+    ON m.key = 'eval_transformer_usage/LI_LIGHTNESS_DEC_WEAK'
     AND m.run_uuid IN ('eefeb7e047784d5e9584276505d2f12c', '105c494bca5943cdbb78d7365291d505', '0a0deea790034af3bb521bbc61dbbcbe')
     -- HIER ist die korrigierte Logik:
     -- Wir schauen, ob der normalisierte Step aus der DB (1, 2, 3...) 
@@ -126,7 +126,7 @@ FROM
 LEFT JOIN
     metrics m
     ON ((s.step + 0) * 1) = m.step
-    AND key = 'eval/mean_episodes_len'
+    AND key = 'eval/mean_reward'
     AND run_uuid IN ('eefeb7e047784d5e9584276505d2f12c', '105c494bca5943cdbb78d7365291d505', '0a0deea790034af3bb521bbc61dbbcbe')
 GROUP BY
     s.step
@@ -143,7 +143,7 @@ and    key = 'eval/mean_episodes_len'
 
 -- =============== HEatmap
 SELECT
-    REPLACE(k.key, 'train_transformer_usage/', '') AS layer_metric,
+    REPLACE(k.key, 'eval_transformer_usage/', '') AS layer_metric,
     (s.step / 4000) as step,
     m.value
 FROM
@@ -152,7 +152,7 @@ FROM
 CROSS JOIN
     -- 2. Alle vorkommenden Keys ermitteln (Y-Achse Gerüst)
     (SELECT DISTINCT key FROM metrics
-     WHERE run_uuid = 'eefeb7e047784d5e9584276505d2f12c' AND key LIKE 'train_transformer_usage/%') k
+     WHERE run_uuid = 'eefeb7e047784d5e9584276505d2f12c' AND key LIKE 'eval_transformer_usage/%') k
 LEFT JOIN
     metrics m
     ON m.step = s.step
@@ -160,3 +160,106 @@ LEFT JOIN
     AND m.run_uuid = 'eefeb7e047784d5e9584276505d2f12c'
 ORDER BY
     layer_metric, s.step;
+
+
+-- =================== Überblick finalized runs
+WITH target_runs AS (
+    -- 1. Schritt: Nur die Run-UUIDs holen, die den gewünschten Tag haben
+    SELECT run_uuid
+    FROM tags
+    WHERE key = 'finalized'       -- z.B. 'experiment_group'
+      AND value = 'true'    -- z.B. 'baseline_v2'
+),
+run_params AS (
+    -- 2. Schritt: Parameter pivotieren (Zeilen zu Spalten)
+    -- Hier definieren Sie, welche Parameter Sie sehen wollen
+    -- task_params/success_bonus, task_params/success_bonus_strategy, task_params/step_penalty, task_params/reward_strategy
+    SELECT
+        p.run_uuid,
+        MAX(p.value) FILTER (WHERE p.key = 'ppo_model_params/ppo_model_variant') AS model_variant,
+        MAX(p.value) FILTER (WHERE p.key = 'ppo_model_params/model_learning_schedule') AS learning_schedule,
+        MAX(p.value) FILTER (WHERE p.key = 'ppo_model_params/gamma') AS gamma,
+        MAX(p.value) FILTER (WHERE p.key = 'ppo_model_params/clip_range') AS clip_range,
+        MAX(p.value) FILTER (WHERE p.key = 'ppo_model_params/ent_coef') AS ent_coef,
+        MAX(p.value) FILTER (WHERE p.key = 'ppo_model_params/net_arch') AS net_arch,
+        MAX(p.value) FILTER (WHERE p.key = 'task_params/success_bonus_strategy') AS success_bonus_strategy,
+        MAX(p.value) FILTER (WHERE p.key = 'task_params/success_bonus') AS success_bonus,
+        MAX(p.value) FILTER (WHERE p.key = 'task_params/reward_strategy') AS reward_strategy,
+        MAX(p.value) FILTER (WHERE p.key = 'task_params/step_penalty') AS step_penalty,
+        MAX(p.value) FILTER (WHERE p.key = 'ppo_model_params/batch_size') AS batch_size,
+        MAX(p.value) FILTER (WHERE p.key = 'ppo_model_params/rollout_size') AS rollout_size
+    FROM params p
+    JOIN target_runs t ON p.run_uuid = t.run_uuid
+    GROUP BY p.run_uuid
+),
+run_stats AS (
+    -- 3. Schritt: Metriken aggregieren (Mean, Q1, Q3)
+    SELECT
+        m.run_uuid,
+        -- --- Eval Metrics ---
+        AVG(m.value) FILTER (WHERE key = 'eval/mean_reward') AS eval_mean,
+        -- 1. Quartil (25%)
+        percentile_cont(0.25) WITHIN GROUP (ORDER BY m.value) 
+            FILTER (WHERE key = 'eval/mean_reward') AS eval_q1,
+        -- 3. Quartil (75%)
+        percentile_cont(0.75) WITHIN GROUP (ORDER BY m.value) 
+            FILTER (WHERE key = 'eval/mean_reward') AS eval_q3,
+        -- --- Train Metrics ---
+        AVG(m.value) FILTER (WHERE key = 'train/mean_reward') AS train_mean,
+        percentile_cont(0.25) WITHIN GROUP (ORDER BY m.value) 
+            FILTER (WHERE key = 'train/mean_reward') AS train_q1,
+        percentile_cont(0.75) WITHIN GROUP (ORDER BY m.value) 
+            FILTER (WHERE key = 'train/mean_reward') AS train_q3
+    FROM metrics m
+    JOIN target_runs t ON m.run_uuid = t.run_uuid
+    WHERE m.key IN ('eval/mean_reward', 'train/mean_reward')
+    GROUP BY m.run_uuid
+),
+run_description as (
+   select
+       r.run_uuid,
+       r.lifecycle_stage, 
+       r.end_time,
+       to_timestamp(r.end_time/ 1000.0) AT TIME ZONE 'Europe/Zurich' AS lokal_zeit_komplett,
+       to_char(to_timestamp(r.end_time/ 1000.0) AT TIME ZONE 'Europe/Zurich', 'DD.MM.YYYY HH24:MI:SS') AS formatierter_string
+   from runs r
+   JOIN target_runs t ON r.run_uuid = t.run_uuid
+   GROUP BY r.run_uuid
+)
+-- 4. Schritt: Alles zusammenfügen
+SELECT
+    t.run_uuid,
+    -- Kopfwerte
+    r.formatierter_string as ende,
+    -- Parameter Spalten
+    p. model_variant,
+    p.learning_schedule,
+    p.gamma,
+    p.clip_range,
+    p.ent_coef,
+    p.net_arch,
+    p.success_bonus_strategy,
+    p.success_bonus ,
+    p.reward_strategy,
+    p.step_penalty ,
+    p.batch_size,
+    -- Eval Statistik
+    s.eval_mean,
+    s.eval_q1,
+    s.eval_q3,
+    -- Train Statistik
+    s.train_mean,
+    s.train_q1,
+    s.train_q3
+FROM target_runs t
+LEFT JOIN run_params p ON t.run_uuid = p.run_uuid
+LEFT JOIN run_stats s ON t.run_uuid = s.run_uuid
+left join run_description r on t.run_uuid = r.run_uuid
+where r.lifecycle_stage = 'active'
+order by r.end_time;
+
+
+select * from runs;
+
+select *        
+   from runs r

@@ -8,6 +8,10 @@ optuna-dashboard==0.20.0
 numpy~=2.2.6
 phx-class-registry~=5.1.1
 matplotlib~=3.10.6
+pandas
+seaborn
+sqlalchemy
+psycopg2-binary
 transformers~=4.56.2
 pillow~=11.3.0
 pydantic~=2.11.9
