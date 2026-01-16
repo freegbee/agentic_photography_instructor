@@ -14,28 +14,36 @@ from training.stable_baselines.hyperparameter.data_hyperparams import DataParams
 logger = logging.getLogger(__name__)
 
 class AnalysisTrainer(AbstractTrainer):
-    def __init__(self, experiment_name: str, source_dataset_id: str, fiftyone_analysis_name: str, acquisition_client=None):
+    def __init__(self, experiment_name: str, source_dataset_id: str, fiftyone_analysis_name: str, acquisition_client=None, split: bool = False):
         super().__init__(experiment_name, source_dataset_id)
         self.fiftyone_analysis_name = fiftyone_analysis_name
         self.data_params: DataParams = HyperparameterRegistry.get_store(DataParams).get()
         self.data_loader = DatasetLoadData(self.data_params["dataset_id"], acquisition_client=acquisition_client)
+        self.split=split
 
     def _load_data_impl(self):
         result = self.data_loader.load_data()
         self.training_source_path = result.destination_dir
         logger.info(
             f"Data loaded to {self.training_source_path} (is type {type(self.training_source_path)}, preparing dataset info.")
-        train_ann = AnnotationFileAndImagePath(self.training_source_path / "train" / "annotations.json",
-                                               self.training_source_path / "train" / "images")
-        test_ann = AnnotationFileAndImagePath(self.training_source_path / "test" / "annotations.json",
-                                              self.training_source_path / "test" / "images")
-        valid_ann = AnnotationFileAndImagePath(self.training_source_path / "validation" / "annotations.json",
-                                               self.training_source_path / "validation" / "images")
-        self.dataset_info = {
-            "train": train_ann,
-            "test": test_ann,
-            "validation": valid_ann
-        }
+        if self.split:
+            train_ann = AnnotationFileAndImagePath(self.training_source_path / "train" / "annotations.json",
+                                                   self.training_source_path / "train" / "images")
+            test_ann = AnnotationFileAndImagePath(self.training_source_path / "test" / "annotations.json",
+                                                  self.training_source_path / "test" / "images")
+            valid_ann = AnnotationFileAndImagePath(self.training_source_path / "validation" / "annotations.json",
+                                                   self.training_source_path / "validation" / "images")
+            self.dataset_info = {
+                "train": train_ann,
+                "test": test_ann,
+                "validation": valid_ann
+            }
+        else:
+            full_ann = AnnotationFileAndImagePath(self.training_source_path / "annotations.json",
+                                                   self.training_source_path / "images")
+            self.dataset_info = {
+                "full": full_ann
+            }
         logger.info(f"Loaded data to destination {self.training_source_path}")
 
     def _preprocess_impl(self):

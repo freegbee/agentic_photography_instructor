@@ -16,13 +16,13 @@ def main():
     # Daten & Umgebung
     dataset_id = "twenty_original_split_amd-win"
     dataset_id = "flickr2k_big_original_HQ_split_amd-win"
-    dataset_id = "div2k_valid_hr"
+    dataset_id = "lhq_landscapes_multi_one_step_actions_amd-win"
     image_size = (384, 384)
 
     data_params = HyperparameterRegistry.get_store(DataParams)
     data_params.set({"dataset_id": dataset_id, "image_max_size":image_size})
 
-    trainer = AnalysisTrainer(experiment_name=experiment_name, source_dataset_id=dataset_id, fiftyone_analysis_name='div2k_valid_hr_Dataset')
+    trainer = AnalysisTrainer(experiment_name=experiment_name, source_dataset_id=dataset_id, fiftyone_analysis_name='lhq_landscapes_multi_one_step_actions_Dataset', split=True)
     trainer.run_training(run_name)
 
 
