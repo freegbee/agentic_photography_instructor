@@ -153,7 +153,8 @@ class ScoreDifferenceStrategy(AbstractRewardStrategy):
         reward = new_score - current_score
 
         # Success Check
-        reward += self.calculate_success_bonus(initial_score, new_score, mdp_active)
+        if transformer_label == 'STOP':
+            reward += self.calculate_success_bonus(initial_score, new_score, mdp_active)
 
         return reward
 
@@ -176,10 +177,11 @@ class StepPenalizedStrategy(AbstractRewardStrategy):
                   mdp_active: bool = False) -> float:
         reward = new_score - current_score
 
-        reward += self.calculate_success_bonus(initial_score, new_score, mdp_active)
-
-        # Zeitstrafe
-        reward += self.step_penalty
+        if transformer_label == 'STOP':
+            reward += self.calculate_success_bonus(initial_score, new_score, mdp_active)
+        else:
+            # Zeitstrafe
+            reward += self.step_penalty
         return reward
 
 
@@ -206,6 +208,7 @@ class ClippedDifferenceStrategy(AbstractRewardStrategy):
         # Clipping des Deltas
         reward = max(self.min_clip, min(self.max_clip, delta))
 
-        reward += self.calculate_success_bonus(initial_score, new_score, mdp_active)
+        if transformer_label == 'STOP':
+            reward += self.calculate_success_bonus(initial_score, new_score, mdp_active)
 
         return reward

@@ -1,6 +1,8 @@
 import os
 import time
 
+from torch import nn
+
 from training.stable_baselines.rewards.reward_strategies import RewardStrategyEnum, SuccessBonusStrategyEnum
 from utils.LoggingUtils import configure_logging
 
@@ -45,7 +47,7 @@ def main():
     # Hier definieren wir die fachlichen Parameter des Experiments.
     # ========================================================================================
     experiment_name = "SB3_POC_IMAGE_OPTIMIZATION"
-    run_description = "Hhe4k, HQ, Optuna Optimized, Final Reward, fixed quadratic"
+    run_description = "Flickr2k, HQ, Optuna Optimized, really correct Step Penalized, slightly adjusted values"
 
     # Daten & Umgebung
     dataset_id = "flickr2k_big_original_HQ_split_amd-win"
@@ -53,15 +55,17 @@ def main():
     core_env = WellDefinedEnvironment.IMAGE_OPTIMIZATION
     transformer_labels = SENSIBLE_TRANSFORMERS
     max_transformations = 10
+    training_batch_size=64
 
     # Modell Konfiguration
-    model_variant = PpoModelVariant.PPO_RESNET18_UNFROZEN
+    model_variant = PpoModelVariant.PPO_WITHOUT_BACKBONE
     learning_rate = 5.6115164153345e-05
-    gamma=0.95
-    reward_strategy = RewardStrategyEnum.SCORE_DIFFERENCE
+    gamma=0.998
+    ent_coef=0.035  # 5.3e-05
+    reward_strategy = RewardStrategyEnum.STOP_ONLY_QUADRATIC
     success_bonus_strategy = SuccessBonusStrategyEnum.FIXED
-    success_bonus = 4.8495492608099715
-    step_penalty = -0.016755735919957826
+    success_bonus = 1.0
+    step_penalty = -0.002
 
     # ========================================================================================
     # 2. EXECUTION MODE (THE "HOW")
@@ -79,7 +83,7 @@ def main():
         store_models = False
     else:
         target_rollout_size = 4000  # Standard PPO Größe für stabiles Lernen
-        batch_size = 32
+        batch_size = training_batch_size
         total_training_steps = 300_000
         n_epochs = 7
         run_name_prefix = run_description
@@ -104,9 +108,10 @@ def main():
                                         batch_size=batch_size,
                                         n_epochs=n_epochs,
                                         learning_rate=learning_rate)
-                  .with_exploration_settings(ent_coef=5.3e-05, clip_range=0.228)
-                  .with_advantage_estimation(gamma=gamma, gae_lambda=0.95)
-                  .with_net_arch([256, 256])
+                  .with_exploration_settings(ent_coef=ent_coef, clip_range=0.228)
+                  .with_advantage_estimation(gamma=gamma, gae_lambda=0.965)
+                  .with_net_arch(dict(pi=[256, 256], vf=[512, 512]))
+                  .with_activation_fn(nn.ReLU)
                   .build())
     ppo_params.set(ppo_config)
 

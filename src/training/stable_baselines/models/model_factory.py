@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Union, Type, TypeVar, Generic, List, Dict, Optional
 
+import torch.nn as nn
 from stable_baselines3 import PPO
 from stable_baselines3.common.base_class import BaseAlgorithm
 from stable_baselines3.common.type_aliases import Schedule
@@ -28,6 +29,7 @@ class PpoModelFactory(AbstractModelFactory):
         n_epochs = params["n_epochs"]
         learning_rate = params["model_learning_schedule"]
         net_arch = params.get("net_arch", None)
+        activation_fn = params.get("activation_fn", nn.ReLU)
         
         # Optional parameters with SB3 defaults
         kwargs = {
@@ -36,6 +38,9 @@ class PpoModelFactory(AbstractModelFactory):
             "gamma": params.get("gamma", 0.99),
             "gae_lambda": params.get("gae_lambda", 0.95),
             "max_grad_norm": params.get("max_grad_norm", 0.5),
+            "policy_kwargs": {
+                "activation_fn": activation_fn
+            }
         }
 
         match params["ppo_model_variant"]:
@@ -65,7 +70,10 @@ class PpoModelFactory(AbstractModelFactory):
                                      net_arch: Optional[Union[List[int], Dict[str, List[int]]]] = None,
                                      **kwargs
                                      ) -> PPO:
-        policy_kwargs = {"normalize_images": False}
+        # policy_kwargs aus kwargs extrahieren oder neu erstellen
+        policy_kwargs = kwargs.pop("policy_kwargs", {})
+        policy_kwargs["normalize_images"] = False
+        
         if net_arch is not None:
             policy_kwargs["net_arch"] = net_arch
         return PPO("CnnPolicy",
@@ -89,7 +97,11 @@ class PpoModelFactory(AbstractModelFactory):
                              net_arch: Optional[Union[List[int], Dict[str, List[int]]]] = None,
                              **kwargs
                              ) -> PPO:
-        policy_kwargs = self._create_resnet_extractor(extractor_class, feature_dim, freeze_backbone)
+        # policy_kwargs aus kwargs extrahieren oder neu erstellen
+        policy_kwargs = kwargs.pop("policy_kwargs", {})
+        # ResNet Extractor Settings mergen
+        policy_kwargs.update(self._create_resnet_extractor(extractor_class, feature_dim, freeze_backbone))
+        
         if net_arch is not None:
             policy_kwargs["net_arch"] = net_arch
 

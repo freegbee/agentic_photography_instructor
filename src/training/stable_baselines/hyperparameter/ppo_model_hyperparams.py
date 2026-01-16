@@ -1,4 +1,5 @@
-from typing import TypedDict, Optional, List, Dict, Union
+from typing import TypedDict, Optional, List, Dict, Union, Type
+import torch.nn as nn
 
 from stable_baselines3.common.type_aliases import Schedule
 
@@ -50,3 +51,6 @@ class PpoModelParams(TypedDict):
 
     # Netzwerkarchitektur von PPO "hinter" dem backbone
     net_arch: Optional[Union[List[int], Dict[str, List[int]]]]
+
+    # Aktivierungsfunktion für die Hidden Layers (z.B. nn.ReLU, nn.Tanh)
+    activation_fn: Optional[Type[nn.Module]]

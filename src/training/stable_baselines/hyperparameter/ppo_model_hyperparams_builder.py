@@ -1,4 +1,5 @@
-from typing import Union
+from typing import Union, Type
+import torch.nn as nn
 
 from stable_baselines3.common.type_aliases import Schedule
 
@@ -68,6 +69,10 @@ class PpoModelParamsBuilder:
 
     def with_net_arch(self, net_arch: Union[list[int], dict[str, list[int]]]) -> "PpoModelParamsBuilder":
         self._params["net_arch"] = net_arch
+        return self
+
+    def with_activation_fn(self, activation_fn: Type[nn.Module]) -> "PpoModelParamsBuilder":
+        self._params["activation_fn"] = activation_fn
         return self
 
     def with_advantage_estimation(self, gamma: float, gae_lambda: float) -> "PpoModelParamsBuilder":
