@@ -1,0 +1,7 @@
+# Best Reward: 2.6368731450275615
+learning_rate: 4.059611610484306e-05
+gamma: 0.995
+reward_strategy: CLIPPED_DIFFERENCE
+success_bonus_strategy_step: SIGMOID
+success_bonus: 0.5924145688620425
+step_penalty: -0.09535495872800023

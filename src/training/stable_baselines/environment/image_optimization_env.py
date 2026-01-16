@@ -10,6 +10,7 @@ from data_types.AgenticImage import ImageData
 from juror_client import JurorClient
 from training.stable_baselines.environment.image_transform_env import ImageTransformEnv
 from training.stable_baselines.environment.samplers import CocoDatasetSampler
+from training.stable_baselines.rewards.reward_strategies import AbstractRewardStrategy
 from transformer.AbstractTransformer import AbstractTransformer
 
 logger = logging.getLogger(__name__)
@@ -24,7 +25,7 @@ class ImageOptimizationEnv(ImageTransformEnv):
                  transformers: List[AbstractTransformer],
                  coco_dataset_sampler: CocoDatasetSampler,
                  juror_client: JurorClient,
-                 success_bonus: float,
+                 reward_strategy: AbstractRewardStrategy,
                  image_max_size: Tuple[int, int],
                  max_transformations: int = 5,
                  max_action_param_dim: int = 1,
@@ -34,7 +35,7 @@ class ImageOptimizationEnv(ImageTransformEnv):
         super().__init__(transformers,
                          coco_dataset_sampler,
                          juror_client,
-                         success_bonus,
+                         reward_strategy,
                          image_max_size,
                          max_transformations,
                          max_action_param_dim,
@@ -44,6 +45,8 @@ class ImageOptimizationEnv(ImageTransformEnv):
 
         # weitere Initialisierung
         self.stop_bonus: float = 0.0        # Bonus, wenn Agent "STOP" findet
+        self.has_score_decreased = False
+        self.mdp_active = False
 
     def _calculate_action_space(self) -> Discrete[integer[Any] | Any]:
         return Discrete(len(self.transformers) + 1)  # Die Stop-Action kommt noch dazu
@@ -53,23 +56,47 @@ class ImageOptimizationEnv(ImageTransformEnv):
         self.current_image_id = image_data.id
         self.initial_score = image_data.initial_score  # hier ist der initial score unser startpunkt für die Optimierung
         self.current_score = image_data.initial_score  # und dies ist dann auch der aktuelle score
+        self.has_score_decreased = False
+        self.mdp_active = False
 
     def step(self, action) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
         action_val = int(action)
         previous_score = self.current_score
+        # Wir brauchen das Bild vor der Transformation, um Dimensionsänderungen zu prüfen
+        previous_image = self.current_image
 
         terminated = False
         truncated = False
+        transformer = None
+        dims_changed = False
 
         if self._is_stop_action(action_val):
-            reward = self._calculate_stop_reward(previous_score)
             terminated = True
             transformer_label = "STOP"
         else:
+            transformer = self.transformers[action_val]
             self.current_image, self.current_score = self._transform_and_score(self.current_image,
-                                                                               self.transformers[action_val])
-            reward = self._calculate_reward(previous_score, self.current_score)
-            transformer_label = self.transformers[action_val].label
+                                                                               transformer)
+            transformer_label = transformer.label
+            # Prüfen auf Dimensionsänderung (für Crop Stats)
+            dims_changed = (previous_image.shape[:2] != self.current_image.shape[:2])
+
+        # MDP (Markov Decision Process) Detection
+        # Check if score went down and then up again within the episode
+        if self.current_score < previous_score:
+            self.has_score_decreased = True
+        elif self.current_score > previous_score and self.has_score_decreased:
+            self.mdp_active = True
+
+        reward = self.reward_strategy.calculate(
+            transformer_label=transformer_label,
+            current_score=previous_score,
+            new_score=self.current_score,
+            initial_score=self.initial_score,
+            step_count=self.step_count,
+            max_steps=self.max_transformations,
+            mdp_active=self.mdp_active
+        )
 
         self.step_count += 1
         
@@ -77,15 +104,35 @@ class ImageOptimizationEnv(ImageTransformEnv):
         if self.step_count >= self.max_transformations and not terminated:
             truncated = True
 
+        # History recording (analog zu ImageTransformEnv)
+        score_delta = self.current_score - previous_score
+        
+        step_info = {
+            "step": self.step_count,
+            "label": transformer_label,
+            "score": self.current_score,
+            "reward": reward,
+            "action": action,
+            "transformer_type": transformer.transformer_type.name if transformer and hasattr(transformer, "transformer_type") else "UNKNOWN",
+            "dims_changed": dims_changed,
+            "score_delta": score_delta
+        }
+
+        self.step_history.append(step_info)
+
         info = {
             "score": self.current_score,
             "steps": self.step_count,
             "success": self.current_score > self.initial_score,
             "initial_score": self.initial_score,
-            "transformer_label": transformer_label
+            "action": action,
+            "transformer_label": transformer_label,
+            "step_history": self.step_history,
+            "mdp": self.mdp_active
         }
 
-        return self.current_image, reward if transformer_label == "STOP" else 0 , terminated, truncated, info
+        # Ob der reward "zwischendrin" oder nur bei "STOP" vergeben wird, entscheidet die reward strategy selber
+        return self.current_image, reward , terminated, truncated, info
 
     def _is_stop_action(self, action: int) -> bool:
         return action == len(self.transformers)  # letzte action ist die stop action

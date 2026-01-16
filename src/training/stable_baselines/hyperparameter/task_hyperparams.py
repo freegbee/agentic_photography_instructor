@@ -1,6 +1,7 @@
 from typing import TypedDict
 
 from training.stable_baselines.environment.welldefined_environments import WellDefinedEnvironment
+from training.stable_baselines.rewards.reward_strategies import RewardStrategyEnum, SuccessBonusStrategyEnum
 
 
 class TaskParams(TypedDict):
@@ -16,6 +17,15 @@ class TaskParams(TypedDict):
 
     # Bonus-Reward, der vergeben wird, wenn ein Zielzustand erreicht wird (falls definiert).
     success_bonus: float
+
+    # Strategie zur Berechnung des Success Bonus (z.B. Fixed oder Sigmoid)
+    success_bonus_strategy: SuccessBonusStrategyEnum
+
+    # Bestrafung für jeden einzelnen schritt
+    step_penalty: float
+
+    # Strategy zur Berechnung des Rewards
+    reward_strategy: RewardStrategyEnum
     
     # Multi-step wrapper parameters
 

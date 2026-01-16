@@ -234,3 +234,17 @@ image_acquisition:
       forest: "7"      # Files with _(7) suffix
       countryside: "8" # Files with _(8) suffix
       sunset: "9"      # Files with _(9) suffix
+  hhe_4k_source:
+    type: zip
+    source_url: "https://casml4se-artifacts.fra1.digitaloceanspaces.com/sources/hhe_4k.zip"
+    destination_dir: hh4_4k_source
+    archive_root: hhe_4k
+    target_hash: 0dab1012787fc9a5b745f146da4bae7bf7c14608065fef826d71a370479cba1f
+    description: "4000 private Bilder (4.6GB), max dimension 1080px, vornehmlich Landschaften und Städe, keine Menschen"
+  hhe_4k_HQ_split_amd-win:
+    type: zip
+    source_url: "https://casml4se-artifacts.fra1.digitaloceanspaces.com/manual/hhe_4k_HQ_split_amd-win.zip"
+    destination_dir: hhe_4k_HQ_split_amd-win
+    archive_root: hhe_4k_HQ_split_amd-win
+    target_hash: 3af86082e7bece8f544c0b6783feef6a629a1e01fa1e4978feb1a5c505cbd4b2
+    description: "Basis hhe_4k_source (4000 private Bilder (4.6GB), max dimension 1080px, gescored auf AMD/Windows"

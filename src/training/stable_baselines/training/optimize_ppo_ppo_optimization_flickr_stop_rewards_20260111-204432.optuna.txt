@@ -1,0 +1,7 @@
+# Best Reward: 12.222864143721942
+learning_rate: 5.6115164153345e-05
+gamma: 0.95
+reward_strategy: STOP_ONLY_QUADRATIC
+success_bonus_strategy_stop: FIXED
+success_bonus: 4.8495492608099715
+step_penalty: -0.016755735919957826

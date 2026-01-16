@@ -26,9 +26,15 @@ class TransformerUsageCallback(BaseCallback):
         # Evaluation Usage prüfen (falls Wrapper vorhanden und Daten bereitliegen)
         # Da der EvalCallback innerhalb eines Steps läuft, können wir hier prüfen, ob er fertig ist.
         if self.eval_env_wrapper:
-            usage = self.eval_env_wrapper.pop_usage()
-            if usage:
+            result = self.eval_env_wrapper.pop_usage()
+            if result:
+                usage, deltas = result
                 metrics = {f"eval_transformer_usage/{label}": count for label, count in usage.items()}
+                
+                for label, count in usage.items():
+                    if count > 0:
+                        metrics[f"eval_transformer_avg_score_delta/{label}"] = deltas[label] / count
+
                 metrics["eval_transformer_usage/total"] = sum(usage.values())
                 mlflow_helper.log_batch_metrics(metrics, step=self.num_timesteps)
                 logger.info(f"TransformerUsageCallback: Logged evaluation usage: {usage}")
@@ -47,6 +53,13 @@ class TransformerUsageCallback(BaseCallback):
                     if changed > 0:
                         mlflow_helper.log_metric("eval_crop/avg_score_delta_on_change", crop_stats['score_delta_sum'] / changed, step=self.num_timesteps)
 
+            # MDP Stats logging
+            if hasattr(self.eval_env_wrapper, "pop_mdp_stats"):
+                mdp_stats = self.eval_env_wrapper.pop_mdp_stats()
+                if mdp_stats["total"] > 0:
+                    mlflow_helper.log_metric("eval_mdp/count", mdp_stats["count"], step=self.num_timesteps)
+                    mlflow_helper.log_metric("eval_mdp/ratio", mdp_stats["count"] / mdp_stats["total"], step=self.num_timesteps)
+
             elif self.eval_env_wrapper.has_data: # Sollte nicht passieren wenn usage None ist, aber zur Sicherheit
                 logger.warning("TransformerUsageCallback: Eval wrapper has data flag but returned empty usage.")
         
@@ -59,9 +72,15 @@ class TransformerUsageCallback(BaseCallback):
         
         # Prüfen, ob die Methode existiert (falls SB3 intern weitere Wrapper hinzufügt, werden Attribute meist durchgereicht)
         if hasattr(env, "pop_usage"):
-            usage = env.pop_usage()
-            if usage:
+            result = env.pop_usage()
+            if result:
+                usage, deltas = result
                 metrics = {f"train_transformer_usage/{label}": count for label, count in usage.items()}
+                
+                for label, count in usage.items():
+                    if count > 0:
+                        metrics[f"train_transformer_avg_score_delta/{label}"] = deltas[label] / count
+
                 metrics["train_transformer_usage/total"] = sum(usage.values())
                 mlflow_helper.log_batch_metrics(metrics, step=self.num_timesteps)
                 logger.info(f"TransformerUsageCallback: Logged training usage: {usage}")
@@ -79,6 +98,13 @@ class TransformerUsageCallback(BaseCallback):
                     mlflow_helper.log_metric("train_crop/changed_ratio", changed / attempts, step=self.num_timesteps)
                     if changed > 0:
                         mlflow_helper.log_metric("train_crop/avg_score_delta_on_change", crop_stats['score_delta_sum'] / changed, step=self.num_timesteps)
+
+            # MDP Stats logging
+            if hasattr(env, "pop_mdp_stats"):
+                mdp_stats = env.pop_mdp_stats()
+                if mdp_stats["total"] > 0:
+                    mlflow_helper.log_metric("train_mdp/count", mdp_stats["count"], step=self.num_timesteps)
+                    mlflow_helper.log_metric("train_mdp/ratio", mdp_stats["count"] / mdp_stats["total"], step=self.num_timesteps)
 
             else:
                 logger.warning("TransformerUsageCallback: No usage data collected during rollout (usage is empty).")

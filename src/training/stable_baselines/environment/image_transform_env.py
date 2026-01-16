@@ -2,7 +2,6 @@ import logging
 from pathlib import Path
 from typing import SupportsFloat, Any, List, Tuple, Optional, Dict
 
-import cv2
 import gymnasium as gym
 import matplotlib.pyplot as plt
 import numpy as np
@@ -14,8 +13,8 @@ from numpy import integer, ndarray
 from data_types.AgenticImage import ImageData
 from juror_client import JurorClient
 from training.stable_baselines.environment.samplers import CocoDatasetSampler
+from training.stable_baselines.rewards.reward_strategies import AbstractRewardStrategy
 from transformer.AbstractTransformer import AbstractTransformer
-from transformer.TransformerTypes import TransformerTypeEnum
 from utils.ImageUtils import ImageUtils
 
 logger = logging.getLogger(__name__)
@@ -28,15 +27,13 @@ class ImageTransformEnv(gym.Env):
                  transformers: List[AbstractTransformer],
                  coco_dataset_sampler: CocoDatasetSampler,
                  juror_client: JurorClient,
-                 success_bonus: float,
+                 reward_strategy: AbstractRewardStrategy,
                  image_max_size: Tuple[int, int],
                  max_transformations: int = 5,
                  max_action_param_dim: int = 1,
                  seed: int = 42,
                  render_mode: str = "imshow",  # | "save"
-                 render_save_dir: Path = None,
-                 keep_image_history: bool = False,
-                 history_image_max_size: int = 150
+                 render_save_dir: Path = None
                  ):
         """
         Initialize the Image Transformation Environment.
@@ -50,12 +47,10 @@ class ImageTransformEnv(gym.Env):
         self.transformers = transformers
         self.coco_dataset_sampler = coco_dataset_sampler
         self.juror_client = juror_client
-        self.success_bonus = success_bonus
+        self.reward_strategy = reward_strategy
         self.image_max_size = image_max_size
         self.max_transformations = max_transformations
         self.max_action_param_dim = max_action_param_dim
-        self.keep_image_history = keep_image_history
-        self.history_image_max_size = history_image_max_size
 
         # Observation: normalisierte Float32-Bilder
         # h, w = image_max_size
@@ -195,21 +190,22 @@ class ImageTransformEnv(gym.Env):
         
         score_delta = new_score - self.current_score
 
-        # Berechne die Belohnung als Differenz der Punktzahlen
-        reward = new_score - self.current_score
-
-        # optional: Penalty für große params oder jeden Schritt
-        # param_penalty = 0.01 * float(np.linalg.norm(params))
-        # step_penalty = -0.001
-        # reward = reward - param_penalty + step_penalty
-
-        # Erfolg prüfen und Bonus vergeben
+        # Erfolg prüfen (wird für Info benötigt, Reward-Berechnung übernimmt die Strategy)
         success = (new_score >= self.initial_score) if (self.initial_score is not None) else False
         if not success and abs(new_score - self.initial_score) < 0.25:
             logger.warning(
                 f"Suspiciously small score change for image id {self.current_image_id}: initial={self.initial_score}, new={new_score}")
-        if success:
-            reward += self.success_bonus
+
+        # Strategie-basierte Reward Berechnung
+        reward = self.reward_strategy.calculate(
+            transformer_label=transformer.label,
+            current_score=self.current_score,
+            new_score=new_score,
+            initial_score=self.initial_score,
+            step_count=self.step_count,
+            max_steps=self.max_transformations,
+            mdp_active=False
+        )
 
         # Aktualisiere den Zustand (bild ist wieder normalisiert im Bereich [0,1])
         # self.current_image = self._preprocess(transformed_img)
@@ -227,7 +223,6 @@ class ImageTransformEnv(gym.Env):
         step_info = {
             "step": self.step_count,
             "label": transformer.label,
-            "transformer_label": transformer.label,
             "score": new_score,
             "reward": reward,
             "action": action,
@@ -235,17 +230,6 @@ class ImageTransformEnv(gym.Env):
             "dims_changed": dims_changed,
             "score_delta": score_delta
         }
-
-        if self.keep_image_history:
-            # Resize image for history to save RAM
-            h, w = self.current_image.shape[:2]
-            scale = min(self.history_image_max_size / h, self.history_image_max_size / w)
-            if scale < 1.0:
-                new_w, new_h = int(w * scale), int(h * scale)
-                img_small = cv2.resize(self.current_image, (new_w, new_h), interpolation=cv2.INTER_AREA)
-                step_info["image"] = img_small
-            else:
-                step_info["image"] = self.current_image.copy()
 
         self.step_history.append(step_info)
 

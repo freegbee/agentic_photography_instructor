@@ -1,5 +1,6 @@
 from training.stable_baselines.environment.welldefined_environments import WellDefinedEnvironment
 from training.stable_baselines.hyperparameter.task_hyperparams import TaskParams
+from training.stable_baselines.rewards.reward_strategies import RewardStrategyEnum, SuccessBonusStrategyEnum
 
 
 class TaskParamsBuilder:
@@ -9,15 +10,21 @@ class TaskParamsBuilder:
             "transformer_labels": transformer_labels,
             "max_transformations": max_transformations,
             # Defaults
-            "success_bonus": 1.0,
+            "success_bonus": 0.0,
+            "success_bonus_strategy": SuccessBonusStrategyEnum.FIXED, # default,
+            "step_penalty": -0.01,
+            "reward_strategy": RewardStrategyEnum.STOP_ONLY_QUADRATIC,
             "use_multi_step_wrapper": False,
             "steps_per_episode": 1,
             "multi_step_intermediate_reward": False,
             "multi_step_reward_shaping": False
         }
 
-    def with_rewards(self, success_bonus: float) -> "TaskParamsBuilder":
+    def with_rewards(self, strategy: RewardStrategyEnum, success_bonus_strategy: SuccessBonusStrategyEnum, success_bonus: float, step_penalty: float):
+        self._params["reward_strategy"] = strategy
+        self._params["success_bonus_strategy"] = success_bonus_strategy
         self._params["success_bonus"] = success_bonus
+        self._params["step_penalty"] = step_penalty
         return self
 
     def with_multi_step_logic(self,
