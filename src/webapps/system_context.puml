@@ -1,0 +1,29 @@
+@startuml
+actor User
+
+package "Web Tools" {
+    [Annotations Browser (FastAPI)] as Browser
+    [Optuna Dashboard] as OptunaDash
+    [FiftyOne App] as FiftyOne
+}
+
+database "File System" {
+    [Images]
+    [COCO Annotations (.json)]
+}
+
+database "Databases" {
+    [MLflow Tracking DB]
+    [Optuna SQLite DB]
+}
+
+User --> Browser : Inspect Datasets
+Browser --> [COCO Annotations (.json)] : Reads
+Browser --> [Images] : Serves
+
+User --> OptunaDash : Analyze Hyperparameters
+OptunaDash --> [Optuna SQLite DB] : Reads
+
+User --> FiftyOne : Deep Data Analysis
+FiftyOne --> [Images] : Reads
+@enduml

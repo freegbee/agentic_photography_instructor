@@ -1,0 +1,29 @@
+@startuml
+start
+:Raw Images;
+
+partition "Preprocessing Pipeline" {
+    :Copy & Resize;
+    note right: Standardisierung auf 384x384
+
+    :Annotation File Creator;
+    note right: Initiale COCO Struktur
+
+    :Score Preprocessor;
+    note right: Juror bewertet Originalbilder
+
+
+    :Degrade & Split Preprocessor;
+    split
+        :Apply Degradations;
+        note right: Zufällige Verschlechterung\n(Noise, Blur, etc.)
+    split again
+        :Train/Test/Val Split;
+    end split
+    
+    :Save Images & Annotations;
+}
+
+:Ready-to-use Dataset;
+stop
+@enduml
