@@ -1,0 +1,34 @@
+@startuml
+skinparam componentStyle uml2
+skinparam packageStyle rectangle
+
+package "Training Loop" {
+    [Stable Baselines Agent] as Agent
+    [Vector Environment] as VecEnv
+}
+
+package "Environment Process (CPU)" {
+    [ImageTransformEnv] as Env
+    [Transformers (Tools)] as Tools
+}
+
+package "Evaluation / Scoring (GPU)" {
+    [Juror Worker Pool] as JurorPool
+    [Aesthetic Model (SigLIP)] as Model
+}
+
+database "MLflow / Logs" as Logs
+
+Agent --> VecEnv : Action (z.B. "Increase Contrast")
+VecEnv --> Env : Step
+Env --> Tools : Apply Transformation
+Tools --> Env : Modified Image
+Env --> JurorPool : Request Score (Shared Memory)
+JurorPool --> Model : Inference
+Model --> JurorPool : Score
+JurorPool --> Env : Reward Calculation
+Env --> VecEnv : Observation (Image) + Reward
+VecEnv --> Agent : Feedback
+
+Agent ..> Logs : Log Metrics & Artifacts
+@enduml

@@ -10,11 +10,11 @@ from sqlalchemy import create_engine, text
 # Konfiguration
 # HIER BITTE DEINEN CONNECTION STRING EINFÜGEN
 DB_CONNECTION_STR = os.getenv('MLFLOW_BACKEND_STORE_URI')
-RUN_UUID = '0a0deea790034af3bb521bbc61dbbcbe'
+RUN_UUID = 'eefeb7e047784d5e9584276505d2f12c'
 OUTPUT_FILENAME = 'transformer_usage_heatmap.png'
 TRANSFORMER_PREFIX = 'train_transformer_usage/'
-TITLE="Haupttraining 3 - Training"
-ROLLOUT_BATCH_STEPS=4032
+TITLE="Haupttraining 1 - Training"
+ROLLOUT_BATCH_STEPS=4000
 
 def create_heatmap():
     # 1. Datenbankverbindung herstellen
@@ -157,7 +157,7 @@ def create_combined_heatmap():
     ax.set_yticklabels(transformers, rotation=0)
     ax.set_ylabel('Transformer')
     ax.set_xlabel(f'Rollout Batch (Steps / {ROLLOUT_BATCH_STEPS})')
-    plt.title(f'{TITLE} - Kombinierter Transformernutzung (oben: Training, unten: Validierung)')
+    plt.title(f'{TITLE} - Kombinierter Transformernutzung (blau: Training, orange: Validierung)')
 
     # Trennlinien zwischen den Transformern (alle 2 Zeilen)
     for i in range(2, len(transformers) * 2, 2):
